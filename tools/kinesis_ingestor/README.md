@@ -1,0 +1,44 @@
+## Sample Continuous Data Ingestor Python application for AWS SDK V2
+
+A script to generate a continuous stream of records that are ingested into Timestream. This script mimics a DevOps scenario where an application is emitting different types of events at a regular cadence. The script continuously generates data until the execution is interrupted with a SIGINT (or `CTRL + C`).
+
+--- 
+## Dependencies
+- Boto3
+- numpy (Tested with version 1.18.5)
+- Python3 (Tested with version 3.5.2)
+
+----
+## How to use it
+
+1. Install and configure Boto3 set up following the instructions at https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
+
+2. Install numpy 
+```
+pip3 install numpy
+```
+
+3. Get the sample apps from https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps. Change directory:
+```
+ cd tools/continuous_data_ingestor
+```  
+
+4. Run the following command to continuously generate and ingest sample data into Timestream. 
+   
+    ```    
+    python3 timestream_kinesis_data_gen.py --stream <name of the kinesis stream> --region <Specify the region of the Kinesis Stream.> 
+    ```
+    
+    - The ingestion can be stopped with a SIGINT signal (typically, `Ctrl + C` on most systems).
+    - Use `--help` argument to see more options available in the Sample Continuous Data Ingestor Python Application.
+     E.g. ```python3 timestream_kinesis_data_gen.py --help```
+    
+### Examples
+
+```
+python3 timestream_kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1
+```
+
+
+
+
