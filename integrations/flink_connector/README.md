@@ -2,7 +2,7 @@
 
 # TimestreamCustomerSampleJavaFlinkAdapter
 
-Sample Java Flink Adapter for AWS Timestream
+Sample application that reads data from Flink and writes to Amazon Timestream
 
 ----
 ## How to test it
