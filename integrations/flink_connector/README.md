@@ -14,34 +14,29 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
    mvn -version
    ```
    
-2. The latest version of Apache Flink that Kinesis Data Analytics supports is **1.8.2**. To download and install Apache Flink version 1.8.2 you can follow these steps:
+1. The latest version of Apache Flink that Kinesis Data Analytics supports is **1.8.2**. To download and install Apache Flink version 1.8.2 you can follow these steps:
 
    a. Download the Apache Flink version 1.8.2 source code:
    ```
    wget https://archive.apache.org/dist/flink/flink-1.8.2/flink-1.8.2-src.tgz
    ```
    
-   b. Uncompress the Apache Flink source code:
+   a. Uncompress the Apache Flink source code:
    ```
    tar -xvf flink-1.8.2-src.tgz
    ```
    
-   c. Change to the Apache Flink source code directory:
+   a. Change to the Apache Flink source code directory:
    ```
    cd flink-1.8.2
    ```
    
-   d. Compile and install Apache Flink:
+   a. Compile and install Apache Flink:
    ```
    mvn clean install -Pinclude-kinesis -DskipTests
    ```    
 
-3. Export path to workspace
-    ```shell
-    export PATH_TO_WORKSPACE=<path to workspace>
-    ```
-
-6. Compile and run the sample app.
+1. Compile and run the sample app.
    ```shell
    mvn clean compile
    mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata2"
