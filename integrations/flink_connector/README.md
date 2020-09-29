@@ -17,28 +17,28 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
 1. The latest version of Apache Flink that Kinesis Data Analytics supports is **1.8.2**. To download and install Apache Flink version 1.8.2 you can follow these steps:
 
    1. Download the Apache Flink version 1.8.2 source code:
-   ```
-   wget https://archive.apache.org/dist/flink/flink-1.8.2/flink-1.8.2-src.tgz
-   ```
+      ```
+      wget https://archive.apache.org/dist/flink/flink-1.8.2/flink-1.8.2-src.tgz
+      ```
    
    1. Uncompress the Apache Flink source code:
-   ```
-   tar -xvf flink-1.8.2-src.tgz
-   ```
+      ```
+      tar -xvf flink-1.8.2-src.tgz
+      ```
    
    1. Change to the Apache Flink source code directory:
-   ```
-   cd flink-1.8.2
-   ```
+      ```
+      cd flink-1.8.2
+      ```
    
    1. Compile and install Apache Flink:
-   ```
-   mvn clean install -Pinclude-kinesis -DskipTests
-   ```    
+      ```
+      mvn clean install -Pinclude-kinesis -DskipTests
+      ```    
    1. Go back to the sample app folder
-   ```
-   cd ..
-   ```
+      ```
+      cd ..
+      ```
 1. Create an Amazon Kinesis Data Stream with the name "TimestreamTestStream". You can use the below AWS CLI command:
    ```
    aws kinesis create-stream --stream-name TimestreamTestStream --shard-count 1
@@ -57,8 +57,12 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
    mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata1 --TimestreamIngestBatchSize 75"
    ```    
 
+## For pumping data into the Amazon Kinesis Data Stream
+You can follow the instructions on https://github.com/awslabs/amazon-timestream-tools/tree/master/tools/kinesis_ingestor
+
 ## For deploying the sample application to Kinesis Data Analytics for Apache Flink
 
 This sample application is part of the setup for transfering your time series data from Amazon Kinesis, Amazon MSK, Apache Kafka, and other streaming technologies directly into Amazon Timestream.
 
 For the full set of instructions: https://docs.aws.amazon.com/timestream/latest/developerguide/ApacheFlink.html
+
