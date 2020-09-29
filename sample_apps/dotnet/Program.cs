@@ -62,7 +62,7 @@ namespace TimestreamDotNetSample
             await crudAndSimpleIngestionExample.DescribeDatabase();
             await crudAndSimpleIngestionExample.ListDatabases();
             if (kmsKeyId != null) {
-                await crudAndSimpleIngestionExample.UpdateDatabase("TestFakeKey");
+                await crudAndSimpleIngestionExample.UpdateDatabase(kmsKeyId);
             }
 
             await crudAndSimpleIngestionExample.CreateTable();
