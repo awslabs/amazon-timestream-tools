@@ -54,7 +54,7 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
    By default this sample app batches Timestream ingest records in batch of 50. This can be adjusted using `--TimestreamIngestBatchSize` option.
    ```shell
    mvn clean compile
-   mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata2 --TimestreamIngestBatchSize 75"
+   mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata1 --TimestreamIngestBatchSize 75"
    ```    
 
 ## For deploying the sample application to Kinesis Data Analytics for Apache Flink
