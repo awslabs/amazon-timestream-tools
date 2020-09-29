@@ -1,5 +1,6 @@
 1. To run the sample application. This will create a Timestream database called devops with a table named host_metrics and inserts 4 records in the table.
     ```
+    go mod init go_sample
     go run crud-ingestion-sample.go
     ```
 1. To run with sample application and ingest data from sample csv data file, you can use the following command:
