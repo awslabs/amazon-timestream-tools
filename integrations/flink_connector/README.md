@@ -41,19 +41,6 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
     export PATH_TO_WORKSPACE=<path to workspace>
     ```
 
-4. Download and copy Timestream Java SDKs into a folder of your choice and export this path into TIMESTREAM_JAVA_SDK_PATH environment variable.
-   ```
-   export TIMESTREAM_JAVA_SDK_PATH=<path to folder containing java_sdk>/java_sdk
-   ```
-
-5. Install Timestream jar to maven 
-   ```shell
-   mvn install:install-file -Dfile=${TIMESTREAM_JAVA_SDK_PATH}/aws-sdk-java-timestreamwrite-1.11.805-SNAPSHOT.jar -DgroupId=com.amazonaws -DartifactId=timestreamwrite -Dversion=1.11.805-SNAPSHOT -Dpackaging=jar
-   ```
-   NOTE: You might need to change the version of SDK jar in this command based on the version of SDK jar you are using.
-
-5. Go the `TimestreamCustomerSampleJavaFlinkAdapter` sample app workspace directory
-
 6. Compile and run the sample app.
    ```shell
    mvn clean compile
@@ -66,3 +53,9 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
    mvn clean compile
    mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata2 --TimestreamIngestBatchSize 75"
    ```    
+
+## For deploying the sample application to Kinesis Data Analytics for Apache Flink
+
+This sample application is part of the setup for transfering your time series data from Amazon Kinesis, Amazon MSK, Apache Kafka, and other streaming technologies directly into Amazon Timestream.
+
+For the full set of instructions: https://docs.aws.amazon.com/timestream/latest/developerguide/ApacheFlink.html
