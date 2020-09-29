@@ -18,12 +18,14 @@ A script to generate a continuous stream of records that are ingested into Times
 pip3 install numpy
 ```
 
-3. Get the sample apps from https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps. Change directory:
+3. If not already done, clone the GitHub repository for the [amazon timestream tools](https://github.com/awslabs/amazon-timestream-tools) following the instructions from [GitHub](https://docs.github.com/en/free-pro-team@latest/github/creating-cloning-and-archiving-repositories/cloning-a-repository). 
+
+4. Change current directory to `tools/continuous_data_ingestor`:
 ```
  cd tools/continuous_data_ingestor
 ```  
 
-4. Run the following command to continuously generate and ingest sample data into Timestream. 
+5. Run the following command to continuously generate and ingest sample data into Timestream. 
    
     ```    
     python3 timestream_sample_continuous_data_ingestor_application.py --database-name <db_name> --table-name <table_name> --endpoint <endpoint e.g. 'us-east-1'>
@@ -41,7 +43,7 @@ Starts a single-threaded ingest process the continues until SIGINT signal (CTRL 
 python3 timestream_sample_continuous_data_ingestor_application.py -c 1 --host-scale 1 -d testDb -t testTable -e 'us-east-1'
 ```
 
-####Concurrent ingest
+#### Concurrent ingest
 
 Starts a multi-threaded ingest process the continues until SIGINT signal (CTRL + C) is received. The number of threads is controlled by the option -c or --concurrency.
 ```
