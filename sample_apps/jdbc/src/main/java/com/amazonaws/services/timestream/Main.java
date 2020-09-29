@@ -18,9 +18,6 @@ public class Main {
         // Query samples using the JDBC driver.
         queryExample.runAllQueriesWithTimestreamConnection();
 
-        // Query samples using a pooled connection created by the driver.
-        queryExample.runAllQueriesWithPooledConnection();
-
         System.exit(0);
     }
 
