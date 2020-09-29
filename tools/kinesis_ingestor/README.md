@@ -1,4 +1,4 @@
-## Sample Continuous Data Ingestor Python application for AWS SDK V2
+## Sample Continuous Data Ingestor Python application
 
 A script to generate a continuous stream of records that are ingested into Timestream. This script mimics a DevOps scenario where an application is emitting different types of events at a regular cadence. The script continuously generates data until the execution is interrupted with a SIGINT (or `CTRL + C`).
 
@@ -26,11 +26,6 @@ python3 -m venv venv
 	```
 	pip3 install numpy
 	```
-
-1. Get the sample apps from https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps. Change directory:
-	```
-	 cd tools/continuous_data_ingestor
-	```  
 
 1. Run the following command to continuously generate and ingest sample data into Timestream. 
    
