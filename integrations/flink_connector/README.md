@@ -35,6 +35,14 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
    ```
    mvn clean install -Pinclude-kinesis -DskipTests
    ```    
+   a. Go back to the sample app folder
+   ```
+   cd ..
+   ```
+1. Create an Amazon Kinesis Data Stream with the name "TimestreamTestStream". You can use the below AWS CLI command:
+   ```
+   aws kinesis create-stream --stream-name TimestreamTestStream --shard-count 1
+   ```
 
 1. Compile and run the sample app.
    ```shell
