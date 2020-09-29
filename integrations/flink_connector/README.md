@@ -57,7 +57,7 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
    mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata1 --TimestreamIngestBatchSize 75"
    ```    
 
-## For publishing data into the Amazon Kinesis Data Stream
+## For sending data into the Amazon Kinesis Data Stream
 You can follow the instructions on https://github.com/awslabs/amazon-timestream-tools/tree/master/tools/kinesis_ingestor
 
 ## For deploying the sample application to Kinesis Data Analytics for Apache Flink
