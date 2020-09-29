@@ -39,7 +39,7 @@
         <dependency>
           <groupId>software.amazon.timestream</groupId>
           <artifactId>amazon-timestream-jdbc</artifactId>
-          <version>1.2.0</version>
+          <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>

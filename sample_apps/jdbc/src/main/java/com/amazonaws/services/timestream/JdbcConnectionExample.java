@@ -78,6 +78,7 @@ public class JdbcConnectionExample {
     prop.setProperty("SocketTimeout", "20000");
     prop.setProperty("MaxRetryCount", "10");
     prop.setProperty("MaxConnections", "3");
+    prop.setProperty("Region", REGION);
     return DriverManager.getConnection(URL, prop);
   }
 
