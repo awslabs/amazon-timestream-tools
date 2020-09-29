@@ -1,4 +1,4 @@
-## Sample Continuous Data Ingestor Python application
+## Sample Amazon Kinesis Data Stream Data Ingestor Python application
 
 A script to generate a continuous stream of records that are ingested into Timestream. This script mimics a DevOps scenario where an application is emitting different types of events at a regular cadence. The script continuously generates data until the execution is interrupted with a SIGINT (or `CTRL + C`).
 
