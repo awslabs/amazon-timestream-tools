@@ -16,26 +16,26 @@ Java 1.8 is the recommended version for using Kinesis Data Analytics for Apache 
    
 1. The latest version of Apache Flink that Kinesis Data Analytics supports is **1.8.2**. To download and install Apache Flink version 1.8.2 you can follow these steps:
 
-   a. Download the Apache Flink version 1.8.2 source code:
+   1. Download the Apache Flink version 1.8.2 source code:
    ```
    wget https://archive.apache.org/dist/flink/flink-1.8.2/flink-1.8.2-src.tgz
    ```
    
-   a. Uncompress the Apache Flink source code:
+   1. Uncompress the Apache Flink source code:
    ```
    tar -xvf flink-1.8.2-src.tgz
    ```
    
-   a. Change to the Apache Flink source code directory:
+   1. Change to the Apache Flink source code directory:
    ```
    cd flink-1.8.2
    ```
    
-   a. Compile and install Apache Flink:
+   1. Compile and install Apache Flink:
    ```
    mvn clean install -Pinclude-kinesis -DskipTests
    ```    
-   a. Go back to the sample app folder
+   1. Go back to the sample app folder
    ```
    cd ..
    ```
