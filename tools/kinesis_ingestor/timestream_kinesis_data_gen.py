@@ -1,8 +1,3 @@
-# This sample application is part of the Timestream prerelease documentation. 
-# The prerelease documentation is confidential and is provided under the terms
-# of your nondisclosure agreement with Amazon Web Services (AWS) or other 
-# agreement governing your receipt of AWS confidential information.
-
 import argparse
 import json
 import random
