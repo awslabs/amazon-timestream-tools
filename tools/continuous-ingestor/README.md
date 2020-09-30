@@ -36,7 +36,7 @@ Starts a single-threaded ingest process the continues until SIGINT signal (CTRL 
 python3 timestream_sample_continuous_data_ingestor_application.py -c 1 --host-scale 1 -d testDb -t testTable -e 'us-east-1'
 ```
 
-####Concurrent ingest
+#### Concurrent ingest
 
 Starts a multi-threaded ingest process the continues until SIGINT signal (CTRL + C) is received. The number of threads is controlled by the option -c or --concurrency.
 ```
