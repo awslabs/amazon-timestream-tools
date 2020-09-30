@@ -110,7 +110,6 @@ public class TimestreamSink extends RichSinkFunction<TimestreamPoint> implements
         if (bufferedRecords.size() == batchSize) {
             LOG.debug("Batch of size " + bufferedRecords.size() + " should get published");
             return true;
-            // TODO: Use a processing time timer (from Flink) to flush instead of system time
         } else if(System.currentTimeMillis() - emptyListTimetamp >= RECORDS_FLUSH_INTERVAL_MILLISECONDS) {
             LOG.debug("Records after flush interval should get published");
             return true;

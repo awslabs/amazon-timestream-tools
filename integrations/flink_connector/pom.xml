@@ -88,13 +88,7 @@ under the License.
 
         <dependency>
             <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk-core</artifactId>
-            <version>1.11.804</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>timestreamwrite</artifactId>
-            <version>1.11.805-SNAPSHOT</version>
+            <artifactId>aws-java-sdk-timestreamwrite</artifactId>
         </dependency>
 
         <!-- Add logging framework, to produce console output when running in the IDE. -->
