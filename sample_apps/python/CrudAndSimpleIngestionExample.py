@@ -1,7 +1,6 @@
-#!/usr/bin/python
-
 import Constant
 import time
+
 
 class CrudAndSimpleIngestionExample:
     def __init__(self, client):
@@ -27,11 +26,12 @@ class CrudAndSimpleIngestionExample:
         except Exception as err:
             print("Describe database failed:", err)
 
-    def update_database(self, kmsId):
+    def update_database(self, kms_id):
         print("Updating database")
         try:
-            result = self.client.update_database(DatabaseName=Constant.DATABASE_NAME, KmsKeyId = kmsId)
-            print("Database [%s] was updated to use kms [%s] successfully" % (Constant.DATABASE_NAME, result['Database']['KmsKeyId']))
+            result = self.client.update_database(DatabaseName=Constant.DATABASE_NAME, KmsKeyId=kms_id)
+            print("Database [%s] was updated to use kms [%s] successfully" % (Constant.DATABASE_NAME,
+                                                                              result['Database']['KmsKeyId']))
         except self.client.exceptions.ResourceNotFoundException:
             print("Database doesn't exist")
         except Exception as err:
@@ -41,18 +41,14 @@ class CrudAndSimpleIngestionExample:
         print("Listing databases")
         try:
             result = self.client.list_databases(MaxResults=5)
-            self.__print_databases(result['Databases'])
+            self._print_databases(result['Databases'])
             next_token = result.get('NextToken', None)
             while next_token:
                 result = self.client.list_databases(NextToken=next_token, MaxResults=5)
-                self.__print_databases(result['Databases'])
+                self._print_databases(result['Databases'])
                 next_token = result.get('NextToken', None)
         except Exception as err:
             print("List databases failed:", err)
-
-    def __print_databases(self, databases):
-        for database in databases:
-            print(database['DatabaseName'])
 
     def create_table(self):
         print("Creating table")
@@ -100,19 +96,16 @@ class CrudAndSimpleIngestionExample:
             self.__print_tables(result['Tables'])
             next_token = result.get('NextToken', None)
             while next_token:
-                result = self.client.list_tables(DatabaseName=Constant.DATABASE_NAME, NextToken=next_token, MaxResults=5)
+                result = self.client.list_tables(DatabaseName=Constant.DATABASE_NAME,
+                                                 NextToken=next_token, MaxResults=5)
                 self.__print_tables(result['Tables'])
                 next_token = result.get('NextToken', None)
         except Exception as err:
             print("List tables failed:", err)
 
-    def __print_tables(self, tables):
-        for table in tables:
-            print(table['TableName'])
-
     def write_records(self):
         print("Writing records")
-        current_time = self.__current_milli_time()
+        current_time = self._current_milli_time()
 
         dimensions = [
             {'Name': 'region', 'Value': 'us-east-1'},
@@ -147,7 +140,7 @@ class CrudAndSimpleIngestionExample:
 
     def write_records_with_common_attributes(self):
         print("Writing records extracting common attributes")
-        current_time = self.__current_milli_time()
+        current_time = self._current_milli_time()
 
         dimensions = [
             {'Name': 'region', 'Value': 'us-east-1'},
@@ -180,9 +173,6 @@ class CrudAndSimpleIngestionExample:
         except Exception as err:
             print("Error:", err)
 
-    def __current_milli_time(self):
-        return str(int(round(time.time() * 1000)))
-
     def delete_table(self):
         print("Deleting Table")
         try:
@@ -202,3 +192,17 @@ class CrudAndSimpleIngestionExample:
             print("database [%s] doesn't exist" % Constant.DATABASE_NAME)
         except Exception as err:
             print("Delete database failed:", err)
+
+    @staticmethod
+    def _current_milli_time():
+        return str(int(round(time.time() * 1000)))
+
+    @staticmethod
+    def __print_tables(tables):
+        for table in tables:
+            print(table['TableName'])
+
+    @staticmethod
+    def _print_databases(databases):
+        for database in databases:
+            print(database['DatabaseName'])
