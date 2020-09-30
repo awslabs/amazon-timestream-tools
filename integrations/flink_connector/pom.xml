@@ -43,7 +43,7 @@ under the License.
             <dependency>
                 <groupId>com.amazonaws</groupId>
                 <artifactId>aws-java-sdk-bom</artifactId>
-                <version>1.11.804</version>
+                <version>1.11.872</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -97,12 +97,6 @@ under the License.
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.7</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
