@@ -1,4 +1,4 @@
-# Publishing data with AWS IoT Core
+# Timestream - Ingest data via an AWS IoT topic rule
 
 You can ingest time series data from your IoT devices connected to AWS IoT Core into Amazon Timestream. This repository contains everything needed to setup and test data ingestion via an AWS IoT topic rule into Amazon Timestream:
 
@@ -66,9 +66,9 @@ When your stack has been created you can continue with creating the IoT rule.
 
 
 ### IoT rule
-Create a topic rule with the awscli. The Timestream action for the topic rule is currently (September 2020) not supported by CloudFormation. Therefor you will use the aws cli.
+Create a topic rule with the awscli. The Timestream action for the topic rule is currently (September 2020) not supported by CloudFormation. Therefor you will use the awscli. **Note** You must use an awscli version which supports the timestream action for an iot rule. You can verify support for the timestream action by calling `aws iot create-topic-rule help` and searching for timestream.
 
-* In **to-timestream-rule-template.json** replace `REPLACE_WITH_YOUR_ROLE_ARN`, `REPLACE_WITH_YOUR_DB_NAME`, `REPLACE_WITH_YOUR_TABLE_NAME` with the values that you find in the outputs section of your CloudFormation stack
+* In **to-timestream-rule-template.json** replace `REPLACE_WITH_YOUR_ROLE_ARN`, `REPLACE_WITH_YOUR_DB_NAME`, `REPLACE_WITH_YOUR_TABLE_NAME` with the values that you find in the outputs section of your CloudFormation stack. **Note** The output of the table name has the format `DATABASE_NAME|TABLE_NAME`. Copy only the table name right from the `|` sign.
 * Create the topic rule
 
 		aws iot create-topic-rule \
