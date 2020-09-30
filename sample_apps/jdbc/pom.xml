@@ -19,7 +19,7 @@
             <dependency>
                 <groupId>com.amazonaws</groupId>
                 <artifactId>aws-java-sdk-bom</artifactId>
-                <version>1.11.804</version>
+                <version>1.11.870</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -51,8 +51,8 @@
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>
-            <artifactId>timestreamquery</artifactId>
-            <version>1.11.805-SNAPSHOT</version>
+            <artifactId>aws-java-sdk-timestreamquery</artifactId>
+            <version>1.11.872</version>
         </dependency>
         <dependency>
             <groupId>args4j</groupId>
