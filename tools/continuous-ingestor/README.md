@@ -13,17 +13,12 @@ A script to generate a continuous stream of records that are ingested into Times
 
 1. Install and configure Boto3 set up following the instructions at https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
 
-2. Install numpy 
-```
-pip3 install numpy
-```
+1. Install numpy 
+	```
+	pip3 install numpy
+	```
 
-3. Get the sample apps from https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps. Change directory:
-```
- cd tools/continuous_data_ingestor
-```  
-
-4. Run the following command to continuously generate and ingest sample data into Timestream. 
+1. Run the following command to continuously generate and ingest sample data into Timestream. 
    
     ```    
     python3 timestream_sample_continuous_data_ingestor_application.py --database-name <db_name> --table-name <table_name> --endpoint <endpoint e.g. 'us-east-1'>
