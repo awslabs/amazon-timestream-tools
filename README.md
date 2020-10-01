@@ -12,7 +12,7 @@
 Amazon Timestream also integrates with commonly used services for data collection, visualization, and machine learning. 
 You can send data to Amazon Timestream using AWS IoT Core, Amazon Kinesis, Amazon MSK, and open source Telegraf. 
 You can visualize data using Amazon QuickSight, Grafana, and business intelligence tools through JDBC. You can also use
-Amazon SageMaker with Amazon Timestream for machine learning. For more information on how to use Amazon Timestream see the [AWS documenation](https://docs.aws.amazon.com/timestream/latest/developerguide.html).
+Amazon SageMaker with Amazon Timestream for machine learning. For more information on how to use Amazon Timestream see the [AWS documentation](https://docs.aws.amazon.com/timestream/latest/developerguide/index.html).
 
 This repository contains sample applications, plugins, notebooks, data connectors, and adapters to help you get 
 started with Amazon Timestream and to enable you to use Amazon Timestream with other tools and services. 
