@@ -66,7 +66,7 @@ When your stack has been created you can continue with creating the IoT rule.
 
 
 ### IoT rule
-Create a topic rule with the awscli. The Timestream action for the topic rule is currently (September 2020) not supported by CloudFormation. Therefor you will use the awscli. **Note** You must use an awscli version which supports the timestream action for an iot rule. You can verify support for the timestream action by calling `aws iot create-topic-rule help` and searching for timestream.
+Create a topic rule with the awscli. The Timestream action for the topic rule is currently (September 2020) not supported by CloudFormation. Therefor you will use the awscli. **Note** You must use an awscli version which supports the timestream action for an iot rule. Creating the topic rule has been tested with the awscli version **1.18.150**.
 
 * In **to-timestream-rule-template.json** replace `REPLACE_WITH_YOUR_ROLE_ARN`, `REPLACE_WITH_YOUR_DB_NAME`, `REPLACE_WITH_YOUR_TABLE_NAME` with the values that you find in the outputs section of your CloudFormation stack. **Note** The output of the table name has the format `DATABASE_NAME|TABLE_NAME`. Copy only the table name right from the `|` sign.
 * Create the topic rule
@@ -136,7 +136,9 @@ limit 20
 ```
 
 ## Troubleshooting
-In case something doesn't work as expected try to use Amazon CloudWatch insights:
+To monitor AWS IoT activity you should [enable logging](https://docs.aws.amazon.com/iot/latest/developerguide/configure-logging.html).
+
+In case something doesn't work as expected try to use [Amazon CloudWatch insights](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:logs-insights):
 
 * Log group: `AWSIoTLogsV2`
 * Filter
