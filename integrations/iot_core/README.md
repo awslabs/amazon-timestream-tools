@@ -66,7 +66,8 @@ When your stack has been created you can continue with creating the IoT rule.
 
 
 ### IoT rule
-Create a topic rule with the awscli. The Timestream action for the topic rule is currently (September 2020) not supported by CloudFormation. Therefor you will use the awscli. **Note** You must use an awscli version which supports the timestream action for an iot rule. Creating the topic rule has been tested with the awscli version **1.18.150**.
+Create a topic rule with the awscli. The Timestream action for the topic rule is currently (September 2020) not supported by CloudFormation. Therefor you will use the awscli. **Note** You must use an awscli version which supports the timestream action for an iot rule. The timestream action is supported as of version **2.0.54** for the [awscli version 2](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html#cli-chap-install-v2) and as of version **1.18.150** for the former version of the awscli.
+
 
 * In **to-timestream-rule-template.json** replace `REPLACE_WITH_YOUR_ROLE_ARN`, `REPLACE_WITH_YOUR_DB_NAME`, `REPLACE_WITH_YOUR_TABLE_NAME` with the values that you find in the outputs section of your CloudFormation stack. **Note** The output of the table name has the format `DATABASE_NAME|TABLE_NAME`. Copy only the table name right from the `|` sign.
 * Create the topic rule
