@@ -4,8 +4,8 @@
      {
        "timestream": {
            "roleArn": "REPLACE_WITH_YOUR_ROLE_ARN",
-           "databaseName": "REPLACE_WITH_YOUR_DB_NAME",
-           "tableName": "REPLACE_WITH_YOUR_TABLE_NAME",
+           "databaseName": "iotdemo",
+           "tableName": "sensordata",
            "dimensions": [
                {
                    "name": "device_id",
