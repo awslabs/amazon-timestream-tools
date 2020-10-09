@@ -52,7 +52,7 @@ class QueryExample:
         SELECT BIN(time, 30s) AS binned_timestamp, ROUND(AVG(measure_value::double), 2) AS avg_cpu_utilization, hostname 
         FROM {DATABASE_NAME}.{TABLE_NAME}
         WHERE measure_name = 'cpu_utilization' 
-        AND hostname = {HOSTNAME}
+        AND hostname = '{HOSTNAME}'
         AND time > ago(2h)
         GROUP BY hostname, BIN(time, 30s) 
         ORDER BY binned_timestamp ASC
@@ -168,7 +168,7 @@ class QueryExample:
                  INTERPOLATE_LOCF( 
                      CREATE_TIME_SERIES(time, measure_value::double), 
                          SEQUENCE(MIN(ph.min_timestamp), MAX(ph.max_timestamp), 1s)) as interpolated_avg_cpu_utilization 
-             FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " m 
+             FROM {DATABASE_NAME}.{TABLE_NAME} m
              INNER JOIN per_host_min_max_timestamp ph ON m.hostname = ph.hostname 
              WHERE measure_name = 'cpu_utilization' 
              AND time > ago(2h) 
