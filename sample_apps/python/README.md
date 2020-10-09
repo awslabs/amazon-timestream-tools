@@ -16,7 +16,7 @@ Sample Python application for Amazon Timestream.
 
 1. Install and configure Boto3 set up following the instructions at https://boto3.amazonaws.com/v1/documentation/api/latest/index.html or executing the following command:
 	```
-	pip3 install boto3
+	pip3 install -r requirements.txt
 	```
 
 1. Run the following commands to insert data into Timestream and to query the data
