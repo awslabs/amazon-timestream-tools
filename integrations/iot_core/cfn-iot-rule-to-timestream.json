@@ -1,0 +1,80 @@
+{
+  "Description": "AWS IoT Core and Amazon Timestream integration.",
+
+  "Resources": {
+    "TimestreamDataBase": {
+      "Type" : "AWS::Timestream::Database"
+    },
+
+    "TimestreamTable": {
+      "Type" : "AWS::Timestream::Table",
+      "Properties" : {
+          "DatabaseName" : {"Ref": "TimestreamDataBase"},
+          "RetentionProperties" : {
+            "MemoryStoreRetentionPeriodInHours" : "24",
+            "MagneticStoreRetentionPeriodInDays" : "5"
+        }
+      }
+    },
+
+    "IoTDataToTimestreamRole": {
+       "Type": "AWS::IAM::Role",
+       "Properties": {
+          "AssumeRolePolicyDocument": {
+             "Statement": [ {
+                "Effect": "Allow",
+                "Principal": {
+                   "Service": [ "iot.amazonaws.com" ]
+                },
+                "Action": [ "sts:AssumeRole" ]
+             } ]
+          },
+          "Policies": [ {
+             "PolicyName": {"Fn::Join": ["", ["IoTDataToTimestreamInlinePolicy-", {"Ref": "AWS::Region"} ]]},
+             "PolicyDocument": {
+                 "Version":"2012-10-17",
+                 "Statement": [
+                    {
+                       "Effect":"Allow",
+                       "Action": [
+                         "timestream:WriteRecords"
+                       ],
+                       "Resource": [
+                         { "Fn::GetAtt": ["TimestreamTable", "Arn"] }
+                       ]
+                    },
+                    {
+                        "Effect": "Allow",
+                        "Action": [
+                            "timestream:DescribeEndpoints"
+                        ],
+                        "Resource": "*"
+                    }
+                 ]
+               }
+             }
+           ],
+          "Path": "/service-role/"
+        }
+    }
+  },
+
+  "Outputs" : {
+    "TimestreamDataBaseName": {
+      "Description" : "Timestream data base name",
+      "Value" : { "Ref": "TimestreamDataBase" }
+    },
+    "TimestreamTableName": {
+      "Description" : "Timestream table name",
+      "Value" : { "Ref": "TimestreamTable" }
+    },
+    "TimestreamTableArn": {
+      "Description" : "Timestream table arn",
+      "Value" : { "Fn::GetAtt": ["TimestreamTable", "Arn"] }
+    },
+    "IoTDataToTimestreamRoleArn": {
+      "Description": "Arn for the IAM role to allow write to Timestream table",
+      "Value": { "Fn::GetAtt": ["IoTDataToTimestreamRole", "Arn"] }
+    }
+  }
+}
