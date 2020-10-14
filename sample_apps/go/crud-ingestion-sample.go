@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -8,13 +7,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/timestreamwrite"
+	"net"
+	"net/http"
 	"os"
 	"strconv"
-    "time"
-    "net"
-    "net/http"
+	"time"
 
-    "golang.org/x/net/http2"
+	"golang.org/x/net/http2"
 )
 
 /**
@@ -27,7 +26,7 @@ func main() {
 	*  - Set SDK retry count to 10.
 	*  - Use SDK DEFAULT_BACKOFF_STRATEGY
 	*  - Request timeout of 20 seconds
-	*/
+	 */
 
 	// Setting 20 seconds for timeout
 	tr := &http.Transport{
@@ -48,8 +47,8 @@ func main() {
 	// So client makes HTTP/2 requests
 	http2.ConfigureTransport(tr)
 
-	sess, err := session.NewSession(&aws.Config{ Region: aws.String("us-east-1"), MaxRetries: aws.Int(10), HTTPClient: &http.Client{ Transport: tr }})
-    writeSvc := timestreamwrite.New(sess)
+	sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1"), MaxRetries: aws.Int(10), HTTPClient: &http.Client{Transport: tr}})
+	writeSvc := timestreamwrite.New(sess)
 
 	databaseName := flag.String("database_name", "devops", "database name string")
 	tableName := flag.String("table_name", "host_metrics", "table name string")
@@ -93,8 +92,7 @@ func main() {
 		fmt.Println(describeDatabaseOutput)
 	}
 
-
-	if (*kmsKeyId == "") {
+	if *kmsKeyId == "" {
 		fmt.Println("Skipping update database because kmsKeyId was not provided")
 		reader.ReadString('\n')
 	} else {
@@ -102,9 +100,9 @@ func main() {
 		reader.ReadString('\n')
 
 		// Update Database.
-		updateDatabaseInput := &timestreamwrite.UpdateDatabaseInput {
+		updateDatabaseInput := &timestreamwrite.UpdateDatabaseInput{
 			DatabaseName: aws.String(*databaseName),
-			KmsKeyId: aws.String(*kmsKeyId),
+			KmsKeyId:     aws.String(*kmsKeyId),
 		}
 
 		updateDatabaseOutput, err := writeSvc.UpdateDatabase(updateDatabaseInput)
@@ -250,7 +248,7 @@ func main() {
 				MeasureValue:     aws.String("13.5"),
 				MeasureValueType: aws.String("DOUBLE"),
 				Time:             aws.String(strconv.FormatInt(currentTimeInSeconds, 10)),
-				TimeUnit:    aws.String("SECONDS"),
+				TimeUnit:         aws.String("SECONDS"),
 			},
 			&timestreamwrite.Record{
 				Dimensions: []*timestreamwrite.Dimension{
@@ -271,7 +269,7 @@ func main() {
 				MeasureValue:     aws.String("40"),
 				MeasureValueType: aws.String("DOUBLE"),
 				Time:             aws.String(strconv.FormatInt(currentTimeInSeconds, 10)),
-				TimeUnit:    aws.String("SECONDS"),
+				TimeUnit:         aws.String("SECONDS"),
 			},
 		},
 	}
@@ -311,7 +309,7 @@ func main() {
 			},
 			MeasureValueType: aws.String("DOUBLE"),
 			Time:             aws.String(strconv.FormatInt(currentTimeInSeconds, 10)),
-			TimeUnit:    aws.String("SECONDS"),
+			TimeUnit:         aws.String("SECONDS"),
 		},
 		Records: []*timestreamwrite.Record{
 			&timestreamwrite.Record{
@@ -334,40 +332,40 @@ func main() {
 		fmt.Println("Ingest records is successful")
 	}
 
-    // Exiting from here to avoid table and database cleanup being called.
-    // Comment-out/Remove the exit line to run delete table and delete database
-    fmt.Println("\nExiting from here to avoid table and database cleanup being called.")
-    os.Exit(0)
+	// Exiting from here to avoid table and database cleanup being called.
+	// Comment-out/Remove the exit line to run delete table and delete database
+	fmt.Println("\nExiting from here to avoid table and database cleanup being called.")
+	os.Exit(0)
 
-    fmt.Println("Deleting table, hit enter to continue.")
-    reader.ReadString('\n')
+	fmt.Println("Deleting table, hit enter to continue.")
+	reader.ReadString('\n')
 
-    deleteTableInput := &timestreamwrite.DeleteTableInput{
-        DatabaseName:   aws.String(*databaseName),
-        TableName:    aws.String(*tableName),
-    }
-    _, err = writeSvc.DeleteTable(deleteTableInput)
+	deleteTableInput := &timestreamwrite.DeleteTableInput{
+		DatabaseName: aws.String(*databaseName),
+		TableName:    aws.String(*tableName),
+	}
+	_, err = writeSvc.DeleteTable(deleteTableInput)
 
-    if err != nil {
-        fmt.Println("Error:")
-        fmt.Println(err)
-    } else {
-        fmt.Println("Table deleted", *tableName)
-    }
+	if err != nil {
+		fmt.Println("Error:")
+		fmt.Println(err)
+	} else {
+		fmt.Println("Table deleted", *tableName)
+	}
 
-    fmt.Println("Deleting database, hit enter to continue.")
-    reader.ReadString('\n')
+	fmt.Println("Deleting database, hit enter to continue.")
+	reader.ReadString('\n')
 
-    deleteDatabaseInput := &timestreamwrite.DeleteDatabaseInput{
-        DatabaseName:   aws.String(*databaseName),
-    }
+	deleteDatabaseInput := &timestreamwrite.DeleteDatabaseInput{
+		DatabaseName: aws.String(*databaseName),
+	}
 
-    _, err = writeSvc.DeleteDatabase(deleteDatabaseInput)
+	_, err = writeSvc.DeleteDatabase(deleteDatabaseInput)
 
-    if err != nil {
-        fmt.Println("Error:")
-        fmt.Println(err)
-    } else {
-        fmt.Println("Database deleted:", *databaseName)
-    }
+	if err != nil {
+		fmt.Println("Error:")
+		fmt.Println(err)
+	} else {
+		fmt.Println("Database deleted:", *databaseName)
+	}
 }

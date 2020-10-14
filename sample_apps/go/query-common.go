@@ -1,11 +1,11 @@
 package main
 
 import (
-  "github.com/aws/aws-sdk-go/aws"
-  "github.com/aws/aws-sdk-go/service/timestreamquery"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/timestreamquery"
 
-  "fmt"
-  "os"
+	"fmt"
+	"os"
 )
 
 func fail(s string) {
@@ -13,17 +13,17 @@ func fail(s string) {
 }
 
 func check(e error) {
-  if e != nil {
-    panic(e)
-  }
+	if e != nil {
+		panic(e)
+	}
 }
 
 func write(f *os.File, s string) {
-  if f != nil {
-    _, err := f.WriteString(s + "\n")
-    check(err)
-    f.Sync()
-  }
+	if f != nil {
+		_, err := f.WriteString(s + "\n")
+		check(err)
+		f.Sync()
+	}
 }
 
 func processScalarType(data *timestreamquery.Datum) string {

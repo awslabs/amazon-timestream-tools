@@ -9,13 +9,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/timestreamquery"
 	"github.com/aws/aws-sdk-go/service/timestreamwrite"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
-    "net"
-    "net/http"
 
-    "golang.org/x/net/http2"
+	"golang.org/x/net/http2"
 )
 
 /**
@@ -30,7 +30,7 @@ func main() {
 	*  - Set SDK retry count to 10.
 	*  - Use SDK DEFAULT_BACKOFF_STRATEGY
 	*  - Request timeout of 20 seconds
-	*/
+	 */
 
 	// Setting 20 seconds for timeout
 	tr := &http.Transport{
@@ -51,12 +51,12 @@ func main() {
 	// So client makes HTTP/2 requests
 	http2.ConfigureTransport(tr)
 
-	sess, err := session.NewSession(&aws.Config{ Region: aws.String("us-east-1"), MaxRetries: aws.Int(10), HTTPClient: &http.Client{ Transport: tr }})
+	sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1"), MaxRetries: aws.Int(10), HTTPClient: &http.Client{Transport: tr}})
 	writeSvc := timestreamwrite.New(sess)
 
-    // setup the query client
-    sessQuery, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
-    querySvc := timestreamquery.New(sessQuery)
+	// setup the query client
+	sessQuery, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
+	querySvc := timestreamquery.New(sessQuery)
 
 	databaseName := flag.String("database_name", "devops", "database name string")
 	tableName := flag.String("table_name", "host_metrics", "table name string")
@@ -166,7 +166,7 @@ func main() {
 			MeasureValue:     aws.String(record[7]),
 			MeasureValueType: aws.String(record[8]),
 			Time:             aws.String(strconv.FormatInt(currentTimeInMilliSeconds-counter*int64(50), 10)),
-			TimeUnit:    aws.String("MILLISECONDS"),
+			TimeUnit:         aws.String("MILLISECONDS"),
 		})
 
 		counter++
