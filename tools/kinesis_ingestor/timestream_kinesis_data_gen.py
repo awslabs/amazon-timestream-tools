@@ -291,7 +291,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--stream', action="store", type=str, default="TimestreamTestStream",
                         help="The name of Kinesis Stream.")
-    parser.add_argument('--region', '-e', action="store", choices=['us-east-1'],
+    parser.add_argument('--region', '-e', action="store", choices=['us-east-1', 'us-east-2', 'us-west-2', 'eu-west-1'],
                         default="us-east-1", help="Specify the region of the Kinesis Stream.")
     parser.add_argument('--host-scale', dest="hostScale", action="store", type=int, default=1,
                         help="The scale factor determines the number of hosts emitting events and metrics.")
