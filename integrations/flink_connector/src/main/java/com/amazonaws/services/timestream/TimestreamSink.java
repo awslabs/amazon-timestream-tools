@@ -97,7 +97,19 @@ public class TimestreamSink extends RichSinkFunction<TimestreamPoint> implements
                 LOG.debug("writeRecords Status: " + writeRecordsResult.getSdkHttpMetadata().getHttpStatusCode());
                 bufferedRecords.clear();
                 emptyListTimetamp = System.currentTimeMillis();
-            } catch (Exception e) {
+
+            }   catch (RejectedRecordsException e){
+                List<RejectedRecord> rejectedRecords = e.getRejectedRecords();
+                LOG.warn("Rejected Records -> " + rejectedRecords.size());
+
+                for (int i = rejectedRecords.size()-1 ; i >= 0 ; i-- ) {
+
+                    LOG.warn("Discarding Malformed Record ->" + rejectedRecords.get(i).toString());
+                    LOG.warn("Rejected Record Reason ->" + 	rejectedRecords.get(i).getReason());
+                    bufferedRecords.remove(rejectedRecords.get(i).getRecordIndex());
+
+                }
+            }   catch (Exception e) {
                 LOG.error("Error: " + e);
             }
         }
