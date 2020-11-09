@@ -172,6 +172,13 @@ public class CrudAndSimpleIngestionExample {
         try {
             WriteRecordsResponse writeRecordsResponse = timestreamWriteClient.writeRecords(writeRecordsRequest);
             System.out.println("WriteRecords Status: " + writeRecordsResponse.sdkHttpResponse().statusCode());
+        } catch (RejectedRecordsException e) {
+            System.out.println("RejectedRecords: ");
+            for (RejectedRecord rejectedRecord : e.rejectedRecords()) {
+                System.out.println("Rejected Index " + rejectedRecord.recordIndex() + ": "
+                        + rejectedRecord.reason());
+            }
+            System.out.println("Other records have already been wrote successfully. ");
         } catch (Exception e) {
             System.out.println("Error: " + e);
         }
@@ -216,6 +223,13 @@ public class CrudAndSimpleIngestionExample {
         try {
             WriteRecordsResponse writeRecordsResponse = timestreamWriteClient.writeRecords(writeRecordsRequest);
             System.out.println("writeRecordsWithCommonAttributes Status: " + writeRecordsResponse.sdkHttpResponse().statusCode());
+        } catch (RejectedRecordsException e) {
+            System.out.println("RejectedRecords: ");
+            for (RejectedRecord rejectedRecord : e.rejectedRecords()) {
+                System.out.println("Rejected Index " + rejectedRecord.recordIndex() + ": "
+                        + rejectedRecord.reason());
+            }
+            System.out.println("Other records have already been wrote successfully. ");
         } catch (Exception e) {
             System.out.println("Error: " + e);
         }

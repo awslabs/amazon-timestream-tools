@@ -23,6 +23,8 @@ import com.amazonaws.services.timestreamwrite.model.ListTablesRequest;
 import com.amazonaws.services.timestreamwrite.model.ListTablesResult;
 import com.amazonaws.services.timestreamwrite.model.MeasureValueType;
 import com.amazonaws.services.timestreamwrite.model.Record;
+import com.amazonaws.services.timestreamwrite.model.RejectedRecord;
+import com.amazonaws.services.timestreamwrite.model.RejectedRecordsException;
 import com.amazonaws.services.timestreamwrite.model.ResourceNotFoundException;
 import com.amazonaws.services.timestreamwrite.model.RetentionProperties;
 import com.amazonaws.services.timestreamwrite.model.Table;
@@ -207,6 +209,13 @@ public class CrudAndSimpleIngestionExample {
         try {
             WriteRecordsResult writeRecordsResult = amazonTimestreamWrite.writeRecords(writeRecordsRequest);
             System.out.println("WriteRecords Status: " + writeRecordsResult.getSdkHttpMetadata().getHttpStatusCode());
+        } catch (RejectedRecordsException e) {
+            System.out.println("RejectedRecords: " + e);
+            for (RejectedRecord rejectedRecord : e.getRejectedRecords()) {
+                System.out.println("Rejected Index " + rejectedRecord.getRecordIndex() + ": "
+                        + rejectedRecord.getReason());
+            }
+            System.out.println("Other records have already been wrote successfully. ");
         } catch (Exception e) {
             System.out.println("Error: " + e);
         }
@@ -251,6 +260,13 @@ public class CrudAndSimpleIngestionExample {
         try {
             WriteRecordsResult writeRecordsResult = amazonTimestreamWrite.writeRecords(writeRecordsRequest);
             System.out.println("writeRecordsWithCommonAttributes Status: " + writeRecordsResult.getSdkHttpMetadata().getHttpStatusCode());
+        } catch (RejectedRecordsException e) {
+            System.out.println("RejectedRecords: " + e);
+            for (RejectedRecord rejectedRecord : e.getRejectedRecords()) {
+                System.out.println("Rejected Index " + rejectedRecord.getRecordIndex() + ": "
+                        + rejectedRecord.getReason());
+            }
+            System.out.println("Other records have already been wrote successfully. ");
         } catch (Exception e) {
             System.out.println("Error: " + e);
         }
