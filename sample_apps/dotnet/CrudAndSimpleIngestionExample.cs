@@ -335,6 +335,13 @@ namespace TimestreamDotNetSample
                 };
                 WriteRecordsResponse response = await writeClient.WriteRecordsAsync(writeRecordsRequest);
                 Console.WriteLine($"Write records status code: {response.HttpStatusCode.ToString()}");
+            } 
+            catch (RejectedRecordsException e) {
+                Console.WriteLine("RejectedRecordsException:" + e.ToString());
+                foreach (RejectedRecord rr in e.RejectedRecords) {
+                    Console.WriteLine("RecordIndex " + rr.RecordIndex + " : " + rr.Reason);
+                }
+                Console.WriteLine("Other records were written successfully. ");
             }
             catch (Exception e)
             {
@@ -390,6 +397,13 @@ namespace TimestreamDotNetSample
                 };
                 WriteRecordsResponse response = await writeClient.WriteRecordsAsync(writeRecordsRequest);
                 Console.WriteLine($"Write records status code: {response.HttpStatusCode.ToString()}");
+            }
+            catch (RejectedRecordsException e) {
+                Console.WriteLine("RejectedRecordsException:" + e.ToString());
+                foreach (RejectedRecord rr in e.RejectedRecords) {
+                    Console.WriteLine("RecordIndex " + rr.RecordIndex + " : " + rr.Reason);
+                }
+                Console.WriteLine("Other records were written successfully. ");
             }
             catch (Exception e)
             {

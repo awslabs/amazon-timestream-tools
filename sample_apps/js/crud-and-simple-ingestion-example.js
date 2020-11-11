@@ -248,14 +248,19 @@ async function writeRecords() {
         Records: records
     };
 
-    const promise = writeClient.writeRecords(params).promise();
+    const request = writeClient.writeRecords(params);
 
-    await promise.then(
+    await request.promise().then(
         (data) => {
             console.log("Write records successful");
         },
         (err) => {
             console.log("Error writing records:", err);
+            if (err.code === 'RejectedRecordsException') {
+                const responsePayload = JSON.parse(request.response.httpResponse.body.toString());
+                console.log("RejectedRecords: ", responsePayload.RejectedRecords);
+                console.log("Other records were written successfully. ");
+            }
         }
     );
 }
@@ -295,14 +300,19 @@ async function writeRecordsWithCommonAttributes() {
         CommonAttributes: commonAttributes
     };
 
-    const promise = writeClient.writeRecords(params).promise();
+    const request = writeClient.writeRecords(params);
 
-    await promise.then(
+    await request.promise().then(
         (data) => {
             console.log("Write records successful");
         },
         (err) => {
             console.log("Error writing records:", err);
+            if (err.code === 'RejectedRecordsException') {
+                const responsePayload = JSON.parse(request.response.httpResponse.body.toString());
+                console.log("RejectedRecords: ", responsePayload.RejectedRecords);
+                console.log("Other records were written successfully. ");
+            }
         }
     );
 }

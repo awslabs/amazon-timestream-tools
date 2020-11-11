@@ -135,6 +135,11 @@ class CrudAndSimpleIngestionExample:
             result = self.client.write_records(DatabaseName=Constant.DATABASE_NAME, TableName=Constant.TABLE_NAME,
                                                Records=records, CommonAttributes={})
             print("WriteRecords Status: [%s]" % result['ResponseMetadata']['HTTPStatusCode'])
+        except self.client.exceptions.RejectedRecordsException as err:
+            print("RejectedRecords: ", err)
+            for rr in err.response["RejectedRecords"]:
+                print("Rejected Index " + str(rr["RecordIndex"]) + ": " + rr["Reason"])
+            print("Other records were written successfully. ")
         except Exception as err:
             print("Error:", err)
 
@@ -170,6 +175,11 @@ class CrudAndSimpleIngestionExample:
             result = self.client.write_records(DatabaseName=Constant.DATABASE_NAME, TableName=Constant.TABLE_NAME,
                                                Records=records, CommonAttributes=common_attributes)
             print("WriteRecords Status: [%s]" % result['ResponseMetadata']['HTTPStatusCode'])
+        except self.client.exceptions.RejectedRecordsException as err:
+            print("RejectedRecords: ", err)
+            for rr in err.response["RejectedRecords"]:
+                print("Rejected Index " + str(rr["RecordIndex"]) + ": " + rr["Reason"])
+            print("Other records were written successfully. ")
         except Exception as err:
             print("Error:", err)
 
