@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
@@ -56,9 +55,7 @@ func main() {
 
 	flag.Parse()
 
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Creating a database, hit enter to continue")
-	//reader.ReadString('\n')
+	fmt.Println("Creating a database")
 
 	// Create database.
 	createDatabaseInput := &timestreamwrite.CreateDatabaseInput{
@@ -74,8 +71,7 @@ func main() {
 		fmt.Println("Database successfully created")
 	}
 
-	fmt.Println("Describing the database, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Describing the database")
 
 	// Describe database.
 	describeDatabaseInput := &timestreamwrite.DescribeDatabaseInput{
@@ -94,10 +90,8 @@ func main() {
 
 	if *kmsKeyId == "" {
 		fmt.Println("Skipping update database because kmsKeyId was not provided")
-		reader.ReadString('\n')
 	} else {
-		fmt.Println("Updating the database, hit enter to continue")
-		reader.ReadString('\n')
+		fmt.Println("Updating the database")
 
 		// Update Database.
 		updateDatabaseInput := &timestreamwrite.UpdateDatabaseInput{
@@ -116,8 +110,7 @@ func main() {
 		}
 	}
 
-	fmt.Println("Listing databases, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Listing databases")
 
 	// List databases.
 	listDatabasesMaxResult := int64(15)
@@ -136,8 +129,7 @@ func main() {
 		fmt.Println(listDatabasesOutput)
 	}
 
-	fmt.Println("Creating a table, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Creating a table")
 
 	// Create table.
 	createTableInput := &timestreamwrite.CreateTableInput{
@@ -153,8 +145,7 @@ func main() {
 		fmt.Println("Create table is successful")
 	}
 
-	fmt.Println("Describing the table, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Describing the table")
 
 	// Describe table.
 	describeTableInput := &timestreamwrite.DescribeTableInput{
@@ -171,8 +162,7 @@ func main() {
 		fmt.Println(describeTableOutput)
 	}
 
-	fmt.Println("Listing tables, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Listing tables")
 
 	// List tables.
 	listTablesMaxResult := int64(15)
@@ -191,8 +181,7 @@ func main() {
 		fmt.Println(listTablesOutput)
 	}
 
-	fmt.Println("Updating the table, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Updating the table")
 
 	// Update table.
 	magneticStoreRetentionPeriodInDays := int64(7 * 365)
@@ -216,8 +205,7 @@ func main() {
 		fmt.Println(updateTableOutput)
 	}
 
-	fmt.Println("Ingesting records, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Ingesting records")
 
 	// Below code will ingest cpu_utilization and memory_utilization metric for a host on
 	// region=us-east-1, az=az1, and hostname=host1
@@ -283,8 +271,7 @@ func main() {
 		fmt.Println("Write records is successful")
 	}
 
-	fmt.Println("Ingesting records with common attributes method, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Ingesting records with common attributes method")
 
 	// Below code will ingest the same data with common attributes approach.
 	now = time.Now()
@@ -337,8 +324,7 @@ func main() {
 	fmt.Println("\nExiting from here to avoid table and database cleanup being called.")
 	os.Exit(0)
 
-	fmt.Println("Deleting table, hit enter to continue.")
-	reader.ReadString('\n')
+	fmt.Println("Deleting table")
 
 	deleteTableInput := &timestreamwrite.DeleteTableInput{
 		DatabaseName: aws.String(*databaseName),
@@ -353,8 +339,7 @@ func main() {
 		fmt.Println("Table deleted", *tableName)
 	}
 
-	fmt.Println("Deleting database, hit enter to continue.")
-	reader.ReadString('\n')
+	fmt.Println("Deleting database")
 
 	deleteDatabaseInput := &timestreamwrite.DeleteDatabaseInput{
 		DatabaseName: aws.String(*databaseName),

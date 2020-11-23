@@ -1,12 +1,39 @@
 package com.amazonaws.services.timestream;
 
-import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteClient;
-import software.amazon.awssdk.services.timestreamwrite.model.*;
-import software.amazon.awssdk.services.timestreamwrite.paginators.ListDatabasesIterable;
-import software.amazon.awssdk.services.timestreamwrite.paginators.ListTablesIterable;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteClient;
+import software.amazon.awssdk.services.timestreamwrite.model.ConflictException;
+import software.amazon.awssdk.services.timestreamwrite.model.CreateDatabaseRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.CreateTableRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.Database;
+import software.amazon.awssdk.services.timestreamwrite.model.DeleteDatabaseRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.DeleteDatabaseResponse;
+import software.amazon.awssdk.services.timestreamwrite.model.DeleteTableRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.DeleteTableResponse;
+import software.amazon.awssdk.services.timestreamwrite.model.DescribeDatabaseRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.DescribeDatabaseResponse;
+import software.amazon.awssdk.services.timestreamwrite.model.DescribeTableRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.DescribeTableResponse;
+import software.amazon.awssdk.services.timestreamwrite.model.Dimension;
+import software.amazon.awssdk.services.timestreamwrite.model.ListDatabasesRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.ListDatabasesResponse;
+import software.amazon.awssdk.services.timestreamwrite.model.ListTablesRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.ListTablesResponse;
+import software.amazon.awssdk.services.timestreamwrite.model.MeasureValueType;
+import software.amazon.awssdk.services.timestreamwrite.model.Record;
+import software.amazon.awssdk.services.timestreamwrite.model.RejectedRecord;
+import software.amazon.awssdk.services.timestreamwrite.model.RejectedRecordsException;
+import software.amazon.awssdk.services.timestreamwrite.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.timestreamwrite.model.RetentionProperties;
+import software.amazon.awssdk.services.timestreamwrite.model.Table;
+import software.amazon.awssdk.services.timestreamwrite.model.UpdateDatabaseRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.UpdateTableRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsResponse;
+import software.amazon.awssdk.services.timestreamwrite.paginators.ListDatabasesIterable;
+import software.amazon.awssdk.services.timestreamwrite.paginators.ListTablesIterable;
 
 import static com.amazonaws.services.timestream.Main.DATABASE_NAME;
 import static com.amazonaws.services.timestream.Main.TABLE_NAME;
@@ -51,7 +78,7 @@ public class CrudAndSimpleIngestionExample {
         System.out.println("Listing databases");
         ListDatabasesRequest request = ListDatabasesRequest.builder().maxResults(2).build();
         ListDatabasesIterable listDatabasesIterable = timestreamWriteClient.listDatabasesPaginator(request);
-        for(ListDatabasesResponse listDatabasesResponse : listDatabasesIterable) {
+        for (ListDatabasesResponse listDatabasesResponse : listDatabasesIterable) {
             final List<Database> databases = listDatabasesResponse.databases();
             databases.forEach(database -> System.out.println(database.databaseName()));
         }
@@ -128,7 +155,7 @@ public class CrudAndSimpleIngestionExample {
         System.out.println("Listing tables");
         ListTablesRequest request = ListTablesRequest.builder().databaseName(DATABASE_NAME).maxResults(2).build();
         ListTablesIterable listTablesIterable = timestreamWriteClient.listTablesPaginator(request);
-        for(ListTablesResponse listTablesResponse : listTablesIterable) {
+        for (ListTablesResponse listTablesResponse : listTablesIterable) {
             final List<Table> tables = listTablesResponse.tables();
             tables.forEach(table -> System.out.println(table.tableName()));
         }

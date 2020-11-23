@@ -1,13 +1,16 @@
 package com.amazonaws.services.timestream;
 
-import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteClient;
-import software.amazon.awssdk.services.timestreamwrite.model.*;
-
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteClient;
+import software.amazon.awssdk.services.timestreamwrite.model.Dimension;
+import software.amazon.awssdk.services.timestreamwrite.model.Record;
+import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsRequest;
+import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsResponse;
 
 import static com.amazonaws.services.timestream.Main.DATABASE_NAME;
 import static com.amazonaws.services.timestream.Main.TABLE_NAME;

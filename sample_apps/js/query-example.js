@@ -292,6 +292,9 @@ async function cancelQuery(queryId) {
 }
 
 function parseQueryResult(response) {
+    const queryStatus = response.QueryStatus;
+    console.log("Current query status: " + JSON.stringify(queryStatus));
+
     const columnInfo = response.ColumnInfo;
     const rows = response.Rows;
 
