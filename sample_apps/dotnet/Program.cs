@@ -42,7 +42,6 @@ namespace TimestreamDotNetSample
             // - Set RequestTimeout to 20 seconds
             var writeClientConfig = new AmazonTimestreamWriteConfig
             {
-                RegionEndpoint = RegionEndpoint.USEast1,
                 Timeout = TimeSpan.FromSeconds(20),
                 MaxErrorRetry = 10
             };
@@ -51,11 +50,7 @@ namespace TimestreamDotNetSample
             var crudAndSimpleIngestionExample = new CrudAndSimpleIngestionExample(writeClient);
             var csvIngestionExample = new CsvIngestionExample(writeClient);
 
-            var queryClientConfig = new AmazonTimestreamQueryConfig
-            {
-                RegionEndpoint = RegionEndpoint.USEast1
-            };
-            var queryClient = new AmazonTimestreamQueryClient(queryClientConfig);
+            var queryClient = new AmazonTimestreamQueryClient();
             var queryExample = new QueryExample(queryClient);
 
             await crudAndSimpleIngestionExample.CreateDatabase();

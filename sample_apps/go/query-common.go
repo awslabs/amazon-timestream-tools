@@ -125,10 +125,13 @@ func runQuery(queryPtr *string, querySvc *timestreamquery.TimestreamQuery, f *os
 	err := querySvc.QueryPages(queryInput,
 		func(page *timestreamquery.QueryOutput, lastPage bool) bool {
 			// process query response
+			queryStatus := page.QueryStatus
+			fmt.Println("Current query status:")
+			fmt.Println(queryStatus)
 			// query response metadata
 			// includes column names and types
 			metadata := page.ColumnInfo
-			// fmt.Println("Metadata:")
+			fmt.Println("Metadata:")
 			fmt.Println(metadata)
 			header := ""
 			for i := 0; i < len(metadata); i++ {
