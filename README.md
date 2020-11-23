@@ -31,13 +31,12 @@ This sample application is currently available for the following programming lan
 * [Getting started with Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/js/)
 * [Getting started with .NET](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/dotnet/)
 
-There is also a sample application that shows how to query time series data using Amazon Timestream's JDBC driver.
+To query time series data using Amazon Timestream's JDBC driver, refer to the following application:
 * [Querying data with JDBC](https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps/jdbc)
 
 
 ## Working with other tools and services
-The following are sample data connectors, adapters, and notebooks show how to use Amazon Timestream with 
-and popular tools and services used for data collection, visualization, and machine learning:
+To continue to use your preferred data collection, analytics, visualization, and machine learning tools with Amazon Timestream, refer to the following:
 
 * [Analyzing time series data with Amazon SageMaker Notebooks](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/sagemaker/)
 * [Sending data to Amazon Timestream using AWS IoT Core](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/iot_core/)
@@ -49,7 +48,7 @@ and popular tools and services used for data collection, visualization, and mach
 To understand the performance and scale capabilities of Amazon Timestream, you can run the following workload:
 * [Running large scale workloads with Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/tree/master/tools/perf-scale-workload/)
 
-You can also the following tools to continuously send data to Amazon Timestream:
+You can use the following tools to continuously send data to Amazon Timestream:
 * [Publishing data with Amazon Kinesis to send to Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/master/tools/kinesis_ingestor/)
 * [Multi-threaded continuous data generator for writing DevOps metrics into Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/master/tools/continuous-ingestor/)
 
