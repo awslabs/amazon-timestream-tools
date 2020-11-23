@@ -6,8 +6,8 @@ Below is an example of a fully functional sample application that shows how to g
 * [Java v2](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/javaV2/)
 * [Python](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/python/)
 * [Go](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/go/)
-* [Getting started with Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/js/)
-* [Getting started with .NET](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/dotnet/)
+* [Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/js/)
+* [.NET](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/dotnet/)
 
 ## Using JDBC
 To query time series data using Amazon Timestream's JDBC driver, refer to the following:
