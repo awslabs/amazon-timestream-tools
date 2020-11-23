@@ -1,5 +1,3 @@
-# Timestream output plugin for Telegraf
+# Sending data to Amazon Timestream using open source Telegraf
 
-You can use the Timestream output plugin for Telegraf to write metrics into Timestream directly from Telegraf. 
-
-Please see [Timestream output plugin](https://github.com/aws/telegraf/tree/telegraf_v1.15.3_with_Timestream/plugins/outputs/timestream) for details.
+You can configure your DevOps applications using open source Telegraf to send data to Amazon Timestream without changing a single line of application code. As of [release 1.16.0](https://github.com/influxdata/telegraf/releases/tag/v1.16.0), Telegraf ships with an output adapter for writing data to Amazon Timestream. You can refer to the [Amazon Timestream documentation on working with Telegraf](https://docs.aws.amazon.com/timestream/latest/developerguide/Telegraf.html) for details.
