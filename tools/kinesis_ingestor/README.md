@@ -1,6 +1,6 @@
-## Sample Amazon Kinesis Data Stream Data Ingestor Python application
+# Publishing data with Amazon Kinesis to send data to Amazon Timestream
 
-A script to generate a continuous stream of records that are ingested into Timestream. This script mimics a DevOps scenario where an application is emitting different types of events at a regular cadence. The script continuously generates data until the execution is interrupted with a SIGINT (or `CTRL + C`).
+A script to generate a continuous stream of records that are ingested into Timestream. You can refer to the [Amazon Timestream documentation on working with Apache Flink](https://docs.aws.amazon.com/timestream/latest/developerguide/ApacheFlink.html) for additional information. This script mimics a DevOps scenario where an application is emitting different types of events at a regular cadence. The script continuously generates data until the execution is interrupted with a SIGINT (or `CTRL + C`). 
 
 --- 
 ## Dependencies
