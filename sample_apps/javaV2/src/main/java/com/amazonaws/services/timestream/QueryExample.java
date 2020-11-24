@@ -299,10 +299,10 @@ public class QueryExample {
         System.out.println("Query progress so far: " + queryStatus.progressPercentage() + "%");
 
         double bytesScannedSoFar = (double) queryStatus.cumulativeBytesScanned() / ONE_GB_IN_BYTES;
-        System.out.println("Bytes scanned so far: " + bytesScannedSoFar + " GB");
+        System.out.println("Data scanned so far: " + bytesScannedSoFar + " GB");
 
         double bytesMeteredSoFar = (double) queryStatus.cumulativeBytesMetered() / ONE_GB_IN_BYTES;
-        System.out.println("Bytes metered so far: " + bytesMeteredSoFar + " GB");
+        System.out.println("Data metered so far: " + bytesMeteredSoFar + " GB");
 
         List<ColumnInfo> columnInfo = response.columnInfo();
         List<Row> rows = response.rows();

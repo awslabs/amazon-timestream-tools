@@ -279,10 +279,10 @@ class QueryExample:
         print(f"Query progress so far: {progress_percentage}%")
 
         bytes_scanned = float(query_status["CumulativeBytesScanned"]) / ONE_GB_IN_BYTES
-        print(f"Bytes Scanned so far: {bytes_scanned} GB")
+        print(f"Data scanned so far: {bytes_scanned} GB")
 
         bytes_metered = float(query_status["CumulativeBytesMetered"]) / ONE_GB_IN_BYTES
-        print(f"Bytes Metered so far: {bytes_metered} GB")
+        print(f"Data metered so far: {bytes_metered} GB")
 
         column_info = query_result['ColumnInfo']
 
