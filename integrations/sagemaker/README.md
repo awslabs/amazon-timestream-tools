@@ -1,4 +1,4 @@
-## Working with Amazon SageMaker Notebook
+# Analyzing time series data with Amazon SageMaker Notebooks
 
 Sample Iron python notebook to be used in Sagemaker to integrate machine learning models with Amazon Timestream. 
 
