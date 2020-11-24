@@ -28,3 +28,11 @@ This sample application shows how you can create a database and table, populate 
         ```
         ./devops.sh devops host_metrics <host name copied from above>
        ```
+
+---
+# Release Note
+
+1. To run ingest and upsert code samples, please update sdk to [v1.35.35](https://github.com/aws/aws-sdk-go) or above.
+    ```
+    go get github.com/aws/aws-sdk-go@latest
+    ```

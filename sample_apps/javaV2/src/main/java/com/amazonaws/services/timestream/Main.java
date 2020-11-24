@@ -42,6 +42,9 @@ public class Main {
         crudAndSimpleIngestionExample.writeRecords();
         crudAndSimpleIngestionExample.writeRecordsWithCommonAttributes();
 
+        // update records
+        crudAndSimpleIngestionExample.writeRecordsWithUpsert();
+
         if(inputArguments.inputFile != null) {
             // Bulk record ingestion for bootstrapping a table with fresh data
             csvIngestionExample.bulkWriteRecords(inputArguments.inputFile);

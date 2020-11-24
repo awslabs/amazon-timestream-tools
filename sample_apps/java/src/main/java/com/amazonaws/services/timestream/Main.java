@@ -38,10 +38,12 @@ public class Main {
         crudAndSimpleIngestionExample.listTables();
         crudAndSimpleIngestionExample.updateTable();
 
-
         // simple record ingestion
         crudAndSimpleIngestionExample.writeRecords();
         crudAndSimpleIngestionExample.writeRecordsWithCommonAttributes();
+
+        // upsert records
+        crudAndSimpleIngestionExample.writeRecordsWithUpsert();
 
         if (inputArguments.inputFile != null) {
             // Bulk record ingestion for bootstrapping a table with fresh data

@@ -55,7 +55,9 @@ func main() {
 
 	flag.Parse()
 
-	fmt.Println("Creating a database")
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Creating a database, hit enter to continue")
+	reader.ReadString('\n')
 
 	// Create database.
 	createDatabaseInput := &timestreamwrite.CreateDatabaseInput{
@@ -88,15 +90,16 @@ func main() {
 		fmt.Println(describeDatabaseOutput)
 	}
 
-	if *kmsKeyId == "" {
+
+	if (*kmsKeyId == "") {
 		fmt.Println("Skipping update database because kmsKeyId was not provided")
 	} else {
 		fmt.Println("Updating the database")
 
 		// Update Database.
-		updateDatabaseInput := &timestreamwrite.UpdateDatabaseInput{
+		updateDatabaseInput := &timestreamwrite.UpdateDatabaseInput {
 			DatabaseName: aws.String(*databaseName),
-			KmsKeyId:     aws.String(*kmsKeyId),
+			KmsKeyId: aws.String(*kmsKeyId),
 		}
 
 		updateDatabaseOutput, err := writeSvc.UpdateDatabase(updateDatabaseInput)
@@ -319,6 +322,118 @@ func main() {
 		fmt.Println("Ingest records is successful")
 	}
 
+	// Below code will ingest and upsert cpu_utilization and memory_utilization metric for a host on
+	// region=us-east-1, az=az1, and hostname=host1
+	fmt.Println("Ingesting records and set version as currentTimeInMills, hit enter to continue")
+	reader.ReadString('\n')
+
+	// Get current time in seconds.
+	now = time.Now()
+	currentTimeInSeconds = now.Unix()
+	// To achieve upsert (last writer wins) semantic, one example is to use current time as the version if you are writing directly from the data source
+	version := time.Now().Round(time.Millisecond).UnixNano() / 1e6   // set version as currentTimeInMills
+
+	writeRecordsCommonAttributesUpsertInput := &timestreamwrite.WriteRecordsInput{
+		DatabaseName: aws.String(*databaseName),
+		TableName:    aws.String(*tableName),
+		CommonAttributes: &timestreamwrite.Record{
+			Dimensions: []*timestreamwrite.Dimension{
+				&timestreamwrite.Dimension{
+					Name:  aws.String("region"),
+					Value: aws.String("us-east-1"),
+				},
+				&timestreamwrite.Dimension{
+					Name:  aws.String("az"),
+					Value: aws.String("az1"),
+				},
+				&timestreamwrite.Dimension{
+					Name:  aws.String("hostname"),
+					Value: aws.String("host1"),
+				},
+			},
+			MeasureValueType: aws.String("DOUBLE"),
+			Time:             aws.String(strconv.FormatInt(currentTimeInSeconds, 10)),
+			TimeUnit:         aws.String("SECONDS"),
+			Version:          &version,
+		},
+		Records: []*timestreamwrite.Record{
+			&timestreamwrite.Record{
+				MeasureName:  aws.String("cpu_utilization"),
+				MeasureValue: aws.String("13.5"),
+			},
+			&timestreamwrite.Record{
+				MeasureName:  aws.String("memory_utilization"),
+				MeasureValue: aws.String("40"),
+			},
+		},
+	}
+
+	// write records for first time
+	_, err = writeSvc.WriteRecords(writeRecordsCommonAttributesUpsertInput)
+
+	if err != nil {
+		fmt.Println("Error:")
+		fmt.Println(err)
+	} else {
+		fmt.Println("Frist-time write records is successful")
+	}
+
+	fmt.Println("Retry same writeRecordsRequest with same records and versions. Because writeRecords API is idempotent, this will success. hit enter to continue")
+	reader.ReadString('\n')
+
+	_, err = writeSvc.WriteRecords(writeRecordsCommonAttributesUpsertInput)
+
+	if err != nil {
+		fmt.Println("Error:")
+		fmt.Println(err)
+	} else {
+		fmt.Println("Retry write records for same request is successful")
+	}
+
+	fmt.Println("Upsert with lower version, this would fail because a higher version is required to update the measure value. hit enter to continue")
+	reader.ReadString('\n')
+	version -= 1
+	writeRecordsCommonAttributesUpsertInput.CommonAttributes.Version = &version
+
+	updated_cpu_utilization := &timestreamwrite.Record{
+		MeasureName:      aws.String("cpu_utilization"),
+		MeasureValue:     aws.String("14.5"),
+	}
+	updated_memory_utilization := &timestreamwrite.Record{
+		MeasureName:      aws.String("memory_utilization"),
+		MeasureValue:     aws.String("50"),
+	}
+	
+
+	writeRecordsCommonAttributesUpsertInput.Records = []*timestreamwrite.Record{
+		updated_cpu_utilization,
+		updated_memory_utilization,
+	}
+
+	_, err = writeSvc.WriteRecords(writeRecordsCommonAttributesUpsertInput)
+
+	if err != nil {
+		fmt.Println("Error:")
+		fmt.Println(err)
+	} else {
+		fmt.Println("Write records with lower version is successful")
+	}
+
+	fmt.Println("Upsert with higher version as new data in generated, this would success. hit enter to continue")
+	reader.ReadString('\n')
+
+	version = time.Now().Round(time.Millisecond).UnixNano() / 1e6  // set version as currentTimeInMills
+	writeRecordsCommonAttributesUpsertInput.CommonAttributes.Version = &version
+
+	_, err = writeSvc.WriteRecords(writeRecordsCommonAttributesUpsertInput)
+
+	if err != nil {
+		fmt.Println("Error:")
+		fmt.Println(err)
+	} else {
+		fmt.Println("Write records with higher version is successful")
+	}
+
 	// Exiting from here to avoid table and database cleanup being called.
 	// Comment-out/Remove the exit line to run delete table and delete database
 	fmt.Println("\nExiting from here to avoid table and database cleanup being called.")
@@ -327,7 +442,7 @@ func main() {
 	fmt.Println("Deleting table")
 
 	deleteTableInput := &timestreamwrite.DeleteTableInput{
-		DatabaseName: aws.String(*databaseName),
+        DatabaseName: aws.String(*databaseName),
 		TableName:    aws.String(*tableName),
 	}
 	_, err = writeSvc.DeleteTable(deleteTableInput)
@@ -342,7 +457,7 @@ func main() {
 	fmt.Println("Deleting database")
 
 	deleteDatabaseInput := &timestreamwrite.DeleteDatabaseInput{
-		DatabaseName: aws.String(*databaseName),
+        DatabaseName: aws.String(*databaseName),
 	}
 
 	_, err = writeSvc.DeleteDatabase(deleteDatabaseInput)

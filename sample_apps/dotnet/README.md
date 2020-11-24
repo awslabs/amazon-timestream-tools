@@ -10,9 +10,9 @@ This sample application shows how you can create a database and table, populate 
 
 1. Install required NuGet. Ensure AWSSDK.Core version is 3.3.107 or newer.
    ```shell
-   dotnet add package AWSSDK.Core --version 3.5.1.41
-   dotnet add package AWSSDK.TimestreamWrite --version 3.5.0.20
-   dotnet add package AWSSDK.TimestreamQuery --version 3.5.1
+   dotnet add package AWSSDK.Core --version 3.5.1.42
+   dotnet add package AWSSDK.TimestreamWrite --version 3.5.1
+   dotnet add package AWSSDK.TimestreamQuery --version 3.5.1.1
    dotnet add package CommandLineParser
    ```
 
