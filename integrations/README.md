@@ -1,4 +1,4 @@
-## Working with other tools and services
+# Working with other tools and services
 To continue to use your preferred data collection, analytics, visualization, and machine learning tools with Amazon Timestream, refer to the following:
 
 * [Analyzing time series data with Amazon SageMaker Notebooks](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/sagemaker/)
