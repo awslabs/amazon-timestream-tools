@@ -1,4 +1,8 @@
-1. To run the sample application. This will create a Timestream database called devops with a table named host_metrics and inserts 4 records in the table.
+# Getting started with Amazon Timestream with Go
+
+This sample application shows how you can create a database and table, populate the table with ~126K rows of sample data, and run sample queries to jumpstart your evaluation and/or proof-of-concept applications with Amazon Timestream.
+
+1. To run the sample application, you can use the following commands. This will create a Timestream database called devops with a table named host_metrics and inserts 4 records in the table.
     ```
     go mod init go_sample
     go run crud-ingestion-sample.go
