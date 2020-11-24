@@ -1,4 +1,6 @@
-Sample Python application for Amazon Timestream.
+# Getting started with Amazon Timestream with Python
+
+This sample application shows how you can create a database and table, populate the table with ~126K rows of sample data, and run sample queries to jumpstart your evaluation and/or proof-of-concept applications with Amazon Timestream.
 
 ----
 
