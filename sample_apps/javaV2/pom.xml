@@ -42,7 +42,7 @@
             <artifactId>args4j</artifactId>
             <version>2.33</version>
         </dependency>
-    <dependency>
+        <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>apache-client</artifactId>
             <version>2.15.35</version>

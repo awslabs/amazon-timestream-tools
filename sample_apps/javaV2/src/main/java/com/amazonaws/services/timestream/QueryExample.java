@@ -5,13 +5,22 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import software.amazon.awssdk.services.timestreamquery.TimestreamQueryClient;
-import software.amazon.awssdk.services.timestreamquery.model.*;
+import software.amazon.awssdk.services.timestreamquery.model.CancelQueryRequest;
+import software.amazon.awssdk.services.timestreamquery.model.ColumnInfo;
+import software.amazon.awssdk.services.timestreamquery.model.Datum;
+import software.amazon.awssdk.services.timestreamquery.model.QueryRequest;
+import software.amazon.awssdk.services.timestreamquery.model.QueryResponse;
+import software.amazon.awssdk.services.timestreamquery.model.QueryStatus;
+import software.amazon.awssdk.services.timestreamquery.model.Row;
+import software.amazon.awssdk.services.timestreamquery.model.TimeSeriesDataPoint;
+import software.amazon.awssdk.services.timestreamquery.model.Type;
 import software.amazon.awssdk.services.timestreamquery.paginators.QueryIterable;
 
 import static com.amazonaws.services.timestream.Main.DATABASE_NAME;
 import static com.amazonaws.services.timestream.Main.TABLE_NAME;
 
 public class QueryExample {
+    private static final long ONE_GB_IN_BYTES = 1073741824L;
 
     private TimestreamQueryClient timestreamQueryClient;
 
@@ -28,7 +37,7 @@ public class QueryExample {
             "    ROUND(APPROX_PERCENTILE(measure_value::double, 0.9), 2) AS p90_cpu_utilization, " +
             "    ROUND(APPROX_PERCENTILE(measure_value::double, 0.95), 2) AS p95_cpu_utilization, " +
             "    ROUND(APPROX_PERCENTILE(measure_value::double, 0.99), 2) AS p99_cpu_utilization " +
-            "FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "WHERE measure_name = 'cpu_utilization' " +
             "   AND hostname = '" + HOSTNAME + "' " +
             "    AND time > ago(2h) " +
@@ -38,12 +47,12 @@ public class QueryExample {
     //2. Identify EC2 hosts with CPU utilization that is higher by 10%  or more compared to the average CPU utilization of the entire fleet for the past 2 hours.
     private static String QUERY_2 = "WITH avg_fleet_utilization AS ( " +
             "    SELECT COUNT(DISTINCT hostname) AS total_host_count, AVG(measure_value::double) AS fleet_avg_cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "        AND time > ago(2h) " +
             "), avg_per_host_cpu AS ( " +
             "    SELECT region, az, hostname, AVG(measure_value::double) AS avg_cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "        AND time > ago(2h) " +
             "    GROUP BY region, az, hostname " +
@@ -55,7 +64,7 @@ public class QueryExample {
 
     //3. Find the average CPU utilization binned at 30 second intervals for a specific EC2 host over the past 2 hours.
     private static String QUERY_3 = "SELECT BIN(time, 30s) AS binned_timestamp, ROUND(AVG(measure_value::double), 2) AS avg_cpu_utilization, " +
-            "hostname FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "hostname FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "WHERE measure_name = 'cpu_utilization' " +
             "    AND hostname = '" + HOSTNAME + "' " +
             "    AND time > ago(2h) " +
@@ -65,7 +74,7 @@ public class QueryExample {
     //4. Find the average CPU utilization binned at 30 second intervals for a specific EC2 host over the past 2 hours, filling in the missing values using linear interpolation.
     private static String QUERY_4 = "WITH binned_timeseries AS ( " +
             "    SELECT hostname, BIN(time, 30s) AS binned_timestamp, ROUND(AVG(measure_value::double), 2) AS avg_cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "       AND hostname = '" + HOSTNAME + "' " +
             "        AND time > ago(2h) " +
@@ -85,7 +94,7 @@ public class QueryExample {
     //5. Find the average CPU utilization binned at 30 second intervals for a specific EC2 host over the past 2 hours, filling in the missing values using interpolation based on the last observation carried forward.
     private static String QUERY_5 = "WITH binned_timeseries AS ( " +
             "    SELECT hostname, BIN(time, 30s) AS binned_timestamp, ROUND(AVG(measure_value::double), 2) AS avg_cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "        AND hostname = '" + HOSTNAME + "' " +
             "        AND time > ago(2h) " +
@@ -105,7 +114,7 @@ public class QueryExample {
     //6. Find the average CPU utilization binned at 30 second intervals for a specific EC2 host over the past 2 hours, filling in the missing values using interpolation based on a constant value.
     private static String QUERY_6 = "WITH binned_timeseries AS ( " +
             "    SELECT hostname, BIN(time, 30s) AS binned_timestamp, ROUND(AVG(measure_value::double), 2) AS avg_cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "       AND hostname = '" + HOSTNAME + "' " +
             "        AND time > ago(2h) " +
@@ -125,7 +134,7 @@ public class QueryExample {
     //7. Find the average CPU utilization binned at 30 second intervals for a specific EC2 host over the past 2 hours, filling in the missing values using cubic spline interpolation.
     private static String QUERY_7 = "WITH binned_timeseries AS ( " +
             "    SELECT hostname, BIN(time, 30s) AS binned_timestamp, ROUND(AVG(measure_value::double), 2) AS avg_cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "        AND hostname = '" + HOSTNAME + "' " +
             "        AND time > ago(2h) " +
@@ -145,7 +154,7 @@ public class QueryExample {
     //8. Find the average CPU utilization binned at 30 second intervals for all EC2 hosts over the past 2 hours, filling in the missing values using linear interpolation.
     private static String QUERY_8 = "WITH per_host_min_max_timestamp AS ( " +
             "    SELECT hostname, min(time) as min_timestamp, max(time) as max_timestamp " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "        AND time > ago(2h) " +
             "    GROUP BY hostname " +
@@ -154,7 +163,7 @@ public class QueryExample {
             "        INTERPOLATE_LOCF( " +
             "            CREATE_TIME_SERIES(time, measure_value::double), " +
             "                SEQUENCE(MIN(ph.min_timestamp), MAX(ph.max_timestamp), 1s)) as interpolated_avg_cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " m " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " m " +
             "        INNER JOIN per_host_min_max_timestamp ph ON m.hostname = ph.hostname " +
             "    WHERE measure_name = 'cpu_utilization' " +
             "        AND time > ago(2h) " +
@@ -171,7 +180,7 @@ public class QueryExample {
             "    SELECT INTERPOLATE_LINEAR( " +
             "        CREATE_TIME_SERIES(time, ROUND(measure_value::double,2)), " +
             "        SEQUENCE(min(time), max(time), 10s)) AS cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE hostname = '" + HOSTNAME + "' " +
             "        AND  " +
             "measure_name = 'cpu_utilization' " +
@@ -190,7 +199,7 @@ public class QueryExample {
             "    SELECT min(time) AS oldest_time, INTERPOLATE_LINEAR( " +
             "        CREATE_TIME_SERIES(time, ROUND(measure_value::double, 2)), " +
             "        SEQUENCE(min(time), max(time), 10s)) AS cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "    WHERE  " +
             " hostname = '" + HOSTNAME + "' " +
             "        AND  " +
@@ -206,7 +215,7 @@ public class QueryExample {
             "    SELECT INTERPOLATE_LINEAR( " +
             "        CREATE_TIME_SERIES(time, ROUND(measure_value::double, 2)), " +
             "        SEQUENCE(min(time), max(time), 10s)) AS cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "     WHERE  " +
             " hostname = '" + HOSTNAME + "' " +
             "        AND  " +
@@ -225,7 +234,7 @@ public class QueryExample {
             "    SELECT INTERPOLATE_LINEAR( " +
             "        CREATE_TIME_SERIES(time, ROUND(measure_value::double, 2)), " +
             "        SEQUENCE(min(time), max(time), 10s)) AS cpu_utilization " +
-            "    FROM " +  DATABASE_NAME + "." +  TABLE_NAME + " " +
+            "    FROM " + DATABASE_NAME + "." + TABLE_NAME + " " +
             "     WHERE  " +
             " hostname = '" + HOSTNAME + "' " +
             "     AND  " +
@@ -275,7 +284,7 @@ public class QueryExample {
         try {
             QueryRequest queryRequest = QueryRequest.builder().queryString(queryString).build();
             final QueryIterable queryResponseIterator = timestreamQueryClient.queryPaginator(queryRequest);
-            for(QueryResponse queryResponse : queryResponseIterator) {
+            for (QueryResponse queryResponse : queryResponseIterator) {
                 parseQueryResult(queryResponse);
             }
         } catch (Exception e) {
@@ -285,6 +294,16 @@ public class QueryExample {
     }
 
     private void parseQueryResult(QueryResponse response) {
+        final QueryStatus queryStatus = response.queryStatus();
+
+        System.out.println("Query progress so far: " + queryStatus.progressPercentage() + "%");
+
+        double bytesScannedSoFar = (double) queryStatus.cumulativeBytesScanned() / ONE_GB_IN_BYTES;
+        System.out.println("Data scanned so far: " + bytesScannedSoFar + " GB");
+
+        double bytesMeteredSoFar = (double) queryStatus.cumulativeBytesMetered() / ONE_GB_IN_BYTES;
+        System.out.println("Data metered so far: " + bytesMeteredSoFar + " GB");
+
         List<ColumnInfo> columnInfo = response.columnInfo();
         List<Row> rows = response.rows();
 

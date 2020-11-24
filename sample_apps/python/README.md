@@ -18,7 +18,7 @@ This sample application shows how you can create a database and table, populate 
 
 1. Install and configure Boto3 set up following the instructions at https://boto3.amazonaws.com/v1/documentation/api/latest/index.html or executing the following command:
 	```
-	pip3 install -r requirements.txt
+	pip3 install -r requirements.txt --upgrade
 	```
 
 1. Run the following commands to insert data into Timestream and to query the data

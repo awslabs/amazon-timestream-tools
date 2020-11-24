@@ -283,6 +283,8 @@ namespace TimestreamDotNetSample
             List<String> columnInfoStrings = columnInfo.ConvertAll(x => JsonSerializer.Serialize(x, options));
             List<Row> rows = response.Rows;
 
+            QueryStatus queryStatus = response.QueryStatus;
+            Console.WriteLine("Current Query status:" + JsonSerializer.Serialize(queryStatus, options));
             Console.WriteLine("Metadata:" + string.Join(",", columnInfoStrings));
             Console.WriteLine("Data:");
 

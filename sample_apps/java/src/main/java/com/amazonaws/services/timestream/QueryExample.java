@@ -14,6 +14,7 @@ import com.amazonaws.services.timestreamquery.model.ColumnInfo;
 import com.amazonaws.services.timestreamquery.model.Datum;
 import com.amazonaws.services.timestreamquery.model.QueryRequest;
 import com.amazonaws.services.timestreamquery.model.QueryResult;
+import com.amazonaws.services.timestreamquery.model.QueryStatus;
 import com.amazonaws.services.timestreamquery.model.Row;
 import com.amazonaws.services.timestreamquery.model.ScalarType;
 import com.amazonaws.services.timestreamquery.model.TimeSeriesDataPoint;
@@ -26,6 +27,8 @@ public class QueryExample {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSSSS");
+
+    private static final long ONE_GB_IN_BYTES = 1073741824L;
 
     private AmazonTimestreamQuery queryClient;
 
@@ -283,6 +286,16 @@ public class QueryExample {
     }
 
     private void parseQueryResult(QueryResult response) {
+        final QueryStatus queryStatus = response.getQueryStatus();
+
+        System.out.println("Query progress so far: " + queryStatus.getProgressPercentage() + "%");
+
+        double bytesScannedSoFar = (double) queryStatus.getCumulativeBytesScanned() / ONE_GB_IN_BYTES;
+        System.out.println("Data scanned so far: " + bytesScannedSoFar + " GB");
+
+        double bytesMeteredSoFar = (double) queryStatus.getCumulativeBytesMetered() / ONE_GB_IN_BYTES;
+        System.out.println("Data metered so far: " + bytesMeteredSoFar + " GB");
+
         List<ColumnInfo> columnInfo = response.getColumnInfo();
         List<Row> rows = response.getRows();
 

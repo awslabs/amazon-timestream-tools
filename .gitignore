@@ -1,7 +1,22 @@
+.DS_Store
+
+# Ignore common dotnet files
+bin/
+obj/
+
+# Ignore common go files
+go.mod
+go.sum
+
+# Ignore common Java files
+.idea/
+*.iml
+target/
+
 # Ignore common Python files
 venv
 __pycache__
 
-
 # Ignore common JS files
 node_modules
+

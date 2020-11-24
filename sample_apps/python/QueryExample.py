@@ -1,4 +1,4 @@
-from Constant import DATABASE_NAME, TABLE_NAME
+from Constant import DATABASE_NAME, TABLE_NAME, ONE_GB_IN_BYTES
 
 
 class QueryExample:
@@ -273,6 +273,17 @@ class QueryExample:
             print("Exception while running query:", err)
 
     def _parse_query_result(self, query_result):
+        query_status = query_result["QueryStatus"]
+
+        progress_percentage = query_status["ProgressPercentage"]
+        print(f"Query progress so far: {progress_percentage}%")
+
+        bytes_scanned = float(query_status["CumulativeBytesScanned"]) / ONE_GB_IN_BYTES
+        print(f"Data scanned so far: {bytes_scanned} GB")
+
+        bytes_metered = float(query_status["CumulativeBytesMetered"]) / ONE_GB_IN_BYTES
+        print(f"Data metered so far: {bytes_metered} GB")
+
         column_info = query_result['ColumnInfo']
 
         print("Metadata: %s" % column_info)
