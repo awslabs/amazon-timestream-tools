@@ -1,0 +1,5 @@
+com/amazonaws/services/timestream/InputArguments.class
+com/amazonaws/services/timestream/CsvIngestionExample.class
+com/amazonaws/services/timestream/QueryExample.class
+com/amazonaws/services/timestream/CrudAndSimpleIngestionExample.class
+com/amazonaws/services/timestream/Main.class

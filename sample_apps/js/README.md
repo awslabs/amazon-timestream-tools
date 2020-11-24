@@ -26,4 +26,10 @@ This sample application shows how you can create a database and table, populate 
     node main.js --csvFilePath=../data/sample.csv
     ``` 
          
+---
+# Release Note
 
+1. To run `writeRecordsWithUpsert()`, please update sdk to [v2.799.0](https://github.com/aws/aws-sdk-js) or above.
+    ```
+    npm update aws-sdk
+    ```
