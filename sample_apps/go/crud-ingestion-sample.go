@@ -419,7 +419,7 @@ func main() {
 		fmt.Println("Write records with lower version is successful")
 	}
 
-	fmt.Println("Upsert with higher version as new data in generated, this would success. hit enter to continue")
+	fmt.Println("Upsert with higher version as new data is generated, this would success. hit enter to continue")
 	reader.ReadString('\n')
 
 	version = time.Now().Round(time.Millisecond).UnixNano() / 1e6  // set version as currentTimeInMills

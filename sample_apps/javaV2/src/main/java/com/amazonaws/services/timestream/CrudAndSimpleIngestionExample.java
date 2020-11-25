@@ -348,7 +348,7 @@ public class CrudAndSimpleIngestionExample {
             System.out.println("Error: " + e);
         }
 
-        // upsert with higher version as new data in generated
+        // upsert with higher version as new data is generated
         version = System.currentTimeMillis();
         commonAttributes = Record.builder()
                 .dimensions(dimensions)

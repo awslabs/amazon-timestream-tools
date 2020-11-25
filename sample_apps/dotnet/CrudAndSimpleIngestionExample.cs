@@ -518,7 +518,7 @@ namespace TimestreamDotNetSample
                     Console.WriteLine("Write records failure:" + e.ToString());
                 }
 
-                // upsert with higher version as new data in generated
+                // upsert with higher version as new data is generated
                 now = DateTimeOffset.UtcNow;
                 version = now.ToUnixTimeMilliseconds();
                 recordType.GetProperty("Version").SetValue(commonAttributes, version);

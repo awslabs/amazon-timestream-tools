@@ -422,7 +422,7 @@ async function writeRecordsWithUpsert() {
         }
     );
     
-    // upsert with higher version as new data in generated
+    // upsert with higher version as new data is generated
     version = Date.now();
 
     const commonAttributesWithHigherVersion = {

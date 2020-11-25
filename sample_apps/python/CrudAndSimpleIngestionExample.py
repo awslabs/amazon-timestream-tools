@@ -247,7 +247,7 @@ class CrudAndSimpleIngestionExample:
             print("Error:", err)
 
 
-        # upsert with higher version as new data in generated
+        # upsert with higher version as new data iss generated
         version = int(self._current_milli_time())
         common_attributes["Version"] = version
 
