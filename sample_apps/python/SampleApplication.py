@@ -44,6 +44,8 @@ if __name__ == '__main__':
     crud_and_simple_ingestion_example.write_records()
     crud_and_simple_ingestion_example.write_records_with_common_attributes()
 
+    crud_and_simple_ingestion_example.write_records_with_upsert()
+
     if args.csv_file_path is not None:
         csv_ingestion_example.bulk_write_records(args.csv_file_path)
 

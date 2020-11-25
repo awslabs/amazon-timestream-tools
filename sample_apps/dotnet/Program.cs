@@ -69,6 +69,9 @@ namespace TimestreamDotNetSample
             await crudAndSimpleIngestionExample.WriteRecords();
             await crudAndSimpleIngestionExample.WriteRecordsWithCommonAttributes();
 
+            // upsert records
+            await crudAndSimpleIngestionExample.WriteRecordsWithUpsert();
+
             if (csvFilePath != null) {
                 // Bulk record ingestion for bootstrapping a table with fresh data
                 await csvIngestionExample.BulkWriteRecords(csvFilePath);

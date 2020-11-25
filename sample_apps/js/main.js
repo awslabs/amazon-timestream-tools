@@ -50,6 +50,8 @@ async function callServices() {
     await crudAndSimpleIngestionExample.listTables();
     await crudAndSimpleIngestionExample.writeRecords();
     await crudAndSimpleIngestionExample.writeRecordsWithCommonAttributes();
+    await crudAndSimpleIngestionExample.writeRecordsWithUpsert();
+
     if (csvFilePath != null) {
         await csvIngestExample.processCSV(csvFilePath);
     }
