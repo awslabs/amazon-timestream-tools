@@ -19,7 +19,7 @@
             <dependency>
                 <groupId>com.amazonaws</groupId>
                 <artifactId>aws-java-sdk-bom</artifactId>
-                <version>1.11.870</version>
+                <version>1.11.908</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -39,7 +39,7 @@
         <dependency>
           <groupId>software.amazon.timestream</groupId>
           <artifactId>amazon-timestream-jdbc</artifactId>
-          <version>1.0.0</version>
+          <version>1.0.1</version>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>
