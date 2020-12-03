@@ -136,13 +136,13 @@ class RandomizedExecutionThread(threading.Thread):
         runPrefix = self.args.runPrefix
 
         if not os.path.exists(logDir):
-            os.mkdir(logDir)
+            os.makedirs(logDir)
 
         ## Create an experiment name for logging purposes.
         expName = "{}-{}-{}".format(runPrefix, self.startTime.strftime("%Y-%m-%d-%H-%M-%S"), self.threadId)
         expDirName = os.path.join(logDir, expName)
         if not os.path.exists(expDirName):
-            os.mkdir(expDirName)
+            os.makedirs(expDirName)
 
         print("Starting experiment {} at {}. Database: {}. Table: {}. Log files at: {}".format(
             expName, self.startTime, databaseName, tableName, expDirName))
