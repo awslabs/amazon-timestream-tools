@@ -39,10 +39,14 @@ python3 -m venv venv
     
 ### Examples
 
-```
-python3 timestream_kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1
-```
+- Start sending a stream of events to Kinesis stream TimestreamTestStream 
 
+    ```
+    python3 timestream_kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1
+    ```
 
+- Start sending a stream of events where a percentage of the events will be late arriving by ten minutes
 
-
+    ```
+    python3 timestream_kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1 --late-percent 25 --late-time 600
+    ```
