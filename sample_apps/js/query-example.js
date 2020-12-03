@@ -1,7 +1,7 @@
 
 const constants = require('./constants');
 
-const HOSTNAME = "host-24Gju";
+const HOSTNAME = "host1";
 
 // See records ingested into this table so far
 const SELECT_ALL_QUERY = "SELECT * FROM " +  constants.DATABASE_NAME + "." +  constants.TABLE_NAME;
