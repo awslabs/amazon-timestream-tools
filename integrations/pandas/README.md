@@ -1,4 +1,4 @@
-# Writing and Querying Amazon Timestream with Pandas (AWS Data Wrangler)
+# Writing and Querying Amazon Timestream with Pandas
 
 ## What is Pandas?
 
@@ -21,3 +21,14 @@ Check our [list of functionalities](https://aws-data-wrangler.readthedocs.io/en/
 
 * [Writing and Querying basics](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/pandas/1-writing-and-querying-basics.ipynb)
 * [Writing and Querying advanced](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/pandas/2-writing-and-querying-advanced.ipynb)
+
+---
+
+## AWS Data Wrangler API for Amazon Timestream
+
+* [wr.timestream.create_database()](https://aws-data-wrangler.readthedocs.io/en/latest/stubs/awswrangler.timestream.create_database.html)
+* [wr.timestream.create_table()](https://aws-data-wrangler.readthedocs.io/en/latest/stubs/awswrangler.timestream.create_table.html)
+* [wr.timestream.delete_database()](https://aws-data-wrangler.readthedocs.io/en/latest/stubs/awswrangler.timestream.delete_database.html)
+* [wr.timestream.delete_table()](https://aws-data-wrangler.readthedocs.io/en/latest/stubs/awswrangler.timestream.delete_table.html)
+* [wr.timestream.write()](https://aws-data-wrangler.readthedocs.io/en/latest/stubs/awswrangler.timestream.write.html)
+* [wr.timestream.query()](https://aws-data-wrangler.readthedocs.io/en/latest/stubs/awswrangler.timestream.query.html)
