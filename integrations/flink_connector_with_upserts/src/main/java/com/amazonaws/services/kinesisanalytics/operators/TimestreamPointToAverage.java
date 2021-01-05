@@ -50,23 +50,23 @@ public class TimestreamPointToAverage implements WindowFunction<TimestreamPoint,
     dataPoint.setDimensions(dimensions);
 
     //debugging
-    long minTime = timeWindow.getStart();
-    DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-    format.setTimeZone(TimeZone.getTimeZone("Etc/UTC"));
+    // long minTime = timeWindow.getStart();
+    // DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+    // format.setTimeZone(TimeZone.getTimeZone("Etc/UTC"));
     
-    String timestamps = StreamSupport
-                    .stream(iterable.spliterator(), false)
-                    .map(point -> format.format(point.getTime() * 1000L))
-                    .collect(Collectors.joining(", ", "{", "}"));
+    // String timestamps = StreamSupport
+    //                 .stream(iterable.spliterator(), false)
+    //                 .map(point -> format.format(point.getTime() * 1000L))
+    //                 .collect(Collectors.joining(", ", "{", "}"));
     
-    //add a dimension for the number of records within the time window
-    dataPoint.addDimension("records_in_window", String.valueOf(Iterables.size(iterable)));
+    // //add a dimension for the number of records within the time window
+    // dataPoint.addDimension("records_in_window", String.valueOf(Iterables.size(iterable)));
     
-    dataPoint.addDimension("window_start", format.format(minTime));
+    // dataPoint.addDimension("window_start", format.format(minTime));
     
-    dataPoint.addDimension("window_end", format.format(maxTime));
+    // dataPoint.addDimension("window_end", format.format(maxTime));
     
-    dataPoint.addDimension("timestamps_in_window", timestamps);
+    // dataPoint.addDimension("timestamps_in_window", timestamps);
     //end debugging
     
     collector.collect(dataPoint);
