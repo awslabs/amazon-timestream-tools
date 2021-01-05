@@ -36,13 +36,14 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
+import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kinesis.FlinkKinesisConsumer;
 import org.apache.flink.streaming.connectors.kinesis.config.AWSConfigConstants;
 import org.apache.flink.streaming.connectors.kinesis.config.ConsumerConfigConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.*;
+import java.util.Objects;
 import java.util.Properties;
 
 /**
