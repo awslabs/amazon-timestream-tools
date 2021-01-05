@@ -105,7 +105,7 @@ public class StreamingJob {
 		ParameterTool parameter = ParameterToolUtils.fromArgsAndApplicationProperties(args);
 
 		// set up the streaming execution environment
-		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		//enable event time processing
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.getConfig().setAutoWatermarkInterval(1000L);
@@ -117,7 +117,7 @@ public class StreamingJob {
 
 		SingleOutputStreamOperator<TimestreamPoint> averages = input
 				.map(new JsonToTimestreamPayloadFn())
-				.filter(point -> point.getMeasureValueType().equals("DOUBLE") || point.getMeasureValueType().equals("BIGINT"))
+				.filter(point -> point.getMeasureValueType().toString().equals("DOUBLE") || point.getMeasureValueType().toString().equals("BIGINT"))
 				//is it best practice to accomodate small amounts of lateness here?
 				.assignTimestampsAndWatermarks(new TimestampAssigner())
 				//is this hash function to keyBy best practice??
@@ -127,8 +127,8 @@ public class StreamingJob {
 						return Objects.hash(point.getMeasureName(), point.getMeasureValueType(), point.getTimeUnit(), point.getDimensions());
 					}
 				})
-				.timeWindow(Time.seconds(120))
-				.allowedLateness(Time.seconds(300))
+				.timeWindow(Time.seconds(300))
+				.allowedLateness(Time.seconds(120))
 				.apply(new TimestreamPointToAverage());
 
 		String region = parameter.get("Region", "us-east-1").toString();
