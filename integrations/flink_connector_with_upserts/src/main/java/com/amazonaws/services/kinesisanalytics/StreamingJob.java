@@ -28,8 +28,12 @@ import com.amazonaws.services.kinesisanalytics.operators.TimestreamPointToAverag
 
 import main.java.com.amazonaws.services.timestream.TimestreamInitializer;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.connectors.kinesis.FlinkKinesisConsumer;
@@ -38,6 +42,7 @@ import org.apache.flink.streaming.connectors.kinesis.config.ConsumerConfigConsta
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.*;
 import java.util.Properties;
 
 /**
@@ -109,21 +114,21 @@ public class StreamingJob {
 		DataStream<TimestreamPoint> mappedInput =
 				input.map(new JsonToTimestreamPayloadFn()).name("MaptoTimestreamPayload");
 
-		SingleOutputStreamOperator<TimestreamPoint> averages = kinesisStream
-                    .map(new JsonToTimestreamPayloadFn())
-                    .filter(point -> point.getMeasureValueType().equals("DOUBLE") || point.getMeasureValueType().equals("BIGINT"))
-                    //is it best practice to accomodate small amounts of lateness here?
-                    .assignTimestampsAndWatermarks(new TimestampAssigner())
-                    //is this hash function to keyBy best practice??
-                    .keyBy(new KeySelector<TimestreamPoint, Integer>() {
-                        @Override
-                        public Integer getKey(TimestreamPoint point) throws Exception {
-                            return Objects.hash(point.getMeasureName(), point.getMeasureValueType(), point.getTimeUnit(), point.getDimensions());
-                        }
-                    })
-                    .timeWindow(Time.seconds(120))
-                    .allowedLateness(Time.seconds(300))
-                    .apply(new TimestreamPointToAverage());
+		SingleOutputStreamOperator<TimestreamPoint> averages = input
+				.map(new JsonToTimestreamPayloadFn())
+				.filter(point -> point.getMeasureValueType().equals("DOUBLE") || point.getMeasureValueType().equals("BIGINT"))
+				//is it best practice to accomodate small amounts of lateness here?
+				.assignTimestampsAndWatermarks(new TimestampAssigner())
+				//is this hash function to keyBy best practice??
+				.keyBy(new KeySelector<TimestreamPoint, Integer>() {
+					@Override
+					public Integer getKey(TimestreamPoint point) throws Exception {
+						return Objects.hash(point.getMeasureName(), point.getMeasureValueType(), point.getTimeUnit(), point.getDimensions());
+					}
+				})
+				.timeWindow(Time.seconds(120))
+				.allowedLateness(Time.seconds(300))
+				.apply(new TimestreamPointToAverage());
 
 		String region = parameter.get("Region", "us-east-1").toString();
 		String databaseName = parameter.get("TimestreamDbName", "kdaflink").toString();
