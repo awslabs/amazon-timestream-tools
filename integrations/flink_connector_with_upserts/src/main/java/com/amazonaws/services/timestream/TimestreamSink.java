@@ -76,13 +76,18 @@ public class TimestreamSink extends RichSinkFunction<TimestreamPoint> implements
             dimensions.add(dim);
         }
 
+        //set vesion to current time
+        long version = System.currentTimeMillis();
+
         Record measure = new Record()
                 .withDimensions(dimensions)
                 .withMeasureName(value.getMeasureName())
                 .withMeasureValueType(value.getMeasureValueType())
                 .withMeasureValue(value.getMeasureValue())
                 .withTimeUnit(value.getTimeUnit())
-                .withTime(String.valueOf(value.getTime()));
+                .withTime(String.valueOf(value.getTime()))
+                //by setting the version to the current time, latest record will overwrite any existing earlier records
+                .withVersion(version);
 
         bufferedRecords.add(measure);
 
