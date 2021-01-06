@@ -116,6 +116,7 @@ public class StreamingJob {
 				input.map(new JsonToTimestreamPayloadFn()).name("MaptoTimestreamPayload");
 
 		SingleOutputStreamOperator<TimestreamPoint> averages = input
+				.rebalance()
 				.map(new JsonToTimestreamPayloadFn())
 				.filter(point -> point.getMeasureValueType().toString().equals("DOUBLE") || point.getMeasureValueType().toString().equals("BIGINT"))
 				//is it best practice to accomodate small amounts of lateness here?
@@ -143,8 +144,7 @@ public class StreamingJob {
 		SinkFunction<TimestreamPoint> sink = new TimestreamSink(region, databaseName, tableName, batchSize);
 		mappedInput.addSink(sink);
 
-		SinkFunction<TimestreamPoint> averagesSink = new TimestreamSink(region, databaseName, tableName, batchSize);
-		averages.addSink(averagesSink);
+		averages.addSink(sink);
 
 		// execute program
 		env.execute("Flink Streaming Java API Skeleton");
