@@ -142,8 +142,8 @@ public class StreamingJob {
 		timestreamInitializer.createTable(databaseName, tableName);
 
 		SinkFunction<TimestreamPoint> sink = new TimestreamSink(region, databaseName, tableName, batchSize);
+		
 		mappedInput.addSink(sink);
-
 		averages.addSink(sink);
 
 		// execute program
