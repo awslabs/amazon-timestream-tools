@@ -1,0 +1,14 @@
+[Unit]
+Description=Sample Application
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=sample_app
+Group=sample_app
+Type=simple
+ExecStart=/home/sample_app/env/bin/python /home/sample_app/app.py localhost 8186
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
