@@ -22,7 +22,6 @@ import com.amazonaws.services.kinesisanalytics.operators.JsonToTimestreamPayload
 import com.amazonaws.services.kinesisanalytics.utils.ParameterToolUtils;
 import com.amazonaws.services.timestream.TimestreamPoint;
 import com.amazonaws.services.timestream.TimestreamSink;
-import com.amazonaws.services.kinesisanalytics.operators.TimestampAssigner;
 import com.amazonaws.services.kinesisanalytics.operators.TimestreamPointToAverage;
 
 import main.java.com.amazonaws.services.timestream.TimestreamInitializer;
