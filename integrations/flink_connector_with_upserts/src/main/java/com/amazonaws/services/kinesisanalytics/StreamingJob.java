@@ -25,14 +25,15 @@ import com.amazonaws.services.timestream.TimestreamSink;
 import com.amazonaws.services.kinesisanalytics.operators.TimestampAssigner;
 import com.amazonaws.services.kinesisanalytics.operators.TimestreamPointToAverage;
 
-
 import main.java.com.amazonaws.services.timestream.TimestreamInitializer;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
@@ -43,6 +44,7 @@ import org.apache.flink.streaming.connectors.kinesis.config.ConsumerConfigConsta
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.Objects;
 import java.util.Properties;
 
@@ -112,24 +114,27 @@ public class StreamingJob {
 
 		DataStream<String> input = createKinesisSource(env, parameter);
 
-		DataStream<TimestreamPoint> mappedInput =
-				input.map(new JsonToTimestreamPayloadFn()).name("MaptoTimestreamPayload");
-
-		SingleOutputStreamOperator<TimestreamPoint> averages = input
+		DataStream<TimestreamPoint> mappedInput = input
 				.rebalance()
-				.map(new JsonToTimestreamPayloadFn())
+				.map(new JsonToTimestreamPayloadFn()).name("MaptoTimestreamPayload");
+
+		//define watermark strategy and how to assign timestamps for eventtime processing
+		WatermarkStrategy<TimestreamPoint> wmStrategy = WatermarkStrategy
+				.<TimestreamPoint>forBoundedOutOfOrderness(Duration.ofSeconds(3))
+				// * 1000L as timestamps must be in millis
+				.withTimestampAssigner((point, timestamp) -> (point.getTime() * 1000L));
+
+		SingleOutputStreamOperator<TimestreamPoint> averages = mappedInput
 				.filter(point -> point.getMeasureValueType().toString().equals("DOUBLE") || point.getMeasureValueType().toString().equals("BIGINT"))
-				//is it best practice to accomodate small amounts of lateness here?
-				.assignTimestampsAndWatermarks(new TimestampAssigner())
-				//is this hash function to keyBy best practice??
+				.assignTimestampsAndWatermarks(wmStrategy)
 				.keyBy(new KeySelector<TimestreamPoint, Integer>() {
 					@Override
 					public Integer getKey(TimestreamPoint point) throws Exception {
 						return Objects.hash(point.getMeasureName(), point.getMeasureValueType(), point.getTimeUnit(), point.getDimensions());
 					}
 				})
-				.timeWindow(Time.seconds(300))
-				.allowedLateness(Time.seconds(120))
+				.window(TumblingEventTimeWindows.of(Time.minutes(5)))
+				.allowedLateness(Time.minutes(2))
 				.apply(new TimestreamPointToAverage());
 
 		String region = parameter.get("Region", "us-east-1").toString();
@@ -147,6 +152,6 @@ public class StreamingJob {
 		averages.addSink(sink);
 
 		// execute program
-		env.execute("Flink Streaming Java API Skeleton");
+		env.execute("Flink Streaming Java API Timestream Aggregation");
 	}
 }

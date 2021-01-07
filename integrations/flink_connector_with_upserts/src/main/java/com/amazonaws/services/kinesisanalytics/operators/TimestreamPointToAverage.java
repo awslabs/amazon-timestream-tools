@@ -2,17 +2,21 @@ package com.amazonaws.services.kinesisanalytics.operators;
 
 import com.amazonaws.services.timestream.TimestreamPoint;
 import com.amazonaws.services.timestreamwrite.model.MeasureValueType;
+import com.google.common.collect.Iterables;
+import com.google.common.reflect.TypeToken;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.StreamSupport;
+import java.util.TimeZone;
+
+import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
-import com.google.common.collect.Iterables;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class TimestreamPointToAverage implements WindowFunction<TimestreamPoint, TimestreamPoint, Integer, TimeWindow> {
   @Override
@@ -44,26 +48,13 @@ public class TimestreamPointToAverage implements WindowFunction<TimestreamPoint,
     Map<String, String> dimensions = Iterables.get(iterable, 0).getDimensions();
     dataPoint.setDimensions(dimensions);
 
-    //set dimensions for the start and end time of the window
+    //set window start and window end dimensions
     long minTime = timeWindow.getStart();
     DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
     format.setTimeZone(TimeZone.getTimeZone("Etc/UTC"));
-
+    
     dataPoint.addDimension("window_start", format.format(minTime));
-    
     dataPoint.addDimension("window_end", format.format(maxTime));
-    
-    //debugging
-    // String timestamps = StreamSupport
-    //                 .stream(iterable.spliterator(), false)
-    //                 .map(point -> format.format(point.getTime() * 1000L))
-    //                 .collect(Collectors.joining(", ", "{", "}"));
-    
-    // //add a dimension for the number of records within the time window
-    // dataPoint.addDimension("records_in_window", String.valueOf(Iterables.size(iterable)));
-    
-    // dataPoint.addDimension("timestamps_in_window", timestamps);
-    //end debugging
     
     collector.collect(dataPoint);
   }
