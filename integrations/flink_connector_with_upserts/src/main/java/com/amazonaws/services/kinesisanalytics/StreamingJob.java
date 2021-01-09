@@ -114,8 +114,7 @@ public class StreamingJob {
         //get the aggregation window
         int aggregationWindowMinutes = Integer.parseInt(parameter.get("AggregationWindowMinutes", "5"));
 
-		DataStream<TimestreamPoint> input = createKinesisSource(env, parameter)
-				.rebalance();
+		DataStream<TimestreamPoint> input = createKinesisSource(env, parameter);
 
 		//define watermark strategy and how to assign timestamps for eventtime processing
 		WatermarkStrategy<TimestreamPoint> wmStrategy = WatermarkStrategy
