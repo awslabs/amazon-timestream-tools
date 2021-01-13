@@ -109,10 +109,10 @@ public class StreamingJob {
 		//set up the streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		//enable event time processing
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-        env.getConfig().setAutoWatermarkInterval(1000L);
+		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+		env.getConfig().setAutoWatermarkInterval(1000L);
         //get the aggregation window
-        int aggregationWindowMinutes = Integer.parseInt(parameter.get("AggregationWindowMinutes", "5"));
+		int aggregationWindowMinutes = Integer.parseInt(parameter.get("AggregationWindowMinutes", "5"));
 
 		DataStream<TimestreamPoint> input = createKinesisSource(env, parameter);
 
