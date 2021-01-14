@@ -257,10 +257,9 @@ def send_records_to_kinesis(all_dimensions, kinesis_client, stream_name, sleep_t
             kinesis_client.put_records(StreamName=stream_name, Records=records)
 
             print("Wrote {} records to Kinesis Stream '{}'".format(len(metrics), stream_name))
-            
+        
         if sleep_time > 0:
             time.sleep(float(sleep_time)) 
-
 
 def main(args):
     global utilizationRand
@@ -299,7 +298,8 @@ def main(args):
         print("Unable to describe Kinesis Stream '{}' in region {}".format(stream_name, region_name))
         sys.exit(0)
 
-    send_records_to_kinesis(dimension_measures + dimensions_events, kinesis_client, stream_name, sleep_time, percent_late, late_time)
+    send_records_to_kinesis(dimension_measures + dimensions_events,
+                            kinesis_client, stream_name, sleep_time, percent_late, late_time)
 
 
 if __name__ == "__main__":
@@ -315,13 +315,13 @@ if __name__ == "__main__":
     parser.add_argument('--profile', action="store", type=str, default=None, help="The AWS Config profile to use.")
 
     # Optional sleep timer to slow down data
-    parser.add_argument('--sleep-time', action="store", type=int, default=0, 
+    parser.add_argument('--sleep-time', action="store", type=int, default=0,
                         help="The amount of time in seconds to sleep between sending batches.")
 
     # Optional "Late" arriving data parameters
-    parser.add_argument('--percent-late', action="store", type=float, default=0, 
+    parser.add_argument('--percent-late', action="store", type=float, default=0,
                         help="The percentage of data written that is late arriving ")
-    parser.add_argument("--late-time", action="store", type=int, default=0, 
+    parser.add_argument("--late-time", action="store", type=int, default=0,
                         help="The amount of time in seconds late that the data arrives")
 
     main(parser.parse_args())
