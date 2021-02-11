@@ -232,32 +232,28 @@ async function runAllQueries() {
     }
 }
 
-async function getAllRows(query, nextToken) {
-    const params = {
-        QueryString: query
-    };
-
-    if (nextToken) {
-        params.NextToken = nextToken;
+async function getAllRows(query, nextToken = undefined) {
+    let response;
+    try {
+        response = await queryClient.query(params = {
+            QueryString: query,
+            NextToken: nextToken,
+        }).promise();
+    } catch (err) {
+        console.error("Error while querying:", err);
+        throw err;
     }
 
-    await queryClient.query(params).promise()
-        .then(
-            (response) => {
-                parseQueryResult(response);
-                if (response.NextToken) {
-                    getAllRows(query, response.NextToken);
-                }
-            },
-            (err) => {
-                console.error("Error while querying:", err);
-            });
+    parseQueryResult(response);
+    if (response.NextToken) {
+        await getAllRows(query, response.NextToken);
+    }
 }
 
 async function tryQueryWithMultiplePages(limit) {
     const queryWithLimits = SELECT_ALL_QUERY + " LIMIT " + limit;
     console.log(`Running query with multiple pages: ${queryWithLimits}`);
-    await getAllRows(queryWithLimits, null)
+    await getAllRows(queryWithLimits)
 }
 
 async function tryCancelQuery() {
@@ -266,29 +262,24 @@ async function tryCancelQuery() {
     };
     console.log(`Running query: ${SELECT_ALL_QUERY}`);
 
-    await queryClient.query(params).promise()
-        .then(
-            async (response) => {
-                await cancelQuery(response.QueryId);
-            },
-            (err) => {
-                console.error("Error while executing select all query:", err);
-            });
+    const response = await queryClient.query(params).promise();
+
+    console.log(`Sending cancellation for query: ${SELECT_ALL_QUERY}`);
+
+    await cancelQuery(response.QueryId);
 }
 
 async function cancelQuery(queryId) {
-    const cancelParams = {
-        QueryId: queryId
-    };
-    console.log(`Sending cancellation for query: ${SELECT_ALL_QUERY}`);
-    await queryClient.cancelQuery(cancelParams).promise()
-        .then(
-            (response) => {
-                console.log("Query has been cancelled successfully");
-            },
-            (err) => {
-                console.error("Error while cancelling select all:", err);
-            });
+    try {
+        await queryClient.cancelQuery({
+            QueryId: queryId
+        }).promise();
+    } catch (err) {
+        console.error("Error while cancelling query:", err);
+        throw err;
+    }
+
+    console.log("Query has been cancelled successfully");
 }
 
 function parseQueryResult(response) {
