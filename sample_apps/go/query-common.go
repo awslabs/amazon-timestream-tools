@@ -26,8 +26,11 @@ func write(f *os.File, s string) {
 	}
 }
 
-func processScalarType(data *timestreamquery.Datum) string {
-	return *data.ScalarValue
+func processScalarType(datum *timestreamquery.Datum) string {
+	if datum.NullValue != nil && *datum.NullValue {
+		return "NULL"
+	}
+	return *datum.ScalarValue
 }
 
 func processTimeSeriesType(data []*timestreamquery.TimeSeriesDataPoint, columnInfo *timestreamquery.ColumnInfo) string {
