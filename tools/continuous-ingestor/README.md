@@ -11,11 +11,9 @@ A script to generate a continuous stream of records that are ingested into Times
 ----
 ## How to use it
 
-1. Install and configure Boto3 set up following the instructions at https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
-
-1. Install numpy 
+1. Requires the latest boto and numpy packages. Install requirements 
 	```
-	pip3 install numpy
+	pip3 install -r requirements.txt
 	```
 
 1. Run the following command to continuously generate and ingest sample data into Timestream. 
@@ -36,6 +34,12 @@ Starts a single-threaded ingest process the continues until SIGINT signal (CTRL 
 python3 timestream_sample_continuous_data_ingestor_application.py -c 1 --host-scale 1 -d testDb -t testTable -e 'us-east-1'
 ```
 
+#### Single-threaded ingest to specified endpoint
+Starts a single-threaded ingest process the continues until SIGINT signal (CTRL + C) is received.
+```
+python3 timestream_sample_continuous_data_ingestor_application.py -c 1 --host-scale 1 -d testDb -t testTable -e 'us-east-1' -url 'https://ingest-cell2.timestream.us-east-1.amazonaws.com'
+
+```
 #### Concurrent ingest
 
 Starts a multi-threaded ingest process the continues until SIGINT signal (CTRL + C) is received. The number of threads is controlled by the option -c or --concurrency.
