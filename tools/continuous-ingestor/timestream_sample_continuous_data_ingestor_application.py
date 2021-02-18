@@ -353,7 +353,7 @@ def ingestRecords(tsClient, dimensionsMetrics, dimensionsEvents, args):
 #########################################
 ######### Timestream API calls ##########
 #########################################
-def createWriteClient(region, profile = None):
+def createWriteClient(region, endpoint_url, profile = None):
     if profile == None:
         print("Using credentials from the environment")
 
@@ -362,11 +362,11 @@ def createWriteClient(region, profile = None):
     if profile != None:
         session = boto3.Session(profile_name = profile)
         client = session.client(service_name = 'timestream-write',
-                                region_name = region, config = config)
+                                region_name = region, endpoint_url=endpoint_url, config = config)
     else:
         session = boto3.Session()
         client = session.client(service_name = 'timestream-write',
-                                region_name = region, config = config)
+                                region_name = region, endpoint_url=endpoint_url, config = config)
     return client
 
 def describeTable(client, databaseName, tableName):
@@ -387,7 +387,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--database-name', '-d', dest="databaseName", action = "store", required = True, help = "The database name in Amazon Timestream - must be already created.")
     parser.add_argument('--table-name', '-t', dest="tableName", action = "store", required = True, help = "The table name in Amazon Timestream - must be already created.")
-    parser.add_argument('--endpoint', '-e', action = "store", required = True, help="Specify the service region endpoint. E.g. 'us-east-1'")
+    parser.add_argument('--endpoint', '-e', action = "store", required = True, help="Specify the service region. E.g. 'us-east-1'")
+    parser.add_argument('--endpoint-url', '-url', action = "store", required = False, help="Specify the service endpoint url that you have been mapped to. E.g. 'https://ingest-cell2.timestream.us-east-1.amazonaws.com'")
     parser.add_argument('--concurrency', '-c', action = "store", type = int, default = 30, help = "Number of concurrent ingestion threads (default: 1)")
     parser.add_argument('--host-scale', dest = "hostScale", action = "store", type = int, default = 10, help = "The scale factor that determines the number of hosts emitting events and metrics (default: 1).")
     parser.add_argument('--profile', action = "store", type = str, default= None, help = "The AWS Config profile to use.")
@@ -412,7 +413,7 @@ if __name__ == "__main__":
 
     ## Verify the table
     try:
-        tsClient = createWriteClient(args.endpoint, profile=args.profile)
+        tsClient = createWriteClient(args.endpoint, args.endpoint_url,  profile=args.profile)
         describeTable(tsClient, args.databaseName, args.tableName)
     except Exception as e:
         print(e)
