@@ -5,18 +5,10 @@ This sample application shows how you can create a database and table, populate 
 -------
 ## How to use it
 
-### Using .Net Core CLI
+### Using .Net Core 
+1. Install [.NET](https://docs.microsoft.com/en-us/dotnet/core/install/) 
 
-
-1. Install required NuGet. Ensure AWSSDK.Core version is 3.3.107 or newer.
-   ```shell
-   dotnet add package AWSSDK.Core --version 3.5.1.42
-   dotnet add package AWSSDK.TimestreamWrite --version 3.5.1
-   dotnet add package AWSSDK.TimestreamQuery --version 3.5.1.1
-   dotnet add package CommandLineParser
-   ```
-
-   NOTE: If the older SDK has been installed, you might have to remove the older packages and clean cache before adding new SDKs.
+2.  NOTE: If the older SDK has been installed, you might have to remove the older packages and clean cache before adding new SDKs.
    ```
    dotnet remove package AWSSDK.Core
    dotnet remove package AWSSDK.TimestreamWrite
@@ -24,17 +16,25 @@ This sample application shows how you can create a database and table, populate 
    dotnet nuget locals all --clear
    ```
 
-1. Run the project
+3. Install required NuGet. Ensure AWSSDK.Core version is 3.3.107 or newer.
+   ```shell
+   dotnet add package AWSSDK.Core
+   dotnet add package AWSSDK.TimestreamWrite
+   dotnet add package AWSSDK.TimestreamQuery 
+   dotnet add package CommandLineParser
+   ```
+
+4. Run the project
    ```shell
    dotnet run
    ```
    
-1. Run with kms key id for Update database
+5. Run with kms key id for Update database
    ```
    dotnet run -- -k ValidKmsKeyId
    ```
 
-1. Run with sample csv data file
+6. Run with sample csv data file
    ```shell
    dotnet run -- -f ../data/sample.csv
    ```
