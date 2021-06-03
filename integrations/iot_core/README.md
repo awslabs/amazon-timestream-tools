@@ -4,22 +4,17 @@ You can ingest time series data from your IoT devices connected to AWS IoT Core 
 
 1. a Python script which generates sample data: **sensordata.py**
 2. a CloudFormation template which sets up the necessary resources in your AWS account: **cfn-iot-rule-to-timestream.json**
-3. a JSON object containing the AWS IoT topic rule definition: **to-timestream-rule-template.json**
 
 The CloudFormation template creates:
 
 1. a Timestream database and table.
 2. an IAM role. Part of a rule definition is an IAM role that grants permission to access resources specified in the rule's action.
-
-The Timestream database name, the table name and the IAM role's ARN will be used to create the IoT topic rule. The values can be found in the outputs tab of your CloudFormation stack once that has successfully completed execution.
+3. IoT topic rule that writes sensor data into Timestream database.
 
 ## Setup
 
 ### AWS Region
 **Note** The instructions in this repository will use the US East (N. Virginia) Region (us-east-1). If you want to choose another region replace the region in the instructions with the region of your choice. You need also replace the region then in the data generating script `sensordata.py`.
-
-### AWS Command Line Interface
-You must use an AWS Command Line Interface (AWS CLI) version which supports timestream and the timestream action for an iot rule. This applies as of version **2.0.54** for the [AWS CLI version 2](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html#cli-chap-install-v2) and as of version **1.18.150** for the former version of the AWS CLI.
 
 ### Sample data generation script
 The data generation script generates sample data that represent fictitious sensors in buildings which measure humidity, barometric pressure and temperature. 
@@ -66,62 +61,6 @@ Go to the [AWS CloudFormation console](https://console.aws.amazon.com/cloudforma
 12. Create stack
 13. Wait until the status changes from `CREATE_IN_PROGRESS` to `CREATE_COMPLETE`. It should take some minutes for the stack to be launched.
 
-When your stack has been created you can continue with creating the IoT rule.
-
-
-### IoT rule
-Create a topic rule with the awscli. The Timestream action for the topic rule is currently (September 2020) not supported by CloudFormation. Therefore you will use the awscli. 
-
-* In **to-timestream-rule-template.json** replace `REPLACE_WITH_YOUR_ROLE_ARN`, `REPLACE_WITH_YOUR_DB_NAME`, `REPLACE_WITH_YOUR_TABLE_NAME` with the values that you find in the outputs section of your CloudFormation stack. **Note** The output of the table name has the format `DATABASE_NAME|TABLE_NAME`. Copy only the table name right from the `|` sign.
-* Create the topic rule
-
-		aws iot create-topic-rule \
-			--rule-name ToTimestreamRule \
-			--topic-rule-payload file://./to-timestream-rule-template.json \
-			--region us-east-1
-* Verify that the rule has been created
-
-		aws iot get-topic-rule \
-			--rule-name ToTimestreamRule \
-			--region us-east-1
-		
-* The output should look similar to:
-
-		{
-		    "ruleArn": "arn:aws:iot:us-east-1:123469872099:rule/ToTimestreamRule",
-		    "rule": {
-		        "ruleName": "ToTimestreamRule",
-		        "sql": "SELECT humidity, pressure, temperature FROM 'dt/sensor/#'",
-		        "createdAt": 1600448082.0,
-		        "actions": [
-		            {
-		                "timestream": {
-		                    "roleArn": "arn:aws:iam::123469872099:role/service-role/IoTTSIntegration-IoTDataToTimestreamRole-AID1DQCV0TLI1",
-		                    "databaseName": "TimestreamDataBase-MZ2tF37FmupG",
-		                    "tableName": "TimestreamTable-jh1E5janGVxf",
-		                    "dimensions": [
-		                        {
-		                            "name": "device_id",
-		                            "value": "${device_id}"
-		                        },
-		                        {
-		                            "name": "building",
-		                            "value": "${building}"
-		                        },
-		                        {
-		                            "name": "room",
-		                            "value": "${room}"
-		                        }
-		                    ]
-		                }
-		            }
-		        ],
-		        "ruleDisabled": false,
-		        "awsIotSqlVersion": "2016-03-23"
-		    }
-		}
-
-
 Start the data generating script: `./sensordata.py`
 
 ## Sample queries
@@ -151,5 +90,3 @@ In case something doesn't work as expected try to use [Amazon CloudWatch insight
 		| sort @timestamp desc
 		| limit 20
 		| filter ruleName = "ToTimestreamRule"
-
-
