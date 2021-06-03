@@ -16,6 +16,9 @@ The CloudFormation template creates:
 ### AWS Region
 **Note** The instructions in this repository will use the US East (N. Virginia) Region (us-east-1). If you want to choose another region replace the region in the instructions with the region of your choice. You need also replace the region then in the data generating script `sensordata.py`.
 
+### AWS Command Line Interface
+You must use an AWS Command Line Interface (AWS CLI) version which supports timestream and the timestream action for an iot rule. This applies as of version **2.0.54** for the [AWS CLI version 2](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html#cli-chap-install-v2) and as of version **1.18.150** for the former version of the AWS CLI.
+
 ### Sample data generation script
 The data generation script generates sample data that represent fictitious sensors in buildings which measure humidity, barometric pressure and temperature. 
 
