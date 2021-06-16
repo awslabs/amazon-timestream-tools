@@ -21,20 +21,29 @@
 #
 # import useful stuff
 #
-import boto3
+
 import datetime
 import json
 import logging
 import random
-import sys
 import threading
 import time
+
+import boto3
 
 #
 # globals
 #
 TOPIC_BASE = 'dt/sensor'
-C_IOT_DATA = boto3.client('iot-data', region_name='us-east-1')
+REGION = 'us-east-1'
+DATA_ENDPOINT = boto3.client('iot', region_name=REGION).describe_endpoint(
+    endpointType='iot:Data-ATS'
+)['endpointAddress']
+C_IOT_DATA = boto3.client(
+    'iot-data',
+    region_name=REGION,
+    endpoint_url=f'https://{DATA_ENDPOINT}'
+)
 
 SENSORS = {
     'sensor_01': {'building': 'Day 1', 'room': '2.01'},
@@ -55,16 +64,17 @@ SENSORS = {
 logger = logging.getLogger("AWSIoTPythonSDK.core")
 logger.setLevel(logging.INFO)
 streamHandler = logging.StreamHandler()
-formatter = logging.Formatter("[%(asctime)s - %(levelname)s - %(filename)s:%(lineno)s - %(funcName)s - %(message)s")
+formatter = logging.Formatter("[%(asctime)s - %(levelname)s - \
+%(filename)s:%(lineno)s - %(funcName)s - %(message)s")
 streamHandler.setFormatter(formatter)
 logger.addHandler(streamHandler)
 
 
 def sensor_data():
     message = {}
-    message['temperature'] = random.uniform(15,35)
-    message['humidity'] = random.uniform(30,70)
-    message['pressure'] = random.uniform(900,1150)
+    message['temperature'] = random.uniform(15, 35)
+    message['humidity'] = random.uniform(30, 70)
+    message['pressure'] = random.uniform(900, 1150)
 
     return message
 
@@ -72,32 +82,33 @@ def send_sensor_data(sensor):
     while True:
         try:
             message = sensor_data()
-        
+
             message['device_id'] = sensor
             message['building'] = SENSORS[sensor]['building']
             message['room'] = SENSORS[sensor]['room']
-    
+
             topic = '{}/{}'.format(TOPIC_BASE, sensor)
-            logger.info("publish: topic: {} message: {}".format(topic, message))
-            
+            logger.info("publish: topic: %s message: %s", topic, message)
+
             response = C_IOT_DATA.publish(topic=topic, qos=0, payload=json.dumps(message))
-            logger.info("response: {}".format(response))
-        except Exception as e:
-            logger.error("{}".format(e))
-    
+            logger.info("response: %s", response)
+        except Exception as error:
+            logger.error("%s", error)
+
         time.sleep(2)
 
 
 for sensor in SENSORS.keys():
-    logger.info("starting thread for sensor: {}".format(sensor))
-    threading.Thread(target=send_sensor_data,args=(sensor,)).start()
+    logger.info("starting thread for sensor: %s", sensor)
+    threading.Thread(target=send_sensor_data, args=(sensor,)).start()
 
 
-start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")   
+start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 while True:
-    logger.info("{}: start_time: {} now: {} threads:".format(__file__, start_time, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    for t in threading.enumerate():
-        logger.info("  {}".format(t))
-        
+    logger.info("%s: start_time: %s now: %s threads:",
+                __file__, start_time,
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    for thread in threading.enumerate():
+        logger.info("  %s", thread)
+
     time.sleep(30)
-    
