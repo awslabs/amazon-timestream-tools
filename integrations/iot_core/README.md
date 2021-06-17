@@ -16,9 +16,6 @@ The CloudFormation template creates:
 ### AWS Region
 **Note** The instructions in this repository will use the US East (N. Virginia) Region (us-east-1). If you want to choose another region replace the region in the instructions with the region of your choice. You need also replace the region then in the data generating script `sensordata.py`.
 
-### AWS Command Line Interface
-You must use an AWS Command Line Interface (AWS CLI) version which supports timestream and the timestream action for an iot rule. This applies as of version **2.0.54** for the [AWS CLI version 2](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html#cli-chap-install-v2) and as of version **1.18.150** for the former version of the AWS CLI.
-
 ### Sample data generation script
 The data generation script generates sample data that represent fictitious sensors in buildings which measure humidity, barometric pressure and temperature. 
 
@@ -40,7 +37,7 @@ The script is implemented in Python 3 and uses the [publish API](https://docs.aw
 
 1. Install Python 3
 2. Install `boto3`
-3. Setup authentication credentials and associate the permission to publish to IoT (`"iot:Publish"`) with those credentials
+3. Setup authentication credentials and associate the permissions to publish to IoT (`"iot:Publish"`) and to describe the IoT endpoint (`"iot:DescribeEndpoint"`) with those credentials
 4. Launch the CloudFormation stack in your account
 
 **Note**: For more information on the installation of the `boto3` library and setting up of authentication credentials for use in your Python scripts please see the [Quick Start](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html) and [Credentials](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html) sections of the `boto3` documentation.
