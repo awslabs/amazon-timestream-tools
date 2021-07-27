@@ -59,7 +59,7 @@ def create_table():
             print("Table {} successfully created.".format(TABLE_1['name']))
         except client.exceptions.ConflictException:
             print("Table {} exists on database {}. Skipping table creation".format(
-                TABLE_NAME1, DATABASE_NAME))
+                TABLE_1['name'], DATABASE_NAME))
         except Exception as err:
             print("Create table failed:", err)
 

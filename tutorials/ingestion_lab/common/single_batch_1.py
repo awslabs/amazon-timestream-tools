@@ -17,6 +17,8 @@ thread with a batch size of 1 into Timestream.'''
 # permissions and limitations under the License.
 
 
+from signal import signal, SIGINT
+from sys import exit
 from datetime import datetime, timedelta
 import csv
 import boto3
@@ -25,10 +27,21 @@ from botocore.config import Config
 
 DATABASE_NAME = "demo"
 TABLE_NAME = "Ingestion_Demo_1"
+start_time = datetime.now()
+processed_records = 0 
+
+def handler(signal_received, frame):
+    end_time = datetime.now()
+    processing_time = end_time - start_time
+    print("\n{} records processed in {}".format(str(processed_records), processing_time))
+
+    exit(0)
 
 def upload_record(record):
     '''This function takes in a record and uploads the record to Timestream.
     Note the Common attribute setting for the Sensor Value'''
+    global processed_records
+    processed_records+=1
     try:
         result = client.write_records(DatabaseName=DATABASE_NAME,
                                             TableName=TABLE_NAME,
@@ -55,6 +68,7 @@ def create_record(measurement):
 def create_measurement(metric_name, metric, time):
     '''This function formats the measurement into the style needed to import
     into Timestream'''
+
     result = {}
     result["MeasureName"] = metric_name
     result["MeasureValue"] = metric
@@ -66,7 +80,7 @@ def create_measurement(metric_name, metric, time):
 def start():
     '''This functions starts the process, reads the csv, and generates timestamps
     starting 20 hours in the past.'''
-    start_time = datetime.now()
+    print(start_time)
     origin_time = int((start_time - timedelta(hours=20, minutes=00)).timestamp()*1000)
 
     f = open('alldata_skab.csv', 'r')
@@ -125,5 +139,7 @@ def authenticate():
     return write_client
 
 if __name__ == "__main__":
+    signal(SIGINT, handler)
+    X = 0
     client = authenticate()
     start()

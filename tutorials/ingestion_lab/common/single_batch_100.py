@@ -74,6 +74,7 @@ class Demo():
         '''This functions starts the process, reads the csv, and generates timestamps
         starting 20 hours in the past.'''
         start_time = datetime.now()
+        print(start_time)
         origin_time = int((start_time - timedelta(hours=20, minutes=00)).timestamp()*1000)
 
         f = open('alldata_skab.csv', 'r')

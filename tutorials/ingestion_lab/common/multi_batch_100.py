@@ -29,11 +29,12 @@ origin_time = int((start_time - timedelta(hours=20, minutes=00)).timestamp()*100
 class Worker():
     '''This class is responsible for processing the alldata_skab.csv and
     importing it to Timestream'''
-    def __init__(self, rows):
+    def __init__(self, rows, unique_id):
         self.rows = rows
         self.records = []
         self.DATABASE_NAME = "demo"
         self.TABLE_NAME = "Ingestion_Demo_multi"
+        self.unique_id = unique_id
         self.session = boto3.Session()
         self.client = self.session.client('timestream-write', config=Config(read_timeout=20,
                                                                     max_pool_connections=5000,
@@ -43,44 +44,45 @@ class Worker():
     def run(self):
         '''This functions starts the processing withing the thread, reads the incoming records,
         and generates timestamps starting 20 hours in the past.'''
-        print("started {}".format(multiprocessing.current_process().name))
+        print("started {} at {}".format(multiprocessing.current_process().name, start_time))
         increment = 0
         for row in self.rows:
             increment += 1000
             accelerometer_1_rms = self.create_measurement("Accelerometer1RMS",
                                                             row['Accelerometer1RMS'],
-                                                            origin_time + increment)
+                                                            origin_time + increment + (self.unique_id * 100))
             self.create_record(accelerometer_1_rms)
 
             accelerometer_2_rms = self.create_measurement("Accelerometer2RMS",
                                                             row['Accelerometer2RMS'],
-                                                            origin_time + increment)
+                                                            origin_time + increment + (self.unique_id * 100))
             self.create_record(accelerometer_2_rms)
 
             current = self.create_measurement("Current",
                                                 row['Current'],
-                                                origin_time + increment)
+                                                origin_time + increment + (self.unique_id * 100))
             self.create_record(current)
 
             pressure = self.create_measurement("Pressure",
                                                 row['Pressure'],
-                                                origin_time + increment)
+                                                origin_time + increment + (self.unique_id * 100))
             self.create_record(pressure)
 
             temperature = self.create_measurement("Temperature",
                                                     row['Temperature'],
-                                                    origin_time + increment)
+                                                    origin_time + increment + (self.unique_id * 100))
             self.create_record(temperature)
 
             thermocouple = self.create_measurement("Thermocouple",
                                                     row['Thermocouple'],
-                                                    origin_time + increment)
+                                                    origin_time + increment + (self.unique_id * 100))
             self.create_record(thermocouple)
 
             volume_flow_rate_rms = self.create_measurement("Volume Flow RateRMS",
                                                             row['Volume Flow RateRMS'],
-                                                            origin_time + increment)
+                                                            origin_time + increment + (self.unique_id * 100))
             self.create_record(volume_flow_rate_rms)
+        print("completed {}".format(multiprocessing.current_process().name))
 
     def upload_record(self, record_s):
         '''This function takes in a record and uploads the record to Timestream.
@@ -154,14 +156,18 @@ def start():
                 worker7.append(row)
             if x == 8:
                 worker8.append(row)
-    worker_1 = multiprocessing.Process(name='worker1', target=Worker, args=(worker1, ))
-    worker_2 = multiprocessing.Process(name='worker2', target=Worker, args=(worker2, ))
-    worker_3 = multiprocessing.Process(name='worker3', target=Worker, args=(worker3, ))
-    worker_4 = multiprocessing.Process(name='worker4', target=Worker, args=(worker4, ))
-    worker_5 = multiprocessing.Process(name='worker5', target=Worker, args=(worker5, ))
-    worker_6 = multiprocessing.Process(name='worker6', target=Worker, args=(worker6, ))
-    worker_7 = multiprocessing.Process(name='worker7', target=Worker, args=(worker7, ))
-    worker_8 = multiprocessing.Process(name='worker8', target=Worker, args=(worker8, ))
+                x = 0
+            x+=1
+
+
+    worker_1 = multiprocessing.Process(name='worker1', target=Worker, args=(worker1, 1, ))
+    worker_2 = multiprocessing.Process(name='worker2', target=Worker, args=(worker2, 2, ))
+    worker_3 = multiprocessing.Process(name='worker3', target=Worker, args=(worker3, 3, ))
+    worker_4 = multiprocessing.Process(name='worker4', target=Worker, args=(worker4, 4, ))
+    worker_5 = multiprocessing.Process(name='worker5', target=Worker, args=(worker5, 5, ))
+    worker_6 = multiprocessing.Process(name='worker6', target=Worker, args=(worker6, 6, ))
+    worker_7 = multiprocessing.Process(name='worker7', target=Worker, args=(worker7, 7, ))
+    worker_8 = multiprocessing.Process(name='worker8', target=Worker, args=(worker8, 8, ))
     worker_1.start()
     worker_2.start()
     worker_3.start()
