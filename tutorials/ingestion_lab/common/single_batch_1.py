@@ -16,7 +16,7 @@ thread with a batch size of 1 into Timestream.'''
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
 
-
+import argparse
 from signal import signal, SIGINT
 from sys import exit
 from datetime import datetime, timedelta
@@ -25,7 +25,6 @@ import boto3
 from botocore.config import Config
 
 
-DATABASE_NAME = "demo"
 TABLE_NAME = "Ingestion_Demo_1"
 start_time = datetime.now()
 processed_records = 0 
@@ -139,6 +138,11 @@ def authenticate():
     return write_client
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('name', help='Enter database name')
+    args = parser.parse_args()
+    DATABASE_NAME = args.name
+
     signal(SIGINT, handler)
     X = 0
     client = authenticate()

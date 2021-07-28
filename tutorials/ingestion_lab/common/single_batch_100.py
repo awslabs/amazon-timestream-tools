@@ -17,6 +17,7 @@ thread with a batch size of 100 into Timestream.'''
 # permissions and limitations under the License.
 
 
+import argparse
 from datetime import datetime, timedelta
 import csv
 import boto3
@@ -26,9 +27,9 @@ from botocore.config import Config
 class Demo():
     '''This class is responsible for processing the alldata_skab.csv and
     importing it to Timestream'''
-    def __init__(self):
+    def __init__(self, database_name):
         ''' '''
-        self.DATABASE_NAME = "demo"
+        self.DATABASE_NAME = database_name
         self.TABLE_NAME = "Ingestion_Demo_100"
         self.records = []
 
@@ -133,6 +134,9 @@ class Demo():
         return write_client
 
 if __name__ == "__main__":
-    demo = Demo()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('name', help='Enter database name')
+    args = parser.parse_args()
+    demo = Demo(args.name)
     client = demo.authenticate()
     demo.start()

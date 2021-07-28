@@ -17,6 +17,7 @@ with a batch size of 100 into Timestream.'''
 # permissions and limitations under the License.
 
 
+import argparse
 import csv
 import multiprocessing
 from datetime import datetime, timedelta
@@ -29,10 +30,10 @@ origin_time = int((start_time - timedelta(hours=20, minutes=00)).timestamp()*100
 class Worker():
     '''This class is responsible for processing the alldata_skab.csv and
     importing it to Timestream'''
-    def __init__(self, rows, unique_id):
+    def __init__(self, rows, unique_id, database_name):
         self.rows = rows
         self.records = []
-        self.DATABASE_NAME = "demo"
+        self.DATABASE_NAME = database_name
         self.TABLE_NAME = "Ingestion_Demo_multi"
         self.unique_id = unique_id
         self.session = boto3.Session()
@@ -123,7 +124,7 @@ class Worker():
         return result
 
 
-def start():
+def start(database_name):
     '''This creates the workers for importing the data, starts them, and joins
     them so the main process doesnt quit before all the workers quit'''
     worker1 = []
@@ -160,14 +161,14 @@ def start():
             x+=1
 
 
-    worker_1 = multiprocessing.Process(name='worker1', target=Worker, args=(worker1, 1, ))
-    worker_2 = multiprocessing.Process(name='worker2', target=Worker, args=(worker2, 2, ))
-    worker_3 = multiprocessing.Process(name='worker3', target=Worker, args=(worker3, 3, ))
-    worker_4 = multiprocessing.Process(name='worker4', target=Worker, args=(worker4, 4, ))
-    worker_5 = multiprocessing.Process(name='worker5', target=Worker, args=(worker5, 5, ))
-    worker_6 = multiprocessing.Process(name='worker6', target=Worker, args=(worker6, 6, ))
-    worker_7 = multiprocessing.Process(name='worker7', target=Worker, args=(worker7, 7, ))
-    worker_8 = multiprocessing.Process(name='worker8', target=Worker, args=(worker8, 8, ))
+    worker_1 = multiprocessing.Process(name='worker1', target=Worker, args=(worker1, 1, database_name, ))
+    worker_2 = multiprocessing.Process(name='worker2', target=Worker, args=(worker2, 2, database_name, ))
+    worker_3 = multiprocessing.Process(name='worker3', target=Worker, args=(worker3, 3, database_name, ))
+    worker_4 = multiprocessing.Process(name='worker4', target=Worker, args=(worker4, 4, database_name, ))
+    worker_5 = multiprocessing.Process(name='worker5', target=Worker, args=(worker5, 5, database_name, ))
+    worker_6 = multiprocessing.Process(name='worker6', target=Worker, args=(worker6, 6, database_name, ))
+    worker_7 = multiprocessing.Process(name='worker7', target=Worker, args=(worker7, 7, database_name, ))
+    worker_8 = multiprocessing.Process(name='worker8', target=Worker, args=(worker8, 8, database_name, ))
     worker_1.start()
     worker_2.start()
     worker_3.start()
@@ -192,4 +193,7 @@ def start():
 
 
 if __name__ == "__main__":
-    start()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('name', help='Enter database name')
+    args = parser.parse_args()
+    start(args.name)

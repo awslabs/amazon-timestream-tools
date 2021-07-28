@@ -2,7 +2,7 @@ import boto3
 import argparse
 from botocore.config import Config
 
-DATABASE_NAME = "demo"
+
 TABLE_1 = {"name":"Ingestion_Demo_1", "retention_properties":{"MemoryStoreRetentionPeriodInHours":168, "MagneticStoreRetentionPeriodInDays": 365}}
 TABLE_2 = {"name":"Ingestion_Demo_100", "retention_properties":{"MemoryStoreRetentionPeriodInHours":168, "MagneticStoreRetentionPeriodInDays": 365}}
 TABLE_3 = {"name":"Ingestion_Demo_multi", "retention_properties":{"MemoryStoreRetentionPeriodInHours":168, "MagneticStoreRetentionPeriodInDays": 365}}
@@ -113,7 +113,9 @@ def authenticate():
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument('command', help='Enter either setup or destroy to create or destroy your Timestream Database')
+	parser.add_argument('name', help='Enter database name')
 	args = parser.parse_args()
+	DATABASE_NAME = args.name
 	if args.command == "setup":
 		authenticate()
 		create_database()
