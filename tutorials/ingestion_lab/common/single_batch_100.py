@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-'''This module is used to import data from alldata_skab.csv using a single
+'''This module is used to import data from data.csv using a single
 thread with a batch size of 100 into Timestream.'''
 
 # Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -78,7 +78,7 @@ class Demo():
         print(start_time)
         origin_time = int((start_time - timedelta(hours=20, minutes=00)).timestamp()*1000)
 
-        f = open('alldata_skab.csv', 'r')
+        f = open('data.csv', 'r')
 
         with f:
             reader = csv.DictReader(f)

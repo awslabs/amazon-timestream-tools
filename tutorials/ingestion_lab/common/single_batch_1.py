@@ -82,7 +82,7 @@ def start():
     print(start_time)
     origin_time = int((start_time - timedelta(hours=20, minutes=00)).timestamp()*1000)
 
-    f = open('alldata_skab.csv', 'r')
+    f = open('data.csv', 'r')
 
     with f:
         reader = csv.DictReader(f)

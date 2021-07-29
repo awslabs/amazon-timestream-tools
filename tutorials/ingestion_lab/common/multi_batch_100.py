@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-'''This module is used to import data from alldata_skab.csv using 8 threads
+'''This module is used to import data from data.csv using 8 threads
 with a batch size of 100 into Timestream.'''
 
 # Copyright 2010-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -28,7 +28,7 @@ start_time = datetime.now()
 origin_time = int((start_time - timedelta(hours=20, minutes=00)).timestamp()*1000)
 
 class Worker():
-    '''This class is responsible for processing the alldata_skab.csv and
+    '''This class is responsible for processing the data.csv and
     importing it to Timestream'''
     def __init__(self, rows, unique_id, database_name):
         self.rows = rows
@@ -136,7 +136,7 @@ def start(database_name):
     worker7 = []
     worker8 = []
 
-    f = open('alldata_skab.csv', 'r')
+    f = open('data.csv', 'r')
     with f:
         reader = csv.DictReader(f)
         x = 1
