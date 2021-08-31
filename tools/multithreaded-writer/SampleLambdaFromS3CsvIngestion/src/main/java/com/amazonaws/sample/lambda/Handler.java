@@ -39,7 +39,7 @@ public class Handler implements RequestHandler<Map<String, Object>, String> {
             LOG.info("Processing file: {}", inputFile);
 
             InputStream inputStream;
-            if (inputFile.getLocalTest()) {
+            if (inputFile.getLocalPath() != null) {
                 inputStream = new FileInputStream(inputFile.getLocalPath());
             } else {
                 final ResponseInputStream<GetObjectResponse> s3Object = state.getS3()

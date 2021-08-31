@@ -1,6 +1,6 @@
 # Amazon Timestream multithreaded Java writer
 
-This is a collection of sample Java applications which shows how to use multiple threads to write records to Timestream. While writing the records, the writer generates a dozen of metrics, which you can monitor for operational purposes.
+This is a collection of sample Java applications which shows how to use multiple threads to write records to Timestream. While writing the records, the writer generates a dozen metrics, which you can monitor for operational purposes.
 
 ## Sample Applications
 
@@ -24,14 +24,14 @@ To customize sample application code to your data, change **com.amazonaws.sample
 
 ![timestream-multithreaded-writer-diagram](timestream-multithreaded-writer-diagram.png?raw=true "timestream-multithreaded-writer-diagram")
 
-Each WriteRecordsRequest (a collection of Timestream records) is sent to multithreaded writer by using `TimestreamWriter.putWriteRecordRequest` method. The operation is asynchronous and only puts given WriteRecordsRequest to in-memory queue. The in-memory queue is consumed by `T` number of threads. Each of them attempts to retrieve the WriteRecordsRequest from the in-memory queue and ingest it to Timestream. A single thread is processing only a single WriteRecordsRequest at a time. It's blockingly waiting for the response from Timestream and retries the ingestion if neccassary (and according to the configuration). `TimestreamWriterMetrics` are collected during the code execution and - if configured - printed to the console. 
+Each WriteRecordsRequest (a collection of Timestream records) is sent to multithreaded writer by using `TimestreamWriter.putWriteRecordRequest` method. The operation is asynchronous and only puts given WriteRecordsRequest to in-memory queue. The in-memory queue is consumed by `T` number of threads. Each of them attempts to retrieve the WriteRecordsRequest from the in-memory queue and ingest it to Timestream. A single thread is processing only a single WriteRecordsRequest at a time. It's blockingly waiting for the response from Timestream and retries the ingestion if necessary (and according to the configuration). `TimestreamWriterMetrics` are collected during the code execution and - if configured - printed to the console.
 
 ### Multithreaded writer interface
 
 ```
 interface TimestreamWriter {
     // Put the WriteRecordsRequest to a in-memory queue. The function will return false when the queue is full.
-	// In rare circumstances, the function can block until there is space in the queue.
+    // In rare circumstances, the function can block until there is space in the queue.
     boolean putWriteRecordRequest(WriteRecordsRequest writeRequest);
 
     // Shut down gracefully - wait for all writes to complete/retry.
@@ -43,9 +43,9 @@ interface TimestreamWriter {
 
     // Return the size of the in-memory queue. This does not include records in flight.
     int getQueueSize();
-	
-	// Return the number of writes currently in flight to Timestream.
-	int getWritesInFlight();
+
+    // Return the number of writes currently in flight to Timestream.
+    int getWritesInFlight();
 
     // Return aggregated metrics from the previous method invocation.
     TimestreamWriterMetrics getAndClearMetrics();

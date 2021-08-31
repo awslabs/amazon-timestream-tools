@@ -18,12 +18,11 @@ public class EventInfo {
 
     private final String bucketName;
     private final String bucketKey;
-    private final Boolean localTest;
     private final String localPath;
 
     public static EventInfo getInputFile(final Map<String, Object> event) {
         if (event.containsKey("local-test-path")) {
-            return new EventInfo(null, null, true, (String) event.get("local-test-path"));
+            return new EventInfo(null, null, (String) event.get("local-test-path"));
         }
 
         var bucketName = (String) event.get("bucket.name");
@@ -32,6 +31,6 @@ public class EventInfo {
                 "Bucket Name - 'bucket.name' must be present and not-empty. Received: %s", bucketName);
         Preconditions.checkArgument(!(bucketKey == null || bucketKey.isEmpty()),
                 "Bucket Key - 'bucket.key' must be present and not-empty. Received: %s", bucketKey);
-        return new EventInfo(bucketName, bucketKey, false, null);
+        return new EventInfo(bucketName, bucketKey, null);
     }
 }
