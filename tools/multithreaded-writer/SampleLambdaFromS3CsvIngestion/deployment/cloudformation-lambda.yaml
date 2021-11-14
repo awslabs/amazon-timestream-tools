@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "A Lambda function which reads a CSV file from S3 and ingests records with multithreaded writer to Timestream."
+
+Parameters:
+    S3BucketToAccess:
+        Type: "String"
+        Description: The name of the S3 bucket from which Lambda will be allowed to read.
+    TargetTimestreamDatabaseName:
+        Type: "String"
+        Description: The name of the Timestream database to which Lambda will write records.
+    TargetTimestreamTableName:
+        Type: "String"
+        Description: The name of the Timestream table to which Lambda will write records.
+    
+Resources:
+    LambdaS3ToTimestreamFuncRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: "Allow"
+                      Principal:
+                          Service:
+                              - "lambda.amazonaws.com"
+                      Action:
+                          - "sts:AssumeRole"
+            Policies:
+                - PolicyName: !Sub "AllowS3Read-${S3BucketToAccess}"
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "s3:GetObject"
+                                - "s3:GetObjectVersion"
+                            Resource:
+                                - !Sub "arn:aws:s3:::${S3BucketToAccess}/*"
+                - PolicyName: !Sub "AllowTimestreamWrite-${TargetTimestreamDatabaseName}"
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "timestream:DescribeEndpoints"
+                            Resource:
+                                - "*"
+                          - Effect: "Allow"
+                            Action:
+                                - "timestream:WriteRecords"
+                            Resource:
+                                - !Sub "arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${TargetTimestreamDatabaseName}/table/${TargetTimestreamTableName}"
+ 
+    LambdaS3ToTimestreamFunc:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            FunctionName: "sample-lambda-from-s3-csv-ingestion"
+            Description: "Lambda function which reads a CSV file from S3 and ingests records with multithreaded writer to Timestream"
+            Code: ../target/sample-lambda-from-s3-csv-ingestion-1.0-SNAPSHOT.jar
+            Handler: com.amazonaws.sample.lambda.Handler::handleRequest
+            Runtime: java11
+            Role: !GetAtt LambdaS3ToTimestreamFuncRole.Arn
+            Timeout: 900
+            MemorySize: 10240
+            Environment:
+                Variables:
+                    S3_REGION: "us-east-1"
+                    TIMESTREAM_REGION: "us-east-1"
+                    TIMESTREAM_WRITER_THREAD_POOL_SIZE: 800 # Max. amount of threads in lambda is 1024 - leaving ~20% room for other threads
+                    TARGET_TIMESTREAM_DATABASE: !Ref TargetTimestreamDatabaseName
+                    TARGET_TIMESTREAM_TABLE: !Ref TargetTimestreamTableName
+
+    ReplayFunctionLogGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Sub "/aws/lambda/${LambdaS3ToTimestreamFunc}"
+            RetentionInDays: 30
+
+Outputs:
+    LambdaS3ToTimestreamFunction:
+        Description: "Lambda Function ARN"
+        Value: !GetAtt LambdaS3ToTimestreamFunc.Arn

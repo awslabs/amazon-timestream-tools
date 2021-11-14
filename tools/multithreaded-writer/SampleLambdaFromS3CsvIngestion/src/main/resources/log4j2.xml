@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO" packages="com.amazonaws.services.lambda.runtime.log4j2">
+    <Appenders>
+        <Lambda name="LambdaAppender">
+            <PatternLayout pattern="%d [%p] %c{1.} (%t): %m%n"/> <!-- Consider adding %X{AWSRequestId} -->
+        </Lambda>
+    </Appenders>
+
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="LambdaAppender"/>
+        </Root>
+
+        <!-- Change to debug if you want to see discarded records or individual accepted writes -->
+        <Logger name="com.amazonaws.sample.timestream.multithreaded.TimestreamWriterWorker" level="INFO"/>
+        <Logger name="software.amazon.awssdk" level="WARN" />
+        <!-- Change to debug if you want to see requests -->
+        <Logger name="software.amazon.awssdk.request" level="INFO" />
+    </Loggers>
+</Configuration>
