@@ -26,7 +26,7 @@ A script to generate a continuous stream of records that are ingested into Times
      E.g. ```python3 timestream_sample_continuous_data_ingestor_application.py --help```
 
 ## Data Explained
-The tool generates for each instances 25 common host metrics and 5 process events. The host metrics are described in the following table:
+The tool generates for each instances 20 common host metrics and 5 process events. The host metrics are described in the following table:
 
 | Domain  | Metric | Value Range | Description | 
 |:---     |:---    |:-------:    |:---         | 
@@ -91,35 +91,94 @@ Depending on the parametrization one can enable data generation for instances ac
 
 Depending on the parametrization one can therefore define up to 1010 server instances spread across the globe in 101 silos. For each of the instances the tool generates the 25 host metrics and additionally 5 process events as fast as possible. The generator loops over all dimension permutations and creates and inserts the metrics with the current time stamp, while not creating more than one measurement per second per time series. In turn this means that the tool is not ensuring equidistant measurements.
 
+## Command Line Parameters
+```
+python3 timestream_sample_continuous_data_ingestor_application.py -h
+--
+-h, --help            show this help message and exit
+  --region REGION, -r REGION, --endpoint REGION, -e REGION
+                        Specify the service region. E.g. 'us-east-1'
+  --endpoint-url ENDPOINT_URL, -url ENDPOINT_URL
+                        Specify the service endpoint url that you have been mapped to. E.g. 'https://ingest-cell1.timestream.us-east-1.amazonaws.com'
+  --profile PROFILE     The AWS Config profile to use.
+  --database-name DATABASENAME, -d DATABASENAME
+                        The database name in Amazon Timestream - must be already created.
+  --table-name TABLENAME, -t TABLENAME
+                        The table name in Amazon Timestream - must be already created.
+  --concurrency CONCURRENCY, -c CONCURRENCY
+                        Number of concurrent ingestion threads (default: 10)
+  --host-scale HOSTSCALE, -s HOSTSCALE
+                        The scale factor that determines the number of hosts emitting events and metrics (default: 10).
+  --whitelist-region WHITELISTREGION
+                        Comma separated whitelist of regions (default: EMPTY, all)
+  --whitelist-ms WHITELISTMS
+                        Comma separated whitelist of microservice (default: EMPTY, all).
+  --missing-cpu MISSINGCPU
+                        The percentage of missing values [0-100], (default: 0).
+  --sin-signal-cpu SINSIGNALCPU
+                        The SIN signal to noise ratio, [0-100] no signal to 100 times noise, (default: 0).
+  --sin-frq-cpu SINFRQCPU
+                        The SIN signal frequency (m | h | d | we | mo | qu | ye) (default:m)
+  --saw-signal-cpu SAWSIGNALCPU
+                        The SAW signal to noise ratio, [0-100] no signal to 100 times noise, (default: 0).
+  --saw-frq-cpu SAWFRQCPU
+                        The SIN signal frequency (m | h | d | we | mo | qu | ye) (default:m)
+  --seed SEED           The seed with which to initialize random, (default: now()).
+  --autostop AUTOSTOP   Add autostop to stop each individual ingestor thread after N iterates records. (default:0, unlimited)
+  --dry-run             Add dry run to preview the dimenions of metrics and events.
+
+```
+
 ## Examples
 ### Single-threaded ingest
 The following command starts a single-threaded ingest process that continues until SIGINT signal (CTRL + C) is received.
 ```
-python3 timestream_sample_continuous_data_ingestor_application.py -c 1 --host-scale 1 -d testDb -t testTable -e 'us-east-1'
+python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb -t testTable -r 'us-east-1'
 ```
 
-In cases, where fewer time series are needed one can limit the number of regions to one and also focus on only one microservice. As the 'apollo' microservice is configured with exactly one instance this simulates the metrics and events of one host.
+In cases, where fewer time series are needed one can limit the regions to one and also focus on only one microservice. The region ```eu-central-1``` is configured with 1 cell and 1 silo. As the ```athena``` microservice is configured with exactly one instance this simulates the metrics and events of one host.
 
 ```
-python3 timestream_sample_continuous_data_ingestor_application.py -c 1 --region-scale 1 --ms-scale 1 --host-scale 1 -d testDb -t testTable -e 'us-east-1'
+python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb -t testTable -r 'us-east-1' --whitelist-region "eu-central-1" --whitelist-ms "athena"
 ```
 
 ### Multi threaded ingest
 As a single thread is limited with the number of records which can be generated, we allow for parallism. A concurrency parameter greate than 1 starts a  multi-threaded ingest process which will continues until SIGINT signal (CTRL + C) is received. The number of threads is controlled by the option `-c`.
 
 ```
-python3 timestream_sample_continuous_data_ingestor_application.py -c 30 --host-scale 1 -d testDb -t testTable -e 'us-east-1'
+python3 timestream_sample_continuous_data_ingestor_application.py -c 30 -d testDb -t testTable -r 'us-east-1'
 ```
 
 ### Higher number of hosts and time series
 Starts a multi-threaded ingest process the continues until SIGINT signal (CTRL + C) is received. The time series count is controlled by the option --host-scale. The host scale acts thereby as a scale factor for the number of instances per microservice. 
 
 ```
-python3 timestream_sample_continuous_data_ingestor_application.py -c 30 --host-scale 3 -d testDb -t testTable -e 'us-east-1'
+python3 timestream_sample_continuous_data_ingestor_application.py -c 30 -s 3 -d testDb -t testTable -r 'us-east-1'
 ```
 
 ### Single-threaded ingest to specified endpoint
 Starts a single-threaded ingest process the continues until SIGINT signal (CTRL + C) is received.
 ```
-python3 timestream_sample_continuous_data_ingestor_application.py -c 1 --host-scale 1 -d testDb -t testTable -e 'us-east-1' -url 'https://ingest-cell2.timestream.us-east-1.amazonaws.com'
+python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb -t testTable -r 'us-east-1' -url 'https://ingest-cell2.timestream.eu-west-1.amazonaws.com'
 ```
+
+## CPU Signal Overlay
+The CPU signal can have an SIN or SAW signal overlay. For the signal overlay 2 parameters are necessary. First ```--sin-signal-cpu``` which represents the signal to noise ratio - a value of 100 is defined without noise - otherwise a value of 20 means that the sinus signal (0..100) is 20 times stronger than the white noise (-2.5 ... +2.5).
+
+To generate an ideal sinus signal with the frequency of 1 period per minute (equals 0.01667 Hz) the second parameter ```--sin-frq-cpu``` should be set to ```m``` representing minute. Other frequencies are ```[h for hour, d for day, we for week, mo for month, qu for quarter and ye for year]```
+
+```
+python3 timestream_sample_continuous_data_ingestor_application.py \
+  --database-name testDb --table-name testTable --region 'us-east-1' \
+  --sin-signal-cpu 100 --sin-frq-cpu m 
+```
+
+Similarily one can create a saw signal overlay with the parameters ```--saw-signal-cpu``` and ```--saw-frq-cpu```. Some examples are shown below in the picture. 
+
+```
+python3 timestream_sample_continuous_data_ingestor_application.py \
+  --database-name testDb --table-name testTable --region 'us-east-1' \
+  --sin-signal-cpu 100 --sin-frq-cpu m 
+```
+
+![image Graph with Sinus/Saw Signal Overlay](./sinsawsnr.png)

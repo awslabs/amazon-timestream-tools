@@ -25,15 +25,16 @@ regionCmh = "us-east-2"
 regionSfo = "us-west-1"
 regionPdx = "us-west-2"
 regionDub = "eu-west-1"
-regionFra = "eu-central-1"
 regionNrt = "ap-northeast-1"
-regions = [regionFra, regionIad, regionCmh, regionSfo, regionPdx, regionDub, regionNrt]
+regionFra = "eu-central-1"
+
+regions = [regionIad, regionCmh, regionSfo, regionPdx, regionDub, regionNrt, regionFra]
 
 cellsPerRegion = {
-    regionFra: 1, regionIad : 15, regionCmh : 2, regionSfo: 6, regionPdx : 2, regionDub : 10, regionNrt: 5
+    regionIad : 15, regionCmh : 2, regionSfo: 6, regionPdx : 2, regionDub : 10, regionNrt: 5, regionFra: 1
 }
 siloPerCell = {
-    regionFra: 1, regionIad : 3, regionCmh: 2, regionSfo: 2, regionPdx: 2, regionDub : 2, regionNrt: 3
+    regionIad : 3, regionCmh: 2, regionSfo: 2, regionPdx: 2, regionDub : 2, regionNrt: 3, regionFra: 1
 }
 
 microserviceApollo = "apollo"
@@ -68,8 +69,8 @@ osVersions = {
 }
 
 instancesForMicroservice = {
-    microserviceApollo: 1,
-    microserviceAthena: 3,
+    microserviceApollo: 3,
+    microserviceAthena: 1,
     microserviceDemeter: 1,
     microserviceHercules: 2,
     microserviceZeus: 3
@@ -142,26 +143,28 @@ def generateRandomAlphaNumericString(length = 5):
     x = ''.join(rand.choice(string.ascii_letters + string.digits) for x in range(length))
     return x
 
-def generateDimensions(regionCount, msCount, scaleFactor):
+def generateDimensions(regionWL, microserviceWL, scaleFactor):
     instancePrefix = generateRandomAlphaNumericString(8)
     dimensionsMetrics = list()
     dimenstionsEvents = list()
+    
+    myRegions = regions.copy()
+    if ( len(regionWL) > 0):
+        myRegions = list(set(regions) & set(regionWL))
+        
+    myMicroservices = microservices.copy()
+    if ( len(microserviceWL) > 0):
+        myMicroservices = list(set(microservices) & set(microserviceWL))
+    
+    print('Generating dimensions for regions {} and microservices {}'.format(myRegions, myMicroservices))
 
-    for region in regions:
-        if ( regionCount < 1) : 
-            print('Region Limit reached. {} not considered'.format(region))
-            break
-        regionCount = regionCount - 1
+    for region in myRegions:
         cellsForRegion = cellsPerRegion[region]
         siloForRegion = siloPerCell[region]
+        # print('Creating dimensions for region {}: {} cells, {} silo per cell'.format(region,cellsForRegion, siloForRegion))
         for cell in range(1, cellsForRegion + 1):
             for silo in range(1, siloForRegion + 1):
-                msInSilo = msCount
-                for microservice in microservices:
-                    if ( msInSilo < 1) : 
-                        print('Service limit reached. {} not considered : {}/{}/{}'.format(microservice, region, cell, silo))
-                        break
-                    msInSilo = msInSilo - 1
+                for microservice in myMicroservices:
                     cellName = "{}-cell-{}".format(region, cell)
                     siloName = "{}-cell-{}-silo-{}".format(region, cell, silo)
                     numInstances = scaleFactor * instancesForMicroservice[microservice]
@@ -180,12 +183,11 @@ def generateDimensions(regionCount, msCount, scaleFactor):
 
     return (dimensionsMetrics, dimenstionsEvents)
 
-def createWriteRecordCommonAttributes(dimensions):
-    return { "Dimensions": [{ "Name": dimName, "Value": getattr(dimensions, dimName), "DimensionValueType": "VARCHAR"} for dimName in dimensions._fields] }
 
-def addSinSignal(hostId, timestamp, timeUnit, value, valueMax, sinSignalCpu, sinFrqCpu):
-    newvalue = value
-
+#########################################
+######### Signal/Metric/Event  ##########
+#########################################
+def addSinSignal(hostId, timestamp, timeUnit, valueMax, sinSignalCpu, sinFrqCpu, args):
     if "m" == sinFrqCpu :    tf = 2 * math.pi / (60)
     elif "h" == sinFrqCpu :  tf = 2 * math.pi / (60 * 60)
     elif "d" == sinFrqCpu :  tf = 2 * math.pi / (60 * 60 * 24)
@@ -194,22 +196,27 @@ def addSinSignal(hostId, timestamp, timeUnit, value, valueMax, sinSignalCpu, sin
     elif "qu" == sinFrqCpu : tf = 2 * math.pi / (60 * 60 * 24 * 30.46 * 3)
     elif "ye" == sinFrqCpu : tf = 2 * math.pi / (60 * 60 * 24 * 365.6)
 
-    # SIN Signal: (sin(t) + 1) / 2 => sin(t) = 0..1 => * valueMax 0..valueMax
-    sigvalue = round(valueMax * ((math.sin(timestamp * tf) + 1 ) / 2) , 2) 
+    # SIN Signal: (sin(t) + 1) / 2 => sin(t) = 0..valueMax 
+    sigValue = round(valueMax * ((math.sin(timestamp * tf) + 1 ) / 2) , 2) 
+    # 100 is defined as no noise
+    if (sinSignalCpu >= 100): return sigValue
 
-    # SNNR: sigvalue / value != sigmax / valmax != SNNR
-    sigvalue = sigvalue * sinSignalCpu 
-
-    newvalue = round((sigvalue + value) / (sinSignalCpu + 1.0),2)
+    # Noise: random 0..1 * valueMax - valueMax / 2 => -valueMax / 2 ... +valueMax /2
+    valueMaxHalf = valueMax / 2
+    noiseValue = valueMax * random.random() - valueMaxHalf
+    
+    # Mix signal with correct ratio, additive with noise 
+    newValue = sigValue + (noiseValue / sinSignalCpu)
+    
+    # this can lead to above max / below min, so we need to cut here.
+    newValue = max(min(round(newValue, 4), valueMax), 0)
     if (args.dryRun):
-        print("{}: {} => {}*{} + {} ==> {} on hostId {}" \
+        print("{}: {}Hz => {} + {} = {} ==> SNR {} => N={} on hostId {}" \
             .format((datetime.datetime.fromtimestamp(timestamp)).strftime("%Y-%m-%d %H:%M:%S"), \
-                round(tf,2), sigvalue, sinSignalCpu, value, newvalue, hostId))
-    return newvalue
+                round(tf,4), sigValue, (noiseValue / sinSignalCpu), newValue, sinSignalCpu, noiseValue, hostId))
+    return newValue
 
-def addSawSignal(hostId, timestamp, timeUnit, value, valueMax, sawSignalCpu, sawFrqCpu):
-    newvalue = value
-
+def addSawSignal(hostId, timestamp, timeUnit, valueMax, sawSignalCpu, sawFrqCpu, args):
     if "m" == sawFrqCpu :    tf =(60)
     elif "h" == sawFrqCpu :  tf =(60 * 60)
     elif "d" == sawFrqCpu :  tf =(60 * 60 * 24)
@@ -219,19 +226,30 @@ def addSawSignal(hostId, timestamp, timeUnit, value, valueMax, sawSignalCpu, saw
     elif "ye" == sawFrqCpu : tf =(60 * 60 * 24 * 365.6)
 
     # SAW Signal: 0..valueMax in period. (y = k * x % tf + d)
-    sigvalue = round(valueMax * ((timestamp % tf) / tf ) , 2)
+    sigValue = round(valueMax * ((timestamp % tf) / tf ) , 2)
+    # 100 is defined as no noise
+    if (sawSignalCpu >= 100): return sigValue
+
     
-    # SNNR: sigvalue / value != sigmax / valmax != SNNR
-    sigvalue = sigvalue * sawSignalCpu 
-
-    newvalue = round((sigvalue + value) / (sawSignalCpu + 1.0),2)
-    # newvalue = min(valueMax, round((sawSignalCpu * sigvalue + value) / (sawSignalCpu + 1.0), 2)) # make sure 
+    # Noise: random 0..1 * valueMax - valueMax / 2 => -valueMax / 2 ... +valueMax /2
+    valueMaxHalf = valueMax / 2
+    noiseValue = valueMax * random.random() - valueMaxHalf
+    
+    # Mix signal with correct ratio, additive with noise 
+    newValue = sigValue + (noiseValue / sawSignalCpu)
+    
+    # this can lead to above max / below min, so we need to cut here.
+    newValue = max(min(round(newValue, 4), valueMax), 0)
     if (args.dryRun):
-        print("{}: {} => {}*{} + {} ==> {} on hostId {}" \
+        print("{}: {}Hz => {} + {} = {} ==> SNR {} => N={} on hostId {}" \
             .format((datetime.datetime.fromtimestamp(timestamp)).strftime("%Y-%m-%d %H:%M:%S"), \
-                round(tf,2), sigvalue, sawSignalCpu, value, newvalue, hostId))
-    return newvalue
+                round(tf,4), sigValue, (noiseValue / sawSignalCpu), newValue, sawSignalCpu, noiseValue, hostId))
+    return newValue
+    
+def createWriteRecordCommonAttributes(dimensions):
+    return { "Dimensions": [{ "Name": dimName, "Value": getattr(dimensions, dimName), "DimensionValueType": "VARCHAR"} for dimName in dimensions._fields] }
 
+    
 def createRandomMetrics(hostId, timestamp, timeUnit, args):
     records = list()
 
@@ -239,11 +257,9 @@ def createRandomMetrics(hostId, timestamp, timeUnit, args):
 
     # sinSignalCpu, sinFrqCpu, sawSignalCpu, sawFrqCpu
     if (args.sinSignalCpu > 0):
-        cpuUser = 100.0 * random.random()
-        cpuUser = addSinSignal(hostId, timestamp, timeUnit, cpuUser, 100.0, args.sinSignalCpu, args.sinFrqCpu)
+        cpuUser = addSinSignal(hostId, timestamp, timeUnit, 100.0, args.sinSignalCpu, args.sinFrqCpu, args)
     elif (args.sawSignalCpu > 0):
-        cpuUser = 100.0 * random.random()
-        cpuUser = addSawSignal(hostId, timestamp, timeUnit, cpuUser, 100.0, args.sawSignalCpu, args.sawFrqCpu)
+        cpuUser = addSawSignal(hostId, timestamp, timeUnit, 100.0, args.sawSignalCpu, args.sawFrqCpu, args)
     elif hostId in highUtilizationHosts:
         cpuUser = random.gauss(85.0 , 10.0)
     elif hostId in lowUtilizationHosts:
@@ -251,23 +267,26 @@ def createRandomMetrics(hostId, timestamp, timeUnit, args):
     else :
         cpuUser = 100.0 * random.random()
 
-    cpuUser = round(cpuUser, 2)
+    cpuUser = abs(round(min(100, cpuUser), 2))
     records.append(createRecord(measureCpuUser, cpuUser, "DOUBLE", timestamp, timeUnit))
 
     otherCpuMeasures = [measureCpuSystem, measureCpuSteal, measureCpuIowait, measureCpuNice, measureCpuHi, measureCpuSi]
-    totalOtherUsage = 0.0
+    totalOtherUsage = 0
+    availableOtherUsage = 100 - cpuUser
 
     for measure in otherCpuMeasures:
         value = round(random.random(),2)
+        availableOtherUsage -= value
+        if (totalOtherUsage < 0):
+            value = 0
         totalOtherUsage += value
         records.append(createRecord(measure, value, "DOUBLE", timestamp, timeUnit))
 
     cpuIdle = round(max([100 - cpuUser - totalOtherUsage, 0]),2)
     records.append(createRecord(measureCpuIdle, cpuIdle, "DOUBLE", timestamp, timeUnit))
 
-    if (args.dryRun):
-        print("CPU User/Idle: {:02.2f}/{:02.2f}".format(cpuUser, cpuIdle))
-
+    # if (args.dryRun):
+    #    print("CPU User/Idle: {:02.2f}/{:02.2f}".format(cpuUser, cpuIdle))
 
     # delete cpu values when working with missing.    
     if (args.missingCpu > 0) :
@@ -327,6 +346,7 @@ seriesId = 0
 timestamp = int(time.time())
 sigInt = False
 lock = threading.Lock()
+iteration = 0
 utilizationRand = random.Random(12345)
 lowUtilizationHosts = []
 highUtilizationHosts = []
@@ -359,6 +379,7 @@ class IngestionThread(threading.Thread):
         global seriesId
         global timestamp
         global lock
+        global iteration
 
         timings = list()
         success = 0
@@ -369,6 +390,8 @@ class IngestionThread(threading.Thread):
         recordCnt = 0
 
         while True:
+            # get the seriesId with lock - ensure that no two thread's create records
+            # for the same time series identified by an unique dimension set (see Dimensions tuple).
             with lock:
                 if sigInt == True:
                     print("Thread {} exiting.".format(self.threadId))
@@ -376,16 +399,19 @@ class IngestionThread(threading.Thread):
 
                 if seriesId >= self.numMetrics + self.numEvents:
                     seriesId = 0
+                    iteration += 1
+                    while (timestamp == int(time.time())): # ensure that each iteration has a "new" timestamp
+                        time.sleep(0.1)
                     timestamp = int(time.time())
-                    while (timestamp == localTimestamp) : # less than a second has passed, we need to wait
-                        time.sleep(0.5)
-                        timestamp = int(time.time())
-                    # print("Resetting to first series from thread: [{}] at time {}. Timestamp set to: {}."
-                    #  .format(self.threadId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), timestamp))
+                    print("Resetting to first series from thread: [{}] at time {}. Timestamp set to: {}. Iteration {} finished."
+                     .format(self.threadId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), timestamp, iteration))
 
                 localSeriesId = seriesId
                 localTimestamp = timestamp
                 seriesId += 1
+                
+            if (args.autostop > 0) and (args.autostop <= iteration):
+                break
 
             if localSeriesId < self.numMetrics:
                 commonAttributes = createWriteRecordCommonAttributes(self.dimensionMetrics[localSeriesId])
@@ -419,7 +445,8 @@ class IngestionThread(threading.Thread):
 
             if idx  % 100 == 0:
                 now = datetime.datetime.now()
-                print("T{:02d}: {}. Metrics/Events/Total: {}/{}/{}. Time: {}. Loop: {}".format(self.threadId, now.strftime("%Y-%m-%d %H:%M:%S"), metricCnt, eventCnt, recordCnt, round(end - start, 3), idx))
+                print("T{:02d}: {}. Metrics/Events/Total: {}/{}/{}. Time: {}. Loop: {}"\
+                      .format(self.threadId, now.strftime("%Y-%m-%d %H:%M:%S"), metricCnt, eventCnt, recordCnt, round(end - start, 3), idx))
             idx += 1
 
         self.success = success
@@ -493,44 +520,73 @@ def writeRecords(client, databaseName, tableName, commonAttributes, records):
 #########################################
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(prog = 'TimestreamSampleContinuousDataIngestorApplication', description='Execute a example application generating and ingesting time series data.')
+    parser = argparse.ArgumentParser(prog = 'TimestreamSampleContinuousDataIngestorApplication', description='Execute an application generating and ingesting time series data.')
 
-    parser.add_argument('--database-name', '-d', dest="databaseName", action = "store", required = True, help = "The database name in Amazon Timestream - must be already created.")
-    parser.add_argument('--table-name', '-t', dest="tableName", action = "store", required = True, help = "The table name in Amazon Timestream - must be already created.")
-    parser.add_argument('--endpoint', '-e', action = "store", required = True, help="Specify the service region. E.g. 'us-east-1'")
-    parser.add_argument('--endpoint-url', '-url', action = "store", required = False, help="Specify the service endpoint url that you have been mapped to. E.g. 'https://ingest-cell2.timestream.us-east-1.amazonaws.com'")
-    parser.add_argument('--profile', action = "store", type = str, default= None, help = "The AWS Config profile to use.")
+    parser.add_argument('--region', '-r', '--endpoint', '-e', action = "store", required = True, \
+                        help="Specify the service region. E.g. 'us-east-1'")
+    parser.add_argument('--endpoint-url', '-url', action = "store", required = False, 
+                        help="Specify the service endpoint url that you have been mapped to. E.g. 'https://ingest-cell2.timestream.us-east-1.amazonaws.com'")
+    parser.add_argument('--profile', action = "store", type = str, default= None, 
+                        help = "The AWS Config profile to use.")
 
-    parser.add_argument('--concurrency', '-c', action = "store", type = int, default = 30, help = "Number of concurrent ingestion threads (default: 30)")
+    parser.add_argument('--database-name', '-d', dest="databaseName", action = "store", required = True, \
+                        help = "The database name in Amazon Timestream - must be already created.")
+    parser.add_argument('--table-name', '-t', dest="tableName", action = "store", required = True, \
+                        help = "The table name in Amazon Timestream - must be already created.")
 
-    parser.add_argument('--region-scale', dest = "regionScale", action = "store", type = int, default = 7, help = "The number of regions to be use [1-7], (default: 7).")
-    parser.add_argument('--host-scale', dest = "hostScale", action = "store", type = int, default = 10, help = "The scale factor that determines the number of hosts emitting events and metrics (default: 10).")
-    parser.add_argument('--ms-scale', dest = "msScale", action = "store", type = int, default = 5, help = "The number of microservices to be use [1-5], (default: 5).")
+    parser.add_argument('--concurrency', '-c', action = "store", type = int, default = 10, 
+                        help = "Number of concurrent ingestion threads (default: 10)")
 
-    parser.add_argument('--missing-cpu', dest = "missingCpu", action = "store", type = int, default = 0, help = "The percentage of missing values [0-100], (default: 0).")
+    parser.add_argument('--host-scale',  '-s', dest = "hostScale", action = "store", type = int, default = 1, \
+                        help = "The scale factor that determines the number of hosts emitting events and metrics (default: 10).")
+
+    parser.add_argument('--whitelist-region', dest = "whitelistRegion", action = "store", \
+                        help = "Comma separated whitelist of regions (default: EMPTY, all)")
+    parser.add_argument('--whitelist-ms', dest = "whitelistMs", action = "store", \
+                        help = "Comma separated whitelist of microservice (default: EMPTY, all).")
+
+    parser.add_argument('--missing-cpu', dest = "missingCpu", action = "store", type = int, default = 0, \
+                        help = "The percentage of missing values [0-100], (default: 0).")
     
-    parser.add_argument('--sin-signal-cpu', dest = "sinSignalCpu", action = "store", type = float, default = 0, help = "The SIN signal to noise ratio, [0-100] no signal to 100 times noise, (default: 0).")
-    parser.add_argument('--sin-frq-cpu', dest = "sinFrqCpu", action = "store", type = str, default = "m", help = "The SIN signal frequency (m | h | d | we | mo | qu | ye) (default:m)")
-    parser.add_argument('--saw-signal-cpu', dest = "sawSignalCpu", action = "store", type = float, default = 0, help = "The SAW signal to noise ratio, [0-100] no signal to 100 times noise, (default: 0).")
-    parser.add_argument('--saw-frq-cpu', dest = "sawFrqCpu", action = "store", type = str, default = "m", help = "The SIN signal frequency (m | h | d | we | mo | qu | ye) (default:m)")
+    parser.add_argument('--sin-signal-cpu', dest = "sinSignalCpu", action = "store", type = float, default = 0, \
+                        help = "The SIN signal to noise ratio, [0-100] no signal to 100 times noise, (default: 0).")
+    parser.add_argument('--sin-frq-cpu', dest = "sinFrqCpu", action = "store", type = str, default = "m", \
+                        help = "The SIN signal frequency (m | h | d | we | mo | qu | ye) (default:m)")
+    parser.add_argument('--saw-signal-cpu', dest = "sawSignalCpu", action = "store", type = float, default = 0, \
+                        help = "The SAW signal to noise ratio, [0-100] no signal to 100 times noise, (default: 0).")
+    parser.add_argument('--saw-frq-cpu', dest = "sawFrqCpu", action = "store", type = str, default = "m", \
+                        help = "The SIN signal frequency (m | h | d | we | mo | qu | ye) (default:m)")
 
-    parser.add_argument('--dry-run', dest = "dryRun", action = "store_true", help = "Add dry run to preview the dimenions of metrics and events.")
+    parser.add_argument('--seed', dest = "seed", action = "store", type = int, default = int(time.time()), \
+                        help = "The seed with which to initialize random, (default: now()).")
+    parser.add_argument('--autostop', action = "store", type = int, default = 0, \
+                        help = "Add autostop to stop each individual ingestor thread after N iterates records. (default:0, unlimited)")
+    parser.add_argument('--dry-run', dest = "dryRun", action = "store_true", \
+                        help = "Add dry run to preview the dimenions of metrics and events.")
 
     args = parser.parse_args()
     print(args)
 
     hostScale = args.hostScale       # scale factor for the hosts.
-    regionScale = args.regionScale   # regions to use.
-    msScale = args.msScale           # microservices to use.
 
-    dimensionsMetrics, dimensionsEvents = generateDimensions(regionScale, msScale, hostScale)
+    regionWL = []
+    if (args.whitelistRegion is not None):
+        regionWL = args.whitelistRegion.split(",")
+    
+    microserviceWL = []
+    if (args.whitelistMs is not None):
+        microserviceWL = args.whitelistMs.split(",")
+
+    random.seed(args.seed)
+        
+    dimensionsMetrics, dimensionsEvents = generateDimensions(regionWL, microserviceWL, hostScale)
     hostIds = list(range(len(dimensionsMetrics)))
     utilizationRand.shuffle(hostIds)
     lowUtilizationHosts = frozenset(hostIds[0:math.ceil(int(0.2 * len(hostIds)))])
     highUtilizationHosts = frozenset(hostIds[-int(0.2 * len(hostIds)):])
 
-    print("Dimensions for metrics: {} with hosts {}/L{}/H{}".format(len(dimensionsMetrics), hostIds, str(lowUtilizationHosts), str(highUtilizationHosts)) + "\n" +  json.dumps(dimensionsMetrics, indent=2))
-    print("Dimensions for events: {}".format(len(dimensionsEvents)))
+    print("{} unique metric dimensions.".format(len(dimensionsMetrics)))
+    print("{} unique event dimensions.".format(len(dimensionsEvents)))
 
     ## Register sigint handler
     signal.signal(signal.SIGINT, signalHandler)
@@ -539,7 +595,7 @@ if __name__ == "__main__":
     try:
         tsClient = any
         if not (args.dryRun):
-            tsClient = createWriteClient(args.endpoint, args.endpoint_url,  profile=args.profile)
+            tsClient = createWriteClient(args.region, args.endpoint_url,  profile=args.profile)
             describeTable(tsClient, args.databaseName, args.tableName)
     except Exception as e:
         print(e)
