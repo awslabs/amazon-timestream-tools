@@ -143,18 +143,18 @@ def generateRandomAlphaNumericString(length = 5):
     x = ''.join(rand.choice(string.ascii_letters + string.digits) for x in range(length))
     return x
 
-def generateDimensions(regionWL, microserviceWL, scaleFactor):
+def generateDimensions(regionINC, microserviceINC, scaleFactor):
     instancePrefix = generateRandomAlphaNumericString(8)
     dimensionsMetrics = list()
     dimenstionsEvents = list()
     
     myRegions = regions.copy()
-    if ( len(regionWL) > 0):
-        myRegions = list(set(regions) & set(regionWL))
+    if ( len(regionINC) > 0):
+        myRegions = list(set(regions) & set(regionINC))
         
     myMicroservices = microservices.copy()
-    if ( len(microserviceWL) > 0):
-        myMicroservices = list(set(microservices) & set(microserviceWL))
+    if ( len(microserviceINC) > 0):
+        myMicroservices = list(set(microservices) & set(microserviceINC))
     
     print('Generating dimensions for regions {} and microservices {}'.format(myRegions, myMicroservices))
 
@@ -540,10 +540,10 @@ if __name__ == "__main__":
     parser.add_argument('--host-scale',  '-s', dest = "hostScale", action = "store", type = int, default = 1, \
                         help = "The scale factor that determines the number of hosts emitting events and metrics (default: 10).")
 
-    parser.add_argument('--whitelist-region', dest = "whitelistRegion", action = "store", \
-                        help = "Comma separated whitelist of regions (default: EMPTY, all)")
-    parser.add_argument('--whitelist-ms', dest = "whitelistMs", action = "store", \
-                        help = "Comma separated whitelist of microservice (default: EMPTY, all).")
+    parser.add_argument('--include-region', dest = "includeRegion", action = "store", \
+                        help = "Comma separated include of regions (default: EMPTY, all)")
+    parser.add_argument('--include-ms', dest = "includeMs", action = "store", \
+                        help = "Comma separated include of microservice (default: EMPTY, all).")
 
     parser.add_argument('--missing-cpu', dest = "missingCpu", action = "store", type = int, default = 0, \
                         help = "The percentage of missing values [0-100], (default: 0).")
@@ -569,17 +569,17 @@ if __name__ == "__main__":
 
     hostScale = args.hostScale       # scale factor for the hosts.
 
-    regionWL = []
-    if (args.whitelistRegion is not None):
-        regionWL = args.whitelistRegion.split(",")
+    regionINC = []
+    if (args.includeRegion is not None):
+        regionINC = args.includeRegion.split(",")
     
-    microserviceWL = []
-    if (args.whitelistMs is not None):
-        microserviceWL = args.whitelistMs.split(",")
+    microserviceINC = []
+    if (args.includeMs is not None):
+        microserviceINC = args.includeMs.split(",")
 
     random.seed(args.seed)
         
-    dimensionsMetrics, dimensionsEvents = generateDimensions(regionWL, microserviceWL, hostScale)
+    dimensionsMetrics, dimensionsEvents = generateDimensions(regionINC, microserviceINC, hostScale)
     hostIds = list(range(len(dimensionsMetrics)))
     utilizationRand.shuffle(hostIds)
     lowUtilizationHosts = frozenset(hostIds[0:math.ceil(int(0.2 * len(hostIds)))])

@@ -109,10 +109,10 @@ python3 timestream_sample_continuous_data_ingestor_application.py -h
                         Number of concurrent ingestion threads (default: 10)
   --host-scale HOSTSCALE, -s HOSTSCALE
                         The scale factor that determines the number of hosts emitting events and metrics (default: 10).
-  --whitelist-region WHITELISTREGION
-                        Comma separated whitelist of regions (default: EMPTY, all)
-  --whitelist-ms WHITELISTMS
-                        Comma separated whitelist of microservice (default: EMPTY, all).
+  --include-region LIST
+                        Comma separated include of regions (default: EMPTY, all)
+  --include-ms LIST
+                        Comma separated include of microservice (default: EMPTY, all).
   --missing-cpu MISSINGCPU
                         The percentage of missing values [0-100], (default: 0).
   --sin-signal-cpu SINSIGNALCPU
@@ -139,7 +139,7 @@ python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb
 In cases, where fewer time series are needed one can limit the regions to one and also focus on only one microservice. The region ```eu-central-1``` is configured with 1 cell and 1 silo. As the ```athena``` microservice is configured with exactly one instance this simulates the metrics and events of one host.
 
 ```
-python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb -t testTable -r 'us-east-1' --whitelist-region "eu-central-1" --whitelist-ms "athena"
+python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb -t testTable -r 'us-east-1' --include-region "eu-central-1" --include-ms "athena"
 ```
 
 ### Multi threaded ingest
