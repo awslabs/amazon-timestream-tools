@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d [%p] %c{1.} (%t): %m%n"/>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="CONSOLE"/>
+        </Root>
+
+        <!-- Change to debug if you want to see discarded records or individual accepted writes -->
+        <Logger name="com.amazonaws.sample.timestream.multithreaded.TimestreamWriterWorker" level="INFO"/>
+        <Logger name="software.amazon.awssdk" level="WARN" />
+        <!-- Change to debug if you want to see requests -->
+        <Logger name="software.amazon.awssdk.request" level="INFO" />
+    </Loggers>
+</Configuration>
