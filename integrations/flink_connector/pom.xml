@@ -34,6 +34,7 @@ under the License.
         <kda.version>1.2.0</kda.version>
         <java.version>1.11</java.version>
         <jdk.version>11</jdk.version>
+        <next.jdk.version>12</next.jdk.version>
         <scala.binary.version>2.12</scala.binary.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -75,6 +76,12 @@ under the License.
         <!-- Add connector dependencies here. They must be in the default scope (compile). -->
 
         <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-clients_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-kinesisanalytics-runtime</artifactId>
             <version>${kda.version}</version>
@@ -114,6 +121,27 @@ under the License.
                     <source>${jdk.version}</source>
                     <target>${jdk.version}</target>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.0.0-M3</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[${jdk.version},${next.jdk.version})</version>
+                                    <message>This requires JDK ${jdk.version}</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- We use the maven-shade plugin to create a fat jar that contains all necessary dependencies. -->
@@ -207,34 +235,34 @@ under the License.
         </pluginManagement>
     </build>
 
-    <!-- This profile helps to make things run out of the box in IntelliJ -->
-    <!-- Its adds Flink's core classes to the runtime class path. -->
-    <!-- Otherwise they are missing in IntelliJ, because the dependency is 'provided' -->
-    <profiles>
-        <profile>
-            <id>add-dependencies-for-IDEA</id>
+<!--    &lt;!&ndash; This profile helps to make things run out of the box in IntelliJ &ndash;&gt;-->
+<!--    &lt;!&ndash; Its adds Flink's core classes to the runtime class path. &ndash;&gt;-->
+<!--    &lt;!&ndash; Otherwise they are missing in IntelliJ, because the dependency is 'provided' &ndash;&gt;-->
+<!--    <profiles>-->
+<!--        <profile>-->
+<!--            <id>add-dependencies-for-IDEA</id>-->
 
-            <activation>
-                <property>
-                    <name>idea.version</name>
-                </property>
-            </activation>
+<!--            <activation>-->
+<!--                <property>-->
+<!--                    <name>idea.version</name>-->
+<!--                </property>-->
+<!--            </activation>-->
 
-            <dependencies>
-                <dependency>
-                    <groupId>org.apache.flink</groupId>
-                    <artifactId>flink-java</artifactId>
-                    <version>${flink.version}</version>
-                    <scope>compile</scope>
-                </dependency>
-                <dependency>
-                    <groupId>org.apache.flink</groupId>
-                    <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
-                    <version>${flink.version}</version>
-                    <scope>compile</scope>
-                </dependency>
-            </dependencies>
-        </profile>
-    </profiles>
+<!--            <dependencies>-->
+<!--                <dependency>-->
+<!--                    <groupId>org.apache.flink</groupId>-->
+<!--                    <artifactId>flink-java</artifactId>-->
+<!--                    <version>${flink.version}</version>-->
+<!--                    <scope>compile</scope>-->
+<!--                </dependency>-->
+<!--                <dependency>-->
+<!--                    <groupId>org.apache.flink</groupId>-->
+<!--                    <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>-->
+<!--                    <version>${flink.version}</version>-->
+<!--                    <scope>compile</scope>-->
+<!--                </dependency>-->
+<!--            </dependencies>-->
+<!--        </profile>-->
+<!--    </profiles>-->
 
 </project>
