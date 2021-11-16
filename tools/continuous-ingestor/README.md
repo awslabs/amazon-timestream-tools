@@ -95,7 +95,7 @@ Depending on the parametrization one can therefore define up to 1010 server inst
 ```
 python3 timestream_sample_continuous_data_ingestor_application.py -h
 --
--h, --help              show this help message and exit
+  -h, --help              show this help message and exit
   --region REGION, -r REGION
                         Specify the service region. E.g. 'us-east-1'
   --endpoint-url ENDPOINT_URL, -url ENDPOINT_URL

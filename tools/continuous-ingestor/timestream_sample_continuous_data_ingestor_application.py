@@ -560,9 +560,9 @@ if __name__ == "__main__":
     parser.add_argument('--seed', dest = "seed", action = "store", type = int, default = int(time.time()), \
                         help = "The seed with which to initialize random, (default: now()).")
     parser.add_argument('--autostop', action = "store", type = int, default = 0, \
-                        help = "Add autostop to stop each individual ingestor thread after N iterates records. (default:0, unlimited)")
+                        help = "Stop each ingestor threads after N iterates (=values per time series) records. (default:0, unlimited)")
     parser.add_argument('--dry-run', dest = "dryRun", action = "store_true", \
-                        help = "Add dry run to preview the dimenions of metrics and events.")
+                        help = "Run program without 'actually' writing data to time stream.")
 
     args = parser.parse_args()
     print(args)
