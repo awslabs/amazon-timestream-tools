@@ -13,6 +13,7 @@ This sample application shows how you can create a database and table, populate 
    dotnet remove package AWSSDK.Core
    dotnet remove package AWSSDK.TimestreamWrite
    dotnet remove package AWSSDK.TimestreamQuery
+   dotnet remove package CommandLineParser
    dotnet nuget locals all --clear
    ```
 
@@ -38,4 +39,31 @@ This sample application shows how you can create a database and table, populate 
    ```shell
    dotnet run -- -f ../data/sample.csv
    ```
+
+
+
+# Updated instructions
+
+1. Install [.NET](https://docs.microsoft.com/en-us/dotnet/core/install/) 
+wget https://dot.net/v1/dotnet-install.sh
+sh ./dotnet-install.sh  
+
+export PATH=$PATH:/home/ec2-user/.dotnet
+
+2. Run the project
+   ```shell
+   dotnet run
+   ```
+   
+3. Run with kms key id for Update database
+   ```
+   dotnet run -- -k ValidKmsKeyId
+   ```
+
+4. Run with sample csv data file
+   ```shell
+   dotnet run -- -f ../data/sample.csv
+   ```
+
+
 
