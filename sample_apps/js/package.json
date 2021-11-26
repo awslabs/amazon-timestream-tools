@@ -18,7 +18,7 @@
   },
   "homepage": "https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps/js#readme",
   "dependencies": {
-    "aws-sdk": "^2.842.0",
+    "aws-sdk": "^2.1036.0",
     "minimist": "^1.2.5"
   }
 }
