@@ -18,7 +18,7 @@ This sample application shows how you can create a database and table, populate 
    ```
 
 3. Install required NuGet. Ensure AWSSDK.Core version is 3.3.107 or newer.
-   ```shell
+   ```
    dotnet add package AWSSDK.Core
    dotnet add package AWSSDK.TimestreamWrite
    dotnet add package AWSSDK.TimestreamQuery 
@@ -26,7 +26,7 @@ This sample application shows how you can create a database and table, populate 
    ```
 
 4. Run the project
-   ```shell
+   ```
    dotnet run
    ```
    
@@ -36,34 +36,6 @@ This sample application shows how you can create a database and table, populate 
    ```
 
 6. Run with sample csv data file
-   ```shell
+   ```
    dotnet run -- -f ../data/sample.csv
    ```
-
-
-
-# Updated instructions
-
-1. Install [.NET](https://docs.microsoft.com/en-us/dotnet/core/install/) 
-wget https://dot.net/v1/dotnet-install.sh
-sh ./dotnet-install.sh  
-
-export PATH=$PATH:/home/ec2-user/.dotnet
-
-2. Run the project
-   ```shell
-   dotnet run
-   ```
-   
-3. Run with kms key id for Update database
-   ```
-   dotnet run -- -k ValidKmsKeyId
-   ```
-
-4. Run with sample csv data file
-   ```shell
-   dotnet run -- -f ../data/sample.csv
-   ```
-
-
-
