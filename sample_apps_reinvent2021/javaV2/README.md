@@ -23,9 +23,9 @@ Ensure your Java SDK and runtime are 1.8 or higher.
 
 1. To run with sample application and ingest data from sample csv data file, you can use the following command: 
    ```shell
-   export PATH_TO_SAMPLE_DATA_FILE=<path to sample.csv data file>
+   export PATH_TO_SAMPLE_DATA_FILE=<path to sample csv data file>
    mvn clean compile
-   mvn exec:java -Dexec.mainClass="com.amazonaws.services.timestream.Main" -Dexec.args="--inputFile ${PATH_TO_SAMPLE_DATA_FILE}/sample.csv"
+   mvn exec:java -Dexec.mainClass="com.amazonaws.services.timestream.Main" -Dexec.args="--inputFile ${PATH_TO_SAMPLE_DATA_FILE}/sample-multi.csv"
    ``` 
    
    NOTE:
