@@ -160,7 +160,7 @@ public class Main {
             TimestreamDependencyHelper.attachIAMRolePolicy(iamClient, ROLE_NAME, policyArn);
 
             //Waiting for newly created role to be active
-            System.out.println("Waiting for newly created role to become active");
+            System.out.println("Waiting 15secs for newly created role to become active");
             wait(15);
 
             //Scheduled Query Activities
@@ -173,7 +173,7 @@ public class Main {
             scheduledQueryExample.describeScheduledQueries(scheduledQueryArn);
 
             // Sleep for 65 seconds to let ScheduledQuery run
-            System.out.println("Waiting for automatic ScheduledQuery executions & notifications");
+            System.out.println("Waiting 65 secs for automatic ScheduledQuery executions & notifications");
             Thread.sleep(65000);
 
             boolean didQuerySucceedManually = false;

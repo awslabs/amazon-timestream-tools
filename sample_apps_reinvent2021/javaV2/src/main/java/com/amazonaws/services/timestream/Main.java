@@ -111,7 +111,8 @@ public class Main {
             policyArn = timestreamDependencyHelper.createIAMPolicy(iamClient, POLICY_NAME);
             timestreamDependencyHelper.attachIAMRolePolicy(iamClient, ROLE_NAME, policyArn);
 
-            // Wait at-least 15s for policy to be ready
+            // Wait at-least 15s for newly created role to be active
+            System.out.println("Waiting 15secs for newly created role to become active");
             Thread.sleep(15000);
 
             // Make the bucket name unique by appending 5 random characters at the end
@@ -129,7 +130,7 @@ public class Main {
             scheduledQueryExample.describeScheduledQueries(scheduledQueryArn);
 
             // Sleep for 65 seconds to let ScheduledQuery run
-            System.out.println("Waiting for automatic ScheduledQuery executions & notifications");
+            System.out.println("Waiting 65secs for automatic ScheduledQuery executions & notifications");
             Thread.sleep(65000);
 
             boolean didQuerySucceedManually = false;
