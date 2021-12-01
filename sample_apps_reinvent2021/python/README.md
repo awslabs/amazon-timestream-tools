@@ -1,8 +1,9 @@
 # Getting started with Amazon Timestream with Python
 
 This sample application shows to
-1. Create ingestion example for multi value attributes
-2. Create ScheduledQuery  and interpret its run.
+1. Create table enabled with magnetic tier upsert
+2. Ingest data with multi measure records
+3. Create ScheduledQuery and interpret its run.
 
 This application populates the table with ~63K rows of sample  multi measure value data (provided as part of csv) , and run sample queries to jumpstart your evaluation and/or proof-of-concept applications with Amazon Timestream.
 

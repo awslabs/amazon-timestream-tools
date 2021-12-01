@@ -10,4 +10,7 @@ public class InputArguments {
     @Option(name = "--kmsId", aliases = "-k", usage = "kmsId for update")
     public String kmsId;
 
+    @Option(name = "--region", aliases = "-r", usage = "aws region to run sample application")
+    public String region;
+
 }

@@ -185,7 +185,7 @@ public class CrudAndSimpleIngestionExample {
     }
 
     public void deleteTable(String tableName, String databaseName) {
-        System.out.println("Deleting table");
+        System.out.println("Deleting table : " + tableName);
         final DeleteTableRequest deleteTableRequest = new DeleteTableRequest();
         deleteTableRequest.setDatabaseName(databaseName);
         deleteTableRequest.setTableName(tableName);
@@ -203,7 +203,7 @@ public class CrudAndSimpleIngestionExample {
     }
 
     public void deleteDatabase(String databaseName) {
-        System.out.println("Deleting database");
+        System.out.println("Deleting database : " + databaseName);
         final DeleteDatabaseRequest deleteDatabaseRequest = new DeleteDatabaseRequest();
         deleteDatabaseRequest.setDatabaseName(databaseName);
         try {
