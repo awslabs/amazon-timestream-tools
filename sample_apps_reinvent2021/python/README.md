@@ -68,7 +68,7 @@ python3 SampleApplication.py \
 --region us-east-2 \
 --skip_deletion false
 ```
-Note: If skip_deletion is true then ScheduledQuery resources (s3 buckets, iam role, timestream scheduled-query etc) needs to be deleted manually.
+Note: If skip_deletion is true then ScheduledQuery resources (Timestream scheduled query, Timestream database, Timestream table, SNS, SQS, IAM role, IAM policy, S3) need to be deleted manually.
 
 ### Run example to create scheduled query that fails on execution and generates an error report
 ```

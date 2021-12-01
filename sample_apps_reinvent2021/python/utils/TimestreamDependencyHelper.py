@@ -4,10 +4,14 @@ import json
 
 class TimestreamDependencyHelper:
 
-    def __init__(self):
-        self.sns_client = boto3.client('sns')
-        self.iam_client = boto3.client('iam')
-        self.sqs_client = boto3.client('sqs')
+    def __init__(self, region):
+        self.region = region
+        self.sns_client = boto3.client('sns', region_name=region)
+        self.iam_client = boto3.client('iam', region_name=region)
+        self.sqs_client = boto3.client('sqs', region_name=region)
+        self.account_id = boto3.client("sts").get_caller_identity()["Account"]
+        self.s3_client = boto3.client('s3', region_name=region)
+        self.s3_resource = boto3.resource('s3')
 
     def create_sns(self, topic_name):
         print("\nCreating sns topic")
@@ -138,6 +142,9 @@ class TimestreamDependencyHelper:
                                                    )
             print("Successfully created IAM role for accessing scheduled query: ", response['Role']['Arn'])
             return response['Role']['Arn']
+        except self.iam_client.exceptions.EntityAlreadyExistsException:
+            print("Role already exists")
+            return f"arn:aws:iam::{self.account_id}:role/{role_name}"
         except Exception as err:
             print("Failed creating role: ", err)
             raise err
@@ -179,6 +186,9 @@ class TimestreamDependencyHelper:
                                                      PolicyDocument=policy_document)
             print("Successfully created policy: ", response['Policy']['Arn'])
             return response['Policy']['Arn']
+        except self.iam_client.exceptions.EntityAlreadyExistsException as e:
+            print("Policy already exists")
+            return f"arn:aws:iam::{self.account_id}:policy/{policy_name}"
         except Exception as err:
             print("Failed creating policy: ", err)
             raise err
@@ -218,17 +228,15 @@ class TimestreamDependencyHelper:
         else:
             return "{}.{}.timestream.aws.internal".format(region, stage)
 
-    def create_s3_bucket(self, bucket_name, region=None):
+    def create_s3_bucket(self, bucket_name):
         print("\nCreating S3 bucket")
         try:
-            if region:
-                s3_client = boto3.client('s3', region_name=region)
-                location = {'LocationConstraint': region}
-                s3_client.create_bucket(Bucket=bucket_name,
-                                        CreateBucketConfiguration=location)
-            else:  # default region is us-east-1
-                s3_client = boto3.client('s3')
-                s3_client.create_bucket(Bucket=bucket_name)
+            if self.region == 'us-east-1':
+                self.s3_client.create_bucket(Bucket=bucket_name)
+            else:
+                self.s3_client.create_bucket(Bucket=bucket_name,
+                                             CreateBucketConfiguration={'LocationConstraint': self.region})
+            print("Successfully created S3 bucket: ", bucket_name)
             return bucket_name
         except Exception as err:
             print("Failed creating S3 bucket: ", err)
@@ -237,8 +245,7 @@ class TimestreamDependencyHelper:
     def delete_s3_bucket(self, bucket_arn):
         print("Deleting S3 bucket")
         try:
-            s3_resource = boto3.resource('s3')
-            bucket = s3_resource.Bucket(bucket_arn)
+            bucket = self.s3_resource.Bucket(bucket_arn)
             bucket.objects.all().delete()
             bucket.delete()
             print("Successfully deleted S3 bucket: ", bucket_arn)
@@ -249,11 +256,9 @@ class TimestreamDependencyHelper:
     def list_s3_objects(self, bucket_name, prefix):
         print("\nListing object in S3 bucket")
         try:
-            s3_resource = boto3.resource('s3')
-            bucket = s3_resource.Bucket(bucket_name)
-            return bucket.objects.filter(Prefix=prefix)
-            # return bucket.objects.filter(Delimiter='/', Prefix='fruit/')
+            bucket = self.s3_resource.Bucket(bucket_name)
             print("Successfully listed objects in S3 bucket: ", bucket_name)
+            return bucket.objects.filter(Prefix=prefix)
         except Exception as err:
             # Not raising an exception here as we want other cleanup to continue
             print("Failed to list objects in S3 bucket: ", err)
