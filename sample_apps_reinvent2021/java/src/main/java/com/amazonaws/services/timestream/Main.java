@@ -12,6 +12,8 @@ import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.timestreamquery.AmazonTimestreamQuery;
 import com.amazonaws.services.timestreamquery.AmazonTimestreamQueryClient;
 import com.amazonaws.services.timestreamquery.model.ScheduledQueryState;
@@ -38,12 +40,14 @@ public class Main {
     public static final String ERROR_CONFIGURATION_S3_BUCKET_NAME_PREFIX = "error-configuration-sample-s3-bucket-";
     public static final String ROLE_NAME = "ScheduledQuerySampleApplicationRole";
     public static final String POLICY_NAME = "SampleApplicationExecutionAccess";
+    private static AmazonS3 s3Client;
 
     public static void main(String[] args) throws IOException {
         InputArguments inputArguments = parseArguments(args);
-
-        final AmazonTimestreamWrite writeClient = buildWriteClient();
-        final AmazonTimestreamQuery queryClient = buildQueryClient();
+        final String region = inputArguments.region != null ? inputArguments.region : REGION;
+        final AmazonTimestreamWrite writeClient = buildWriteClient(region);
+        final AmazonTimestreamQuery queryClient = buildQueryClient(region);
+        AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(region).build();
 
         TimestreamDependencyHelper timestreamDependencyHelper = new TimestreamDependencyHelper();
         CrudAndSimpleIngestionExample crudAndSimpleIngestionExample = new CrudAndSimpleIngestionExample(writeClient, timestreamDependencyHelper);
@@ -57,7 +61,7 @@ public class Main {
         try {
             // Make the bucket name unique by appending 5 random characters at the end
             s3ErrorReportBucketName =
-                    timestreamDependencyHelper.createS3Bucket(ERROR_CONFIGURATION_S3_BUCKET_NAME_PREFIX +
+                    timestreamDependencyHelper.createS3Bucket(s3Client, ERROR_CONFIGURATION_S3_BUCKET_NAME_PREFIX +
                             RandomStringUtils.randomAlphanumeric(5).toLowerCase());
 
             createAndUpdateDatabaseExamples(crudAndSimpleIngestionExample, inputArguments, s3ErrorReportBucketName);
@@ -69,11 +73,11 @@ public class Main {
             // Run scheduledQueryExamples only if CSV was provided
             if (inputArguments.inputFile != null) {
                 scheduledQueryExamples(crudAndSimpleIngestionExample, scheduledQueryExample, queryExample,
-                        timestreamDependencyHelper, s3ErrorReportBucketName);
+                        timestreamDependencyHelper, s3ErrorReportBucketName, region);
             }
         } finally {
             if (s3ErrorReportBucketName != null) {
-                timestreamDependencyHelper.deleteS3Bucket(s3ErrorReportBucketName);
+                timestreamDependencyHelper.deleteS3Bucket(s3Client, s3ErrorReportBucketName);
             }
 
             // Uncomment the lines below to delete the database/table as a clean-up action
@@ -129,11 +133,12 @@ public class Main {
             ScheduledQueryExample scheduledQueryExample,
             QueryExample queryExample,
             TimestreamDependencyHelper timestreamDependencyHelper,
-            String s3ErrorReportBucketName) {
+            String s3ErrorReportBucketName,
+            String region) {
         Region regionIAM = Region.AWS_GLOBAL;
         IamClient iamClient = IamClient.builder().region(regionIAM).build();
-        SnsClient snsClient = SnsClient.builder().region(Region.of(REGION)).build();
-        SqsClient sqsClient = SqsClient.builder().region(Region.of(REGION)).build();
+        SnsClient snsClient = SnsClient.builder().region(Region.of(region)).build();
+        SqsClient sqsClient = SqsClient.builder().region(Region.of(region)).build();
         String policyArn = null;
         String subscriptionArn = null;
         String topicArn = null;
@@ -155,12 +160,12 @@ public class Main {
             subscriptionArn = timestreamDependencyHelper.subscribeToSnsTopic(snsClient, topicArn, queue_arn);
             timestreamDependencyHelper.setSqsAccessPolicy(sqsClient, queueUrl, topicArn, queue_arn);
 
-            String roleArn = TimestreamDependencyHelper.createIAMRole(iamClient, ROLE_NAME, REGION);
+            String roleArn = TimestreamDependencyHelper.createIAMRole(iamClient, ROLE_NAME, region);
             policyArn = TimestreamDependencyHelper.createIAMPolicy(iamClient, POLICY_NAME);
             TimestreamDependencyHelper.attachIAMRolePolicy(iamClient, ROLE_NAME, policyArn);
 
             //Waiting for newly created role to be active
-            System.out.println("Waiting 15secs for newly created role to become active");
+            System.out.println("Waiting 15 seconds for newly created role to become active");
             wait(15);
 
             //Scheduled Query Activities
@@ -173,7 +178,7 @@ public class Main {
             scheduledQueryExample.describeScheduledQueries(scheduledQueryArn);
 
             // Sleep for 65 seconds to let ScheduledQuery run
-            System.out.println("Waiting 65 secs for automatic ScheduledQuery executions & notifications");
+            System.out.println("Waiting 65 seconds for automatic ScheduledQuery executions & notifications");
             Thread.sleep(65000);
 
             boolean didQuerySucceedManually = false;
@@ -224,7 +229,7 @@ public class Main {
 
                         if (scheduledQueryRunSummary.has(ERROR_REPORT_LOCATION)) {
                             // Error Notification has Error report associated with it. We can parse it.
-                            scheduledQueryExample.parseS3ErrorReport(s3ErrorReportBucketName,
+                            scheduledQueryExample.parseS3ErrorReport(s3Client, s3ErrorReportBucketName,
                                     scheduledQueryRunSummary.get(ERROR_REPORT_LOCATION).getAsJsonObject()
                                             .get(S3_REPORT_LOCATION).getAsJsonObject()
                                             .get(OBJECT_KEY).getAsString());
@@ -301,7 +306,7 @@ public class Main {
      *  - Set max connections to 5000 or higher.
      */
 
-    private static AmazonTimestreamWrite buildWriteClient() {
+    private static AmazonTimestreamWrite buildWriteClient(String region) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration()
                 .withMaxConnections(5000)
                 .withRequestTimeout(20 * 1000)
@@ -309,24 +314,15 @@ public class Main {
 
         return AmazonTimestreamWriteClientBuilder
                 .standard()
+                .withRegion(region)
                 .withClientConfiguration(clientConfiguration)
                 .build();
     }
 
-    private static AmazonTimestreamQuery buildQueryClient() {
+    private static AmazonTimestreamQuery buildQueryClient(String region) {
         return AmazonTimestreamQueryClient.builder()
+                .withRegion(region)
                 .build();
-    }
-
-    private static String buildEndpoint(String endpointFormat, String cell, String region) {
-        final String cellValue;
-        if (cell != null) {
-            cellValue = "-" + cell;
-        } else {
-            cellValue = "";
-        }
-
-        return String.format(endpointFormat, cellValue, region);
     }
 
     public static void wait(int duration) throws InterruptedException {

@@ -1,0 +1,24 @@
+{
+  "name": "amazon-timestream-sample-app",
+  "version": "1.0.0",
+  "description": "Sample NodeJs application to use Timestream",
+  "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awslabs/amazon-timestream-tools.git"
+  },
+  "keywords": [
+    "Timestream",
+    "AWS"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/awslabs/amazon-timestream-tools/issues"
+  },
+  "homepage": "https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps_reinvent2021/js#readme",
+  "dependencies": {
+    "aws-sdk": "^2.1036.0",
+    "minimist": "^1.2.5"
+  }
+}

@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.timestreamquery.AmazonTimestreamQuery;
 import com.amazonaws.services.timestreamquery.model.CreateScheduledQueryRequest;
@@ -258,10 +259,10 @@ public class ScheduledQueryExample {
         }
     }
 
-    public void parseS3ErrorReport(final String s3ErrorReportBucketName,
+    public void parseS3ErrorReport(final AmazonS3 s3Client, final String s3ErrorReportBucketName,
             final String errorReportPrefix) {
-        List<S3Object> s3Objects = timestreamDependencyHelper.listObjectsInS3Bucket(s3ErrorReportBucketName, errorReportPrefix);
-        JsonObject errorReport = timestreamDependencyHelper.getS3ObjectJson(s3Objects.get(0), s3ErrorReportBucketName);
+        List<S3Object> s3Objects = timestreamDependencyHelper.listObjectsInS3Bucket(s3Client, s3ErrorReportBucketName, errorReportPrefix);
+        JsonObject errorReport = timestreamDependencyHelper.getS3ObjectJson(s3Client, s3Objects.get(0), s3ErrorReportBucketName);
         System.out.println("Error report from S3:: \n" + errorReport);
         // Since we expect only one error, print the first one
         System.out.println("Error reason from S3:: " +

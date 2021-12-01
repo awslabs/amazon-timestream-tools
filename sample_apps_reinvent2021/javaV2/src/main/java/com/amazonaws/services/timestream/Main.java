@@ -46,12 +46,14 @@ public class Main {
     public static final String POLICY_NAME = "SampleApplicationExecutionAccess";
 
     public static void main(String[] args) throws IOException {
-        TimestreamWriteClient writeClient = buildWriteClient();
-        TimestreamQueryClient queryClient = buildQueryClient();
-        S3Client s3Client = S3Client.builder().region(Region.of(REGION)).build();
-
         InputArguments inputArguments = parseArguments(args);
-        System.out.println("INPUT ARGS: " + inputArguments);
+        final String region = inputArguments.region != null ? inputArguments.region : REGION;
+
+        TimestreamWriteClient writeClient = buildWriteClient(region);
+        TimestreamQueryClient queryClient = buildQueryClient(region);
+        S3Client s3Client = S3Client.builder().region(Region.of(region)).build();
+
+
 
         CrudAndSimpleIngestionExample crudAndSimpleIngestionExample = new CrudAndSimpleIngestionExample(writeClient, s3Client);
         QueryExample queryExample = new QueryExample(queryClient);
@@ -65,7 +67,7 @@ public class Main {
 
             // Run scheduledQueryExamples only if CSV was provided
             if (inputArguments.inputFile != null) {
-                scheduledQueryExamples(crudAndSimpleIngestionExample, queryClient, queryExample, s3Client);
+                scheduledQueryExamples(crudAndSimpleIngestionExample, queryClient, queryExample, s3Client, region);
             }
         } finally {
             // Uncomment the lines below to delete the database/table as a clean-up action
@@ -77,15 +79,15 @@ public class Main {
     }
 
     private static void scheduledQueryExamples(CrudAndSimpleIngestionExample crudAndSimpleIngestionExample,
-            TimestreamQueryClient queryClient, QueryExample queryExample, S3Client s3Client) {
+            TimestreamQueryClient queryClient, QueryExample queryExample, S3Client s3Client, String region) {
 
         TimestreamDependencyHelper timestreamDependencyHelper = new TimestreamDependencyHelper();
         ScheduledQueryExample scheduledQueryExample = new ScheduledQueryExample(queryClient);
 
         Region regionIAM = Region.AWS_GLOBAL;
         IamClient iamClient = IamClient.builder().region(regionIAM).build();
-        SnsClient snsClient = SnsClient.builder().region(Region.US_EAST_1).build();
-        SqsClient sqsClient = SqsClient.builder().region(Region.US_EAST_1).build();
+        SnsClient snsClient = SnsClient.builder().region(Region.of(region)).build();
+        SqsClient sqsClient = SqsClient.builder().region(Region.of(region)).build();
         String policyArn = null;
         String subscriptionArn = null;
         String topicArn = null;
@@ -107,12 +109,12 @@ public class Main {
             subscriptionArn = timestreamDependencyHelper.subscribeToSnsTopic(snsClient, topicArn, sqsQueueArn);
             timestreamDependencyHelper.setSqsAccessPolicy(sqsClient, queueUrl, topicArn, sqsQueueArn);
 
-            String roleArn = timestreamDependencyHelper.createIAMRole(iamClient, ROLE_NAME, REGION);
+            String roleArn = timestreamDependencyHelper.createIAMRole(iamClient, ROLE_NAME, region);
             policyArn = timestreamDependencyHelper.createIAMPolicy(iamClient, POLICY_NAME);
             timestreamDependencyHelper.attachIAMRolePolicy(iamClient, ROLE_NAME, policyArn);
 
             // Wait at-least 15s for newly created role to be active
-            System.out.println("Waiting 15secs for newly created role to become active");
+            System.out.println("Waiting 15 seconds for newly created role to become active");
             Thread.sleep(15000);
 
             // Make the bucket name unique by appending 5 random characters at the end
@@ -130,7 +132,7 @@ public class Main {
             scheduledQueryExample.describeScheduledQueries(scheduledQueryArn);
 
             // Sleep for 65 seconds to let ScheduledQuery run
-            System.out.println("Waiting 65secs for automatic ScheduledQuery executions & notifications");
+            System.out.println("Waiting 65 seconds for automatic ScheduledQuery executions & notifications");
             Thread.sleep(65000);
 
             boolean didQuerySucceedManually = false;
@@ -300,7 +302,7 @@ public class Main {
      *  - Set RequestTimeout to 20 seconds .
      *  - Set max connections to 5000 or higher.
      */
-    private static TimestreamWriteClient buildWriteClient() {
+    private static TimestreamWriteClient buildWriteClient(String region) {
         ApacheHttpClient.Builder httpClientBuilder =
                 ApacheHttpClient.builder();
         httpClientBuilder.maxConnections(5000);
@@ -317,13 +319,13 @@ public class Main {
         return TimestreamWriteClient.builder()
                 .httpClientBuilder(httpClientBuilder)
                 .overrideConfiguration(overrideConfig.build())
-                .region(Region.US_EAST_1)
+                .region(Region.of(region))
                 .build();
     }
 
-    private static TimestreamQueryClient buildQueryClient() {
+    private static TimestreamQueryClient buildQueryClient(String region) {
         return TimestreamQueryClient.builder()
-                .region(Region.US_EAST_1)
+                .region(Region.of(region))
                 .build();
     }
 }
