@@ -180,8 +180,8 @@ class ScheduledQueryExample:
             self.query_client.delete_scheduled_query(ScheduledQueryArn=scheduled_query_arn)
             print("Successfully deleted scheduled query :", scheduled_query_arn)
         except Exception as err:
+            # Not raising an exception here as we want other cleanup to continue
             print("Scheduled Query deletion failed:", err)
-            raise err
 
     def describe_scheduled_query(self, scheduled_query_arn):
         print("\nDescribing Scheduled Query")
@@ -269,7 +269,7 @@ class ScheduledQueryExample:
     def run(self):
         write_util = WriteUtil(self.write_client)
         query_util = QueryUtil(self.query_client, self.database_name, self.table_name)
-        timestream_dependency_helper = TimestreamDependencyHelper()
+        timestream_dependency_helper = TimestreamDependencyHelper(self.region)
 
         try:
             # Create base table and ingest records
@@ -300,7 +300,7 @@ class ScheduledQueryExample:
             time.sleep(15)
 
             # Create S3 bucket to hold error reports
-            self.s3_error_bucket = timestream_dependency_helper.create_s3_bucket(self.ERROR_BUCKET_NAME, self.region)
+            self.s3_error_bucket = timestream_dependency_helper.create_s3_bucket(self.ERROR_BUCKET_NAME)
 
             # Scheduled Query Activities
             if self.fail_on_execution:
@@ -347,7 +347,9 @@ class ScheduledQueryExample:
 
     def cleanup(self, write_util, scheduled_query_util):
         print("cleaning up resources created by sample")
-        self.delete_scheduled_query(self.scheduled_query_arn)
+        if self.scheduled_query_arn:
+            self.delete_scheduled_query(self.scheduled_query_arn)
+
         # Clean up for scheduled query
         scheduled_query_util.detach_policy_from_role(self.ROLE_NAME, self.policy_arn)
         scheduled_query_util.delete_policy(self.policy_arn)

@@ -13,7 +13,7 @@ from examples.ScheduledQueryExample import ScheduledQueryExample
 from examples.Cleanup import Cleanup
 
 
-def main(app_type, csv_file_path, kms_id, stage, cell, region, skip_deletion_string):
+def main(app_type, csv_file_path, kms_id, stage, region, skip_deletion_string):
     session = boto3.Session()
     skip_deletion = skip_deletion_string == "true"
 
@@ -92,7 +92,6 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--csv_file_path", help="file to ingest")
     parser.add_argument("-k", "--kmsId", help="KMS key for updating the database")
     parser.add_argument("-s", "--stage", default="prod")
-    parser.add_argument("-c", "--cell", default="cell1")
     parser.add_argument("-r", "--region", default="us-east-1")
     parser.add_argument("-sd",
                         "--skip_deletion",
@@ -101,4 +100,4 @@ if __name__ == '__main__':
                         help="skip deletion of table and database created by this script")
     args = parser.parse_args()
 
-    main(args.type, args.csv_file_path, args.kmsId, args.stage, args.cell, args.region, args.skip_deletion)
+    main(args.type, args.csv_file_path, args.kmsId, args.stage, args.region, args.skip_deletion)
