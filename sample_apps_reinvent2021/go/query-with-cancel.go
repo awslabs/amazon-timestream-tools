@@ -12,15 +12,16 @@ import (
 )
 
 func main() {
-	// setup the query client
-	sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
-	querySvc := timestreamquery.New(sess)
-
 	// process command line arguments
+	region := flag.String("region", "us-east-1", "region")
 	queryPtr := flag.String("query", "", "query string")
 	filePtr := flag.String("outputfile", "", "output results file in the current folder")
-	limitPtr := flag.Int("limit", 20000, "limit on the data")
 	flag.Parse()
+
+	// setup the query client
+	sess, err := session.NewSession(&aws.Config{Region: aws.String(*region)})
+	querySvc := timestreamquery.New(sess)
+
 	var f *os.File
 	if *filePtr != "" {
 		var ferr error
@@ -61,7 +62,4 @@ func main() {
 		fmt.Println(cancelQueryOutput)
 	}
 
-	fmt.Println("Running a query with multiple pages:")
-	queryWithLimit := fmt.Sprintf("%s LIMIT %d", *queryPtr, *limitPtr)
-	utils.RunQuery(&queryWithLimit, querySvc, f)
 }

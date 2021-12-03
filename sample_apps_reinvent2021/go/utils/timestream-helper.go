@@ -168,7 +168,7 @@ func (timestreamBuilder TimestreamBuilder) CreateTable(databaseName string, tabl
 	return err
 }
 
-func (timestreamBuilder TimestreamBuilder) DescribeTable(databaseName string, tableName string) error {
+func (timestreamBuilder TimestreamBuilder) DescribeTable(databaseName string, tableName string) (*timestreamwrite.DescribeTableOutput, error) {
 
 	describeTableInput := &timestreamwrite.DescribeTableInput{
 		DatabaseName: aws.String(databaseName),
@@ -182,7 +182,7 @@ func (timestreamBuilder TimestreamBuilder) DescribeTable(databaseName string, ta
 		fmt.Printf("Describe table is successful, %s\n", *describeTableOutput)
 	}
 
-	return err
+	return describeTableOutput, err
 }
 
 func (timestreamBuilder TimestreamBuilder) ListTables(databaseName string, maxResults int64) error {

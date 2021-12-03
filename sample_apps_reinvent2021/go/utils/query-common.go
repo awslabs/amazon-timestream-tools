@@ -130,14 +130,17 @@ func RunQuery(queryPtr *string, querySvc *timestreamquery.TimestreamQuery, f *os
 			metadata := page.ColumnInfo
 			// fmt.Println("Metadata:")
 			fmt.Println(metadata)
-			header := ""
-			for i := 0; i < len(metadata); i++ {
-				header += *metadata[i].Name
-				if i != len(metadata)-1 {
-					header += ", "
+			if f != nil {
+				write(f, fmt.Sprintf("Query : %s\n",*queryPtr))
+				header := ""
+				for i := 0; i < len(metadata); i++ {
+					header += *metadata[i].Name
+					if i != len(metadata)-1 {
+						header += ", "
+					}
 				}
+				write(f, header)
 			}
-			write(f, header)
 
 			// query response data
 			fmt.Println("Data:")

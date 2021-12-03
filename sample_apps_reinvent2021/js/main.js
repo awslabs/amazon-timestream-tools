@@ -112,7 +112,7 @@ async function scheduledQueryExamples() {
         await timestreamDependencyHelper.attachIAMRolePolicy(policyArn);
         
         
-        console.log("Waiting for newly created role to become active");
+        console.log("Waiting 15 seconds for newly created role to become active");
         //Waiting for newly created role to be active
         await new Promise(resolve => setTimeout(resolve, 15000));
 
@@ -122,7 +122,7 @@ async function scheduledQueryExamples() {
         await scheduleQueryExample.listScheduledQueries();
         await scheduleQueryExample.describeScheduledQuery(scheduledQueryArn);
 
-        console.log("Waiting for automatic ScheduledQuery executions & notifications");
+        console.log("Waiting 65 seconds for automatic ScheduledQuery executions & notifications");
         await new Promise(resolve => setTimeout(resolve, 65000));
 
         var didQuerySucceedManually = false;

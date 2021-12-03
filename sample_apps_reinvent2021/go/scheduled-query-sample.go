@@ -48,8 +48,6 @@ func main() {
 	sess, err := utils.GetSession(*region)
 	utils.HandleError(err, "Failed to start a new session", true)
 
-	utils.HandleError(err, "Failed to start a new session", true)
-
 	writeSvc := timestreamwrite.New(sess)
 	querySvc := timestreamquery.New(sess)
 
@@ -64,16 +62,19 @@ func main() {
 		SnsSvc: snsSvc, SqsSvc: sqsSvc, S3Svc: s3Svc, IamSvc: iamSvc, StsSvc: stsSvc}
 
 	var topicArn, s3BucketName, queueUrl, queueArn, subscriptionArn, scheduledQueryArn string
+	createdResourcesList := []utils.Resource{}
+
 
 	// Make the bucket name unique by appending 5 random characters at the end
 	s3BucketName = utils.SQ_ERROR_CONFIGURATION_S3_BUCKET_NAME_PREFIX + utils.GenerateRandomStringWithSize(5)
 
 	err = timestreamDependencyHelper.CreateS3Bucket(s3BucketName, *region)
 	utils.HandleError(err, fmt.Sprintf("Failed to create S3Bucket %s ", s3BucketName), true)
-
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "S3", Identifier: s3BucketName})
 	//Create sns topic and sqs queue for scheduled query
 	topicArn, err = timestreamDependencyHelper.CreateSnsTopic(sqSampleAppTopicName)
 	utils.HandleError(err, fmt.Sprintf("Failed to create sns topic %s ", sqSampleAppTopicName), true)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "SNS_TOPIC", Identifier: topicArn})
 
 	queueUrl, err = timestreamDependencyHelper.CreateSqsQueue(sqSampleAppQueueName)
 	utils.HandleError(err, fmt.Sprintf("Failed to create sqs queue %s ", sqSampleAppQueueName), true)
@@ -83,37 +84,47 @@ func main() {
 
 	queueArn, err = timestreamDependencyHelper.GetSqsQueueArn(queueUrl)
 	utils.HandleError(err, "Failed to get sqs queue Arn ", true)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "SQS_QUEUE", Identifier: queueArn})
 
 	subscriptionArn, _ = timestreamDependencyHelper.SubscribeToSnsTopic(topicArn, queueArn)
 	utils.HandleError(err, "Failed to subscribe sqs queue to sns topic ", true)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "SNS_SUBSCRIPTION", AdditionalDetails:
+		fmt.Sprintf("TOPIC_ARN='%s' QUEUE_ARN='%s'",topicArn, queueArn), Identifier: subscriptionArn})
+
 
 	err = timestreamDependencyHelper.SetSqsAccessPolicy(queueUrl, topicArn, queueArn)
-	utils.HandleError(err, "Failed to subscribe sqs queue to sns topic ", true)
+	utils.HandleError(err, "Failed to set sqs policy ", true)
 
 	roleArn, err := timestreamDependencyHelper.CreateIamRole(utils.ROLE_NAME)
 	utils.HandleError(err, fmt.Sprintf("Failed to create iam role with name %s ", utils.ROLE_NAME), true)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "IAM_ROLE", Identifier: roleArn})
 
 	policyArn, _ := timestreamDependencyHelper.CreateIamPolicy(utils.POLICY_NAME)
 	utils.HandleError(err, fmt.Sprintf("Failed to create iam policy with name %s ", utils.POLICY_NAME), true)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "IAM_POLICY", Identifier: policyArn})
 
 	timestreamDependencyHelper.AttachIamPolicy(utils.ROLE_NAME, policyArn)
 	utils.HandleError(err, fmt.Sprintf("Failed to attach iam role with name %s to the policy with name %s ",
 		utils.ROLE_NAME, policyArn), true)
 
-	fmt.Println("Waiting for newly created role to become active")
+	fmt.Println("Waiting for 15 seconds for newly created role to become active")
 	time.Sleep(15 * time.Second)
 
 	//Scheduled Query Activities
 
 	// Create database.
 	err = timestreamBuilder.CreateDatabase(databaseName)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "TIMESTREAM_DATABASE", Identifier: databaseName})
 
 	err = timestreamBuilder.CreateTable(databaseName, tableName, s3BucketName)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "TIMESTREAM_TABLE", Identifier: tableName})
 
 	//Create database and table to store scheduled query results
 	err = timestreamBuilder.CreateDatabase(sqResultsDatabaseName)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "TIMESTREAM_DATABASE", Identifier: sqResultsDatabaseName})
 
 	err = timestreamBuilder.CreateTable(sqResultsDatabaseName, sqResultsTableName, s3BucketName)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "TIMESTREAM_TABLE", Identifier: sqResultsTableName})
 
 	//err = timestreamBuilder.write_sample_records(*databaseName, *tableName)
 	timestreamBuilder.IngestRecordsFromCsv(*csvFilePath, databaseName, tableName)
@@ -143,7 +154,7 @@ func main() {
 	utils.HandleError(err, fmt.Sprintf("Failed to describe scheduled query with scheduledQueryArn %s ", scheduledQueryArn), false)
 
 	// Sleep for 65 seconds to let ScheduledQuery run
-	fmt.Printf("Waiting for automatic ScheduledQuery executions & notifications from queueUrl %s", queueUrl)
+	fmt.Printf("Waiting for 65 seconds for automatic ScheduledQuery executions & notifications from queueUrl %s", queueUrl)
 	time.Sleep(65 * time.Second)
 
 	didQuerySucceedManually := false
@@ -257,5 +268,10 @@ func main() {
 		timestreamBuilder.DeleteDatabase(sqResultsDatabaseName)
 		timestreamBuilder.DeleteTable(databaseName, tableName)
 		timestreamBuilder.DeleteDatabase(databaseName)
+	} else if (len(createdResourcesList) > 0 ) {
+		fmt.Println("Following Resources are created and not cleaned")
+		for _, resource := range createdResourcesList {
+			fmt.Printf("\tResource Type : %s, Identifier (Arn/Name) : %s\n", resource.Type, resource.Identifier)
+		}
 	}
 }

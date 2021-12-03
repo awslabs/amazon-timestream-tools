@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
@@ -9,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/timestreamquery"
 	"github.com/aws/aws-sdk-go/service/timestreamwrite"
 	"go_sample/utils"
-	"os"
 	"strconv"
 	"time"
 )
@@ -47,9 +45,7 @@ func main() {
 	querySvc := timestreamquery.New(sess)
 	s3Svc := s3.New(sess, aws.NewConfig().WithRegion(*region))
 
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Creating a database, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Creating a database")
 
 	timestreamBuilder := utils.TimestreamBuilder{WriteSvc: writeSvc, QuerySvc: querySvc}
 	timestreamDependencyHelper := utils.TimestreamDependencyHelper{S3Svc: s3Svc}
@@ -60,32 +56,27 @@ func main() {
 		fmt.Println("Database successfully created")
 	}
 
-	fmt.Println("Describing the database, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Describing the database")
 
 	// Describe database.
 	err = timestreamBuilder.DescribeDatabase(*databaseName)
 
 	if *kmsKeyId == "" {
 		fmt.Println("Skipping update database because kmsKeyId was not provided")
-		reader.ReadString('\n')
 	} else {
-		fmt.Println("Updating the database, hit enter to continue")
-		reader.ReadString('\n')
+		fmt.Println("Updating the database")
 
 		// Update Database.
 		err = timestreamBuilder.UpdateDatabase(*databaseName, *kmsKeyId)
 	}
 
-	fmt.Println("Listing databases, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Listing databases")
 
 	// List databases.
 	LIST_DATABASE_MAX_RESULTS_COUNT := int64(15)
 	err = timestreamBuilder.ListDatabases(LIST_DATABASE_MAX_RESULTS_COUNT)
 
-	fmt.Println("Creating a table, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Creating a table")
 
 	// Create table.
 
@@ -96,22 +87,19 @@ func main() {
 
 	err = timestreamBuilder.CreateTable(*databaseName, *tableName, s3BucketName)
 
-	fmt.Println("Describing the table, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Describing the table")
 
 	// Describe table.
-	err = timestreamBuilder.DescribeTable(*databaseName, *tableName)
+	_, err = timestreamBuilder.DescribeTable(*databaseName, *tableName)
 
-	fmt.Println("Listing tables, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Listing tables")
 
 	// List tables.
 	LIST_TABLES_MAX_RESULTS_COUNT := int64(15)
 
 	err = timestreamBuilder.ListTables(*databaseName, LIST_TABLES_MAX_RESULTS_COUNT)
 
-	fmt.Println("Updating the table, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Updating the table")
 
 	// Update table.
 	magneticStoreRetentionPeriodInDays := int64(7 * 365)
@@ -120,12 +108,10 @@ func main() {
 	err = timestreamBuilder.UpdateTable(*databaseName, *tableName,
 		magneticStoreRetentionPeriodInDays, memoryStoreRetentionPeriodInHours)
 
-	fmt.Println("Ingesting records, hit enter to continue")
-	reader.ReadString('\n')
+	fmt.Println("Ingesting records")
 
 	// Below code will create a table and ingest multi-measure records into created table
 	fmt.Println("Ingesting records with multi measures to table", *tableName, "hit enter to continue")
-	reader.ReadString('\n')
 
 	err = timestreamBuilder.IngestRecords(*databaseName, *tableName,
 		getRecordsWithMultiMeasures(dimensions))
@@ -135,7 +121,6 @@ func main() {
 	}
 
 	fmt.Println("Ingesting records with multi measures with mixture type to table", *tableName, "hit enter to continue")
-	reader.ReadString('\n')
 
 	err = timestreamBuilder.IngestRecords(*databaseName, *tableName,
 		getRecordsWithMultiMeasuresMultipleRecords(dimensions))
@@ -152,13 +137,11 @@ func main() {
 		fmt.Println(queryOutput)
 	}
 
-	fmt.Println("Deleting tables, hit enter to continue.")
-	reader.ReadString('\n')
+	fmt.Println("Deleting tables.")
 
 	err = timestreamBuilder.DeleteTable(*databaseName, *tableName)
 
-	fmt.Println("Deleting database, hit enter to continue.")
-	reader.ReadString('\n')
+	fmt.Println("Deleting database.")
 
 	err = timestreamBuilder.DeleteDatabase(*databaseName)
 

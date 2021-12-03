@@ -119,6 +119,11 @@ type NotificationMessage struct {
 	}
 }
 
+type Resource struct {
+	Type string
+	Identifier  string
+	AdditionalDetails string
+}
 func HandleError(err error, errorMessage string, exitFlag bool) {
 	if err != nil {
 		_, fn, line, _ := runtime.Caller(1)
@@ -329,7 +334,7 @@ func (timestreamDependencyHelper TimestreamDependencyHelper) SetSqsAccessPolicy(
 	return err
 }
 
-func (timestreamDependencyHelper TimestreamDependencyHelper) getIamRole(roleName string) (string, error) {
+func (timestreamDependencyHelper TimestreamDependencyHelper) GetIamRole(roleName string) (string, error) {
 
 	getRoleInput := &iam.GetRoleInput{
 		RoleName: aws.String(roleName),
@@ -357,7 +362,7 @@ func (timestreamDependencyHelper TimestreamDependencyHelper) getIamRole(roleName
 
 func (timestreamDependencyHelper TimestreamDependencyHelper) CreateIamRole(roleName string) (string, error) {
 
-	roleArn, err := timestreamDependencyHelper.getIamRole(roleName)
+	roleArn, err := timestreamDependencyHelper.GetIamRole(roleName)
 	if err == nil && roleArn != "" {
 		return roleArn, err
 	}

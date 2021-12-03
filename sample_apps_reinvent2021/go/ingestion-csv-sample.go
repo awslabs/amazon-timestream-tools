@@ -34,10 +34,12 @@ func main() {
 	timestreamBuilder := utils.TimestreamBuilder{WriteSvc: writeSvc, QuerySvc: querySvc}
 	timestreamDependencyHelper := utils.TimestreamDependencyHelper{S3Svc: s3Svc}
 
+	createdResourcesList := []utils.Resource{}
 	// Make the bucket name unique by appending 5 random characters at the end
 	s3BucketName := utils.SQ_ERROR_CONFIGURATION_S3_BUCKET_NAME_PREFIX + utils.GenerateRandomStringWithSize(5)
 	err = timestreamDependencyHelper.CreateS3Bucket(s3BucketName, *region)
 	utils.HandleError(err, fmt.Sprintf("Failed to create S3Bucket %s ", s3BucketName), true)
+	createdResourcesList = append(createdResourcesList, utils.Resource{Type: "S3", Identifier: s3BucketName})
 
 	// Describe database.
 	err = timestreamBuilder.DescribeDatabase(*databaseName)
@@ -55,13 +57,14 @@ func main() {
 				utils.HandleError(err, fmt.Sprintf("Failed to create table %s in database %s ",
 					*tableName, *databaseName), true)
 			}
+			createdResourcesList = append(createdResourcesList, utils.Resource{Type: "TIMESTREAM_DATABASE", Identifier: *databaseName})
 		}
 	} else {
 		fmt.Println("Database exists")
 	}
 
 	// Describe table.
-	err = timestreamBuilder.DescribeTable(*databaseName, *tableName)
+	_, err = timestreamBuilder.DescribeTable(*databaseName, *tableName)
 	if err != nil {
 		serr, ok := err.(*timestreamwrite.ResourceNotFoundException)
 		fmt.Println(serr)
@@ -73,9 +76,15 @@ func main() {
 				utils.HandleError(err, fmt.Sprintf("Failed to create table %s in database %s ",
 					*tableName, *databaseName), true)
 			}
+			createdResourcesList = append(createdResourcesList, utils.Resource{Type: "TIMESTREAM_TABLE", Identifier: *tableName})
 		}
 	} else {
 		fmt.Println("Table already exists")
+		fmt.Printf("Deleting created s3Bucket=%s as it was not used for creating the table.", s3BucketName)
+		timestreamDependencyHelper.DeleteS3Bucket(s3BucketName)
+		if len(createdResourcesList) > 0 && createdResourcesList[0].Identifier == s3BucketName {
+			createdResourcesList = createdResourcesList[1:]
+		}
 	}
 
 	//Ingest records from csv file
@@ -87,5 +96,15 @@ func main() {
 	queryOutput, err := timestreamBuilder.QueryWithQueryString(queryString)
 	if err == nil {
 		fmt.Println(queryOutput)
+	}
+
+	fmt.Println("Ingesting Records Complete")
+	if len(createdResourcesList) > 0 {
+		fmt.Println("Following Resources are created and not cleaned")
+		for _, resource := range createdResourcesList {
+			fmt.Printf("\tResource Type : %s, Identifier/Name : %s\n", resource.Type, resource.Identifier)
+		}
+	} else {
+		fmt.Println("Used existing resources to ingest data")
 	}
 }
