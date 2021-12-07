@@ -1,7 +1,7 @@
-from collections import defaultdict, namedtuple
+from collections import namedtuple
 import random, string
-import os
 import numpy as np
+import uuid
 
 ######################################################################################
 ## Data model for an example DevOps application tracking resource utilization stats ##
@@ -146,6 +146,8 @@ measuresForEvents = [measureTaskCompleted, measureTaskEndState, measureGcReclaim
 measureValuesForTaskEndState = ['SUCCESS_WITH_NO_RESULT', 'SUCCESS_WITH_RESULT', 'INTERNAL_ERROR', 'USER_ERROR', 'UNKNOWN', 'THROTTLED']
 selectionProbabilities = [0.2, 0.7, 0.01, 0.07, 0.01, 0.01]
 
+requestIdAttributeName = "request_id"
+
 DimensionsMetric = namedtuple('DimensionsMetric', 'region cell silo availability_zone microservice_name instance_type os_version instance_name')
 DimensionsEvent = namedtuple('DimensionsEvent', 'region cell silo availability_zone microservice_name instance_name process_name, jdk_version')
 
@@ -188,10 +190,21 @@ def generateDimensions(scaleFactor, seed = 12345):
 
     return (dimensionsMetrics, dimenstionsEvents)
 
-def createWriteRecordCommonAttributes(dimensions):
-    return { "Dimensions": [{ "Name": dimName, "Value": getattr(dimensions, dimName), "DimensionValueType": "VARCHAR"} for dimName in dimensions._fields] }
+def createRequestId():
+    return str(uuid.uuid4())
 
-def createRandomMetrics(hostId, timestamp, timeUnit, highUtilizationHosts, lowUtilizationHosts):
+def createWriteRecordCommonAttributes(dimensions, addReqId = False):
+    localDims = createDimensionsEntry(dimensions, addReqId)
+    return { "Dimensions":  localDims}
+
+def createDimensionsEntry(dimensions, addReqId = False):
+    localDims = [{ "Name": dimName, "Value": getattr(dimensions, dimName), "DimensionValueType": "VARCHAR"} for dimName in dimensions._fields]
+    if addReqId:
+        requestId = createRequestId()
+        localDims.append({"Name": requestIdAttributeName, "Value": requestId, "DimensionValueType": "VARCHAR" })
+    return localDims
+
+def createRandomMetrics(hostId, dimensions, timestamp, timeUnit, highUtilizationHosts, lowUtilizationHosts, wide = False, addReqId = False):
     records = list()
 
     ## CPU measures
@@ -202,7 +215,7 @@ def createRandomMetrics(hostId, timestamp, timeUnit, highUtilizationHosts, lowUt
     else:
         cpuUser = 35.0 + 30.0 * random.random()
 
-    records.append(createRecord(measureCpuUser, cpuUser, "DOUBLE", timestamp, timeUnit))
+    records.append(createRecord(dimensions, measureCpuUser, cpuUser, "DOUBLE", timestamp, timeUnit, wide))
 
     otherCpuMeasures = [measureCpuSystem, measureCpuSteal, measureCpuIowait, measureCpuNice, measureCpuHi, measureCpuSi]
     totalOtherUsage = 0.0
@@ -210,10 +223,10 @@ def createRandomMetrics(hostId, timestamp, timeUnit, highUtilizationHosts, lowUt
     for measure in otherCpuMeasures:
         value = random.random()
         totalOtherUsage += value
-        records.append(createRecord(measure, value, "DOUBLE", timestamp, timeUnit))
+        records.append(createRecord(dimensions, measure, value, "DOUBLE", timestamp, timeUnit, wide))
 
     cpuIdle = 100 - cpuUser - totalOtherUsage
-    records.append(createRecord(measureCpuIdle, cpuIdle, "DOUBLE", timestamp, timeUnit))
+    records.append(createRecord(dimensions, measureCpuIdle, cpuIdle, "DOUBLE", timestamp, timeUnit, wide))
 
     remainingMeasures = [measureMemoryFree, measureMemoryUsed, measureMemoryCached, measureDiskIoReads,
                         meausreDiskIoWrites, measureLatencyPerRead, measureLatencyPerWrite, measureNetworkBytesIn,
@@ -221,56 +234,129 @@ def createRandomMetrics(hostId, timestamp, timeUnit, highUtilizationHosts, lowUt
 
     for measure in remainingMeasures:
         value = 100.0 * random.random()
-        records.append(createRecord(measure, value, "DOUBLE", timestamp, timeUnit))
+        records.append(createRecord(dimensions, measure, value, "DOUBLE", timestamp, timeUnit, wide))
 
-    return records
+    if addReqId:
+        requestId = createRequestId()
+        records.append(createRecord(dimensions, requestIdAttributeName, requestId, "VARCHAR", timestamp, timeUnit, wide))
 
-def createRandomEvent(timestamp, timeUnit):
+    if wide:
+        ## Create the write record in the MULTI model.
+        wideRecord = list()
+        ## The metrics use a measure_name of "metrics"
+        wideRecord.append(
+            {
+                "Dimensions": dimensions,
+                "MeasureValues": records,
+                "MeasureName": "metrics",
+                "MeasureValueType": "MULTI",
+                "Time": str(timestamp),
+                "TimeUnit": timeUnit
+            }
+        )
+        return wideRecord
+    else:
+        return records
+
+def createRandomEvent(dimensions, timestamp, timeUnit, wide = False, addReqId = False):
     records = list()
 
-    records.append(createRecord(measureTaskCompleted, random.randint(0, 500), "BIGINT", timestamp, timeUnit))
-    records.append(createRecord(measureTaskEndState, np.random.choice(measureValuesForTaskEndState, p=selectionProbabilities), "VARCHAR", timestamp, timeUnit))
+    records.append(createRecord(dimensions, measureTaskCompleted, random.randint(0, 500), "BIGINT", timestamp, timeUnit, wide))
+    records.append(createRecord(dimensions, measureTaskEndState, np.random.choice(measureValuesForTaskEndState, p=selectionProbabilities), "VARCHAR", timestamp, timeUnit, wide))
 
     remainingMeasures = [measureGcReclaimed, measureGcPause, measureMemoryFree]
 
     for measure in remainingMeasures:
         value = 100.0 * random.random()
-        records.append(createRecord(measure, value, "DOUBLE", timestamp, timeUnit))
+        records.append(createRecord(dimensions, measure, value, "DOUBLE", timestamp, timeUnit, wide))
 
-    return records
+    if addReqId:
+        requestId = createRequestId()
+        records.append(createRecord(dimensions, requestIdAttributeName, requestId, "VARCHAR", timestamp, timeUnit, wide))
 
-def createRecord(measureName, measureValue, valueType, timestamp, timeUnit):
-    return {
-        "MeasureName": measureName,
-        "MeasureValue": str(measureValue),
-        "MeasureValueType": valueType,
-        "Time": str(timestamp),
-        "TimeUnit": timeUnit
-    }
+    if wide:
+        ## Create the write record in the MULTI model.
+        wideRecord = list()
+        ## The events use a measure_name of "events"
+        wideRecord.append(
+            {
+                "Dimensions": dimensions,
+                "MeasureValues": records,
+                "MeasureName": "events",
+                "MeasureValueType": "MULTI",
+                "Time": str(timestamp),
+                "TimeUnit": timeUnit
+            }
+        )
+        return wideRecord
+    else:
+        return records
+
+def createRecord(dimensions, measureName, measureValue, valueType, timestamp, timeUnit, wide = False):
+    if wide:
+        ## In wide layout, invidual measures are part of the measure value list, where each measure value has a name and type.
+        return {
+            "Name": measureName,
+            "Value": str(measureValue),
+            "Type": valueType
+        }
+    else:
+        return {
+            "Dimensions": dimensions,
+            "MeasureName": measureName,
+            "MeasureValue": str(measureValue),
+            "MeasureValueType": valueType,
+            "Time": str(timestamp),
+            "TimeUnit": timeUnit
+        }
 
 
-def printModelSummary(dimensionsMetrics, dimensionsEvents, metricInterval, eventInterval):
+def printModelSummary(dimensionsMetrics, dimensionsEvents, metricInterval, eventInterval, wide = False):
     print("Dimensions for metrics: {:,}".format(len(dimensionsMetrics)))
     print("Dimensions for events: {:,}".format(len(dimensionsEvents)))
-    numTimeseries = len(dimensionsMetrics) * len(measuresForMetrics) + len(dimensionsEvents) * len(measuresForEvents)
-    numDataPointsPerSecond = round((1 / metricInterval) * len(dimensionsMetrics) * len(measuresForMetrics) + (1 / eventInterval) * len(dimensionsEvents) * len(measuresForEvents))
-    numDataPointsPerHour = 3600 * numDataPointsPerSecond
-    avgMeasureNameLength = np.average([len(x) for x in measuresForMetrics] + [len(x) for x in measuresForEvents])
-    avgDimensionsSize = np.average([np.sum([len(getattr(dimensionsEvents[0], dimName)) * 2 for dimName in dimensionsEvents[0]._fields]),
-        np.sum([len(getattr(dimensionsMetrics[0], dimName)) * 2 for dimName in dimensionsMetrics[0]._fields])])
-    avgRowSize = avgDimensionsSize + avgMeasureNameLength + 16
-
-    numMetricsPerSecond = round((1 / metricInterval) * len(dimensionsMetrics) * len(measuresForMetrics))
-    numEventsPerSecond = round((1 / eventInterval) * len(dimensionsEvents) * len(measuresForEvents))
-    metricsMeasureBytes = np.average([len(x) for x in measuresForMetrics])
-    eventsMeasureBytes = np.average([len(x) for x in measuresForEvents])
     eventsDimensionBytes = np.sum([len(getattr(dimensionsEvents[0], dimName)) * 2 for dimName in dimensionsEvents[0]._fields])
     metricsDimensionBytes = np.sum([len(getattr(dimensionsMetrics[0], dimName)) * 2 for dimName in dimensionsMetrics[0]._fields])
-    ingestionVolume = round((numMetricsPerSecond * (metricsDimensionBytes + metricsMeasureBytes + 16) + numEventsPerSecond * (eventsDimensionBytes + eventsMeasureBytes + 16)) / (1024.0 * 1024.0), 2)
+    metricsMeasureBytesTotal = np.sum([len(x) for x in measuresForMetrics])
+    eventsMeasureBytesTotal = np.sum([len(x) for x in measuresForEvents])
+    print("Dimension bytes: Events: {}, Metrics: {}".format(eventsDimensionBytes, metricsDimensionBytes))
+    print("Bytes for names: Metrics: {}, Events: {}".format(metricsMeasureBytesTotal, eventsMeasureBytesTotal))
+
+    ## In the narrow model, each measure data point becomes a row. On the other hand, in the wide model,
+    ## 20 metrics become one two, and 5 events become another. So, instead of having 25 rows, we have 2.
+    ## Similarly, if we count the number of time series as the distinct combinations of dimensions names, values, and measure names,
+    ## the wide model also sees a significant reduction in the number of time series.
+    ## Each row in wide model becomes wider, but the repeated dimensions and timestamps go away, which is why the total
+    ## data size, ingestion volume etc. should also be lower.
+    if wide:
+        numTimeseries = len(dimensionsMetrics) + len(dimensionsEvents)
+        numDataPointsPerSecond = round((1 / metricInterval) * len(dimensionsMetrics) + (1 / eventInterval) * len(dimensionsEvents))
+        numMeasuresPerSecond = round((1 / metricInterval) * len(dimensionsMetrics) * len(measuresForMetrics) + (1 / eventInterval) * len(dimensionsEvents) * len(measuresForEvents))
+        numDataPointsPerHour = 3600 * numDataPointsPerSecond
+        numMetricsPerSecond = round((1 / metricInterval) * len(dimensionsMetrics))
+        numEventsPerSecond = round((1 / eventInterval) * len(dimensionsEvents))
+        ## Metrics row size is the size of dimensions, plus "metrics" as measure name, timestamp, and 8 bytes for each metric
+
+        avgMetricsRowSize = metricsDimensionBytes + 7 + 8 + len(measuresForMetrics) * 8 + metricsMeasureBytesTotal
+        avgEventsRowSize = eventsDimensionBytes + 6 + 8 + eventsMeasureBytesTotal
+        ingestionVolume = round((numMetricsPerSecond * avgMetricsRowSize + numEventsPerSecond * avgEventsRowSize) / (1024.0 * 1024.0), 2)
+    else:
+        numTimeseries = len(dimensionsMetrics) * len(measuresForMetrics) + len(dimensionsEvents) * len(measuresForEvents)
+        numDataPointsPerSecond = round((1 / metricInterval) * len(dimensionsMetrics) * len(measuresForMetrics) + (1 / eventInterval) * len(dimensionsEvents) * len(measuresForEvents))
+        numMeasuresPerSecond = numDataPointsPerSecond
+        numDataPointsPerHour = 3600 * numDataPointsPerSecond
+        numMetricsPerSecond = round((1 / metricInterval) * len(dimensionsMetrics) * len(measuresForMetrics))
+        numEventsPerSecond = round((1 / eventInterval) * len(dimensionsEvents) * len(measuresForEvents))
+        metricsMeasureBytes = np.average([len(x) for x in measuresForMetrics])
+        eventsMeasureBytes = np.average([len(x) for x in measuresForEvents])
+        ingestionVolume = round((numMetricsPerSecond * (metricsDimensionBytes + metricsMeasureBytes + 16) + numEventsPerSecond * (eventsDimensionBytes + eventsMeasureBytes + 16)) / (1024.0 * 1024.0), 2)
+
+
     dataSizePerHour = round(ingestionVolume * 3600 / 1024.0, 2)
     dataSizePerDay = round(dataSizePerHour * 24, 2)
     dataSizePerYear = round(dataSizePerDay * 365 / 1024.0, 2)
-
-    print("avg row size: {} Bytes".format(avgRowSize))
-    print("Number of timeseries: {:,}. Avg. data points per second: {:,}. Avg. data points per hour: {:,}".format(numTimeseries, numDataPointsPerSecond, numDataPointsPerHour))
-    print("Avg. Ingestion volume: {:,} MB/s. Data size per hour: {:,} GB. Data size per day: {:,} GB. Data size per year: {:,} TB".format(ingestionVolume, dataSizePerHour, dataSizePerDay, dataSizePerYear))
+    avgRowSizeBytes = round(ingestionVolume * 1024 * 1024 / numDataPointsPerSecond, 2)
+    print("avg row size: {} Bytes".format(avgRowSizeBytes))
+    print("Number of timeseries: {:,}. Avg. data points per second: {:,}. Avg. no. of metrics per second: {:,} Avg. data points per hour: {:,}".format(
+        numTimeseries, numDataPointsPerSecond, numMeasuresPerSecond, numDataPointsPerHour))
+    print("Avg. Ingestion volume: {:,} MB/s. Data size per hour: {:,} GB. Data size per day: {:,} GB. Data size per year: {:,} TB".format(
+        ingestionVolume, dataSizePerHour, dataSizePerDay, dataSizePerYear))

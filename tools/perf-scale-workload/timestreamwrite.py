@@ -8,7 +8,7 @@ import pprint
 '''
 ## Create a timestream write client.
 '''
-def createWriteClient(region, profile = None, credStr = None):
+def createWriteClient(region, profile = None, credStr = None, endpoint = None):
     if profile == None and credStr == None:
         print("Using credentials from the environment")
 
@@ -16,12 +16,20 @@ def createWriteClient(region, profile = None, credStr = None):
     config = Config(read_timeout = 335, connect_timeout = 20, retries = {'max_attempts': 10})
     if profile != None:
         session = boto3.Session(profile_name = profile)
-        client = session.client(service_name = 'timestream-write',
-                            region_name = region, config = config)
+        if endpoint != None:
+            client = session.client(service_name = 'timestream-write', endpoint_url=endpoint,
+                region_name = region, config = config)
+        else:
+            client = session.client(service_name = 'timestream-write',
+                region_name = region, config = config)
     else:
         session = boto3.Session()
-        client = session.client(service_name = 'timestream-write',
-                            region_name = region, config = config)
+        if endpoint != None:
+            client = session.client(service_name = 'timestream-write', endpoint_url=endpoint,
+                region_name = region, config = config)
+        else:
+            client = session.client(service_name = 'timestream-write',
+                region_name = region, config = config)
     return client
 
 def describeTable(client, databaseName, tableName):
@@ -30,6 +38,9 @@ def describeTable(client, databaseName, tableName):
 def writeRecords(client, databaseName, tableName, commonAttributes, records):
     return client.write_records(DatabaseName = databaseName, TableName = tableName,
         CommonAttributes = (commonAttributes), Records = (records))
+
+def writeRecords(client, databaseName, tableName, records):
+    return client.write_records(DatabaseName = databaseName, TableName = tableName, Records = (records))
 
 def createDatabase(client, databaseName):
     return client.create_database(DatabaseName = databaseName)

@@ -49,7 +49,7 @@ class IngestionThread(threading.Thread):
         self.args = args
         self.dimensionMetrics = dimensionMetrics
         self.dimensionEvents = dimensionEvents
-        self.client = tswrite.createWriteClient(args.endpoint, profile=args.profile)
+        self.client = tswrite.createWriteClient(region=args.region, profile=args.profile, endpoint=args.endpoint)
         self.databaseName = args.databaseName
         self.tableName = args.tableName
         self.numMetrics = len(dimensionMetrics)
@@ -63,6 +63,7 @@ class IngestionThread(threading.Thread):
         self.lowUtilizationHosts = lowUtilizationHosts
         self.sigInt = False
         self.event = event
+        self.recordsWritten = 0
 
     def run(self):
         global seriesId
@@ -72,6 +73,12 @@ class IngestionThread(threading.Thread):
         idx = 0
         mean = 0.0
         squared = 0.0
+        addReqId = self.args.addReqId
+        addReqIdAsDim = addReqId and self.args.addReqIdAsDim
+        addReqIdAsMeasure = addReqId and not self.args.addReqIdAsDim
+
+        writeRecordsBatch = list()
+        recordsToWrite = list()
 
         while True:
             with lock:
@@ -106,16 +113,40 @@ class IngestionThread(threading.Thread):
                 localTimestamp = timestamp
 
             if localSeriesId < self.numMetrics:
-                commonAttributes = model.createWriteRecordCommonAttributes(self.dimensionMetrics[localSeriesId])
-                records = model.createRandomMetrics(seriesId, localTimestamp, "MILLISECONDS", self.highUtilizationHosts, self.lowUtilizationHosts)
+                dimensions = model.createDimensionsEntry(self.dimensionMetrics[localSeriesId], addReqId=addReqIdAsDim)
+                records = model.createRandomMetrics(localSeriesId, dimensions, localTimestamp, "MILLISECONDS", self.highUtilizationHosts, self.lowUtilizationHosts, wide=self.args.wide,  addReqId=addReqIdAsMeasure)
             else:
-                commonAttributes = model.createWriteRecordCommonAttributes(self.dimensionEvents[localSeriesId - self.numMetrics])
-                records = model.createRandomEvent(localTimestamp, "MILLISECONDS")
+                dimensions = model.createDimensionsEntry(self.dimensionEvents[localSeriesId - self.numMetrics], addReqId=addReqIdAsDim)
+                records = model.createRandomEvent(dimensions, localTimestamp, "MILLISECONDS", wide=self.args.wide, addReqId=addReqIdAsMeasure)
+
+            if self.args.batchWrites:
+                if len(writeRecordsBatch) + len(records) <= self.args.batchSize:
+                    writeRecordsBatch.extend(records)
+                    ## Generate more data, unless we're wrapping around, at which point, drain any pending records.
+                    if localSeriesId < self.numMetrics + self.numEvents:
+                        continue
+                else:
+                    ## transfer a subset of values from the records produced into the batch
+                    spaceRemaining = self.args.batchSize - len(writeRecordsBatch)
+                    assert(spaceRemaining < len(records))
+                    ## Transfer 0 - spaceRemaining - 1 to be written with this batch, and spaceRemaining - end in the next batch
+                    ## If spaceRemaining is 0, then just write what we have accumulated so far
+                    if spaceRemaining > 0:
+                        writeRecordsBatch.extend(records[0:spaceRemaining])
+                    ## The batch is full, now we issue the write record request.
+                    recordsToWrite.clear()
+                    recordsToWrite.extend(writeRecordsBatch)
+                    writeRecordsBatch.clear()
+                    writeRecordsBatch.extend(records[spaceRemaining:])
+            else:
+                recordsToWrite.clear()
+                recordsToWrite.extend(records)
 
             idx += 1
             start = timer()
             try:
-                writeResult = tswrite.writeRecords(self.client, self.databaseName, self.tableName, commonAttributes, records)
+                writeResult = tswrite.writeRecords(self.client, self.databaseName, self.tableName, recordsToWrite)
+                self.recordsWritten += len(recordsToWrite)
                 self.success += 1
             except Exception as e:
                 print(e)
@@ -123,7 +154,7 @@ class IngestionThread(threading.Thread):
                 traceback.print_exception(exc_type, exc_value, exc_traceback, limit=2, file=sys.stdout)
                 requestId = "RequestId: {}".format(e.response['ResponseMetadata']['RequestId'])
                 print(requestId)
-                print(json.dumps(commonAttributes, indent=2))
+                print(json.dumps(dimensions, indent=2))
                 print(json.dumps(records, indent=2))
                 continue
             finally:
@@ -142,16 +173,16 @@ class IngestionThread(threading.Thread):
             requestId = writeResult['ResponseMetadata']['RequestId']
             if idx % 1000 == 0:
                 now = datetime.datetime.now()
-                print("{}. {}. {}. Last RequestId: {}. Avg={:,}, Stddev={:,}, 50thPerc={:,}, 90thPerc={:,}, 99thPerc={:,}".format(
+                print("{}. {}. {}. Last RequestId: {}. Avg={:,}, Stddev={:,}, 50thPerc={:,}, 90thPerc={:,}, 99thPerc={:,}. Records written: {}".format(
                     self.threadId, idx, now.strftime("%Y-%m-%d %H:%M:%S"), requestId, round(self.sum / self.count, 3),
                     round(math.sqrt(self.variance), 3), round(self.digest.percentile(50), 3),
-                    round(self.digest.percentile(90), 3), round(self.digest.percentile(99), 3)))
+                    round(self.digest.percentile(90), 3), round(self.digest.percentile(99), 3), self.recordsWritten))
 
     def interrupt(self):
         print("Interrupting thread: ", self.threadId)
         self.sigInt = True
 
-IngestionSummaryStats = namedtuple('IngestionSummaryStats', 'digest count success sum variance')
+IngestionSummaryStats = namedtuple('IngestionSummaryStats', 'digest count success sum variance records')
 
 #########################################
 ## Process that spawns multiple        ##
@@ -197,6 +228,7 @@ class MultiProcessIngestWorker(multiprocessing.Process):
 
             success = 0
             count = 0
+            recordsWritten = 0
             totalLatency = 0.0
             aggregatedDigests = TDigest()
             pooledVariance = 0.0
@@ -209,16 +241,17 @@ class MultiProcessIngestWorker(multiprocessing.Process):
                 else:
                     pooledVariance = ((count - 1) * pooledVariance + (t.count - 1) * t.variance) / ((count - 1) + (t.count - 1))
                 count += t.count
+                recordsWritten += t.recordsWritten
                 aggregatedDigests += t.digest
                 totalLatency += t.sum
 
-            print("[Process: {}] Total={:,}, Success={:,}, Avg={:,}, Stddev={:,}, 50thPerc={:,}, 90thPerc={:,}, 99thPerc={:,}".format(
+            print("[Process: {}] Total={:,}, Success={:,}, Avg={:,}, Stddev={:,}, 50thPerc={:,}, 90thPerc={:,}, 99thPerc={:,}. Records written: {}".format(
                 self.processId, count, success,
                 round(totalLatency / count, 3),
                 round(math.sqrt(pooledVariance), 3), round(aggregatedDigests.percentile(50), 3),
-                round(aggregatedDigests.percentile(90), 3), round(aggregatedDigests.percentile(99), 3)))
+                round(aggregatedDigests.percentile(90), 3), round(aggregatedDigests.percentile(99), 3), recordsWritten))
 
-            overallSummary = IngestionSummaryStats(aggregatedDigests, count, success, totalLatency, pooledVariance)
+            overallSummary = IngestionSummaryStats(aggregatedDigests, count, success, totalLatency, pooledVariance, recordsWritten)
             ingestionEnd = timer()
             print("Total time to ingest: {:,} seconds".format(round(ingestionEnd - ingestionStart, 2)))
         finally:
@@ -290,6 +323,7 @@ def ingestRecordsMultiProc(dimensionsMetrics, dimensionsEvents, args):
 
     success = 0
     count = 0
+    recordsWritten = 0
     totalLatency = 0.0
     aggregatedDigests = TDigest()
     pooledVariance = 0.0
@@ -306,13 +340,15 @@ def ingestRecordsMultiProc(dimensionsMetrics, dimensionsEvents, args):
         else:
             pooledVariance = ((count - 1) * pooledVariance + (output.count - 1) * output.variance) / ((count - 1) + (output.count - 1))
         count += output.count
+        recordsWritten += output.records
         aggregatedDigests += output.digest
         totalLatency += output.sum
 
-    print("[OVERALL] Total={:,}, Success={:,}, Avg={:,}, Stddev={:,}, 50thPerc={:,}, 90thPerc={:,}, 99thPerc={:,}".format(count, success,
+    print("[OVERALL] Total={:,}, Success={:,}, Avg={:,}, Stddev={:,}, 50thPerc={:,}, 90thPerc={:,}, 99thPerc={:,}. Records written: {}".format(count, success,
         round(totalLatency / count, 3),
         round(math.sqrt(pooledVariance), 3), round(aggregatedDigests.percentile(50), 3),
-        round(aggregatedDigests.percentile(90), 3), round(aggregatedDigests.percentile(99), 3)))
+        round(aggregatedDigests.percentile(90), 3), round(aggregatedDigests.percentile(99), 3), recordsWritten))
 
     ingestionEnd = timer()
-    print("Total time to ingest: {:,} seconds".format(round(ingestionEnd - ingestionStart, 2)))
+    print("Total time to ingest: {:,} seconds. TPS: {:,}, Records/sec: {:,}".format(round(ingestionEnd - ingestionStart, 2),
+        round(count / (ingestionEnd - ingestionStart), 2), round(recordsWritten / (ingestionEnd - ingestionStart), 2)))

@@ -71,7 +71,7 @@ class RandomizedExecutionThread(threading.Thread):
         self.config = configparser.ConfigParser()
         self.config.read(args.config)
         retries = int(self.config.get(configDefaultSection, configRetries, fallback = 0))
-        self.client = tsquery.createQueryClient(args.endpoint, profile=args.profile, retries=retries)
+        self.client = tsquery.createQueryClient(region=args.region, profile=args.profile, retries=retries, endpoint=args.endpoint)
         self.output = ()
         self.tps = 0.0
         self.queryCount = 0
@@ -86,7 +86,7 @@ class RandomizedExecutionThread(threading.Thread):
             self.params = getQueryParams(self.args)
 
         print(self.params)
-        queryInstances = queryProvider(self.params, args.queryEndTime)
+        queryInstances = queryProvider(self.params, args.queryEndTime, args.wide)
 
         ## Initialize the query mode.
         self.queryMode = self.config.get(configDefaultSection, configQueryMode, fallback = configQueryModeRegular)
@@ -307,36 +307,62 @@ class MultiProcessQueryWorker(multiprocessing.Process):
 ## Obtain the query parameters by issuing a query to the database and table.
 def getQueryParams(args):
     print("Obtaining query params from the database.")
-    client = tsquery.createQueryClient(args.endpoint, profile=args.profile)
+    client = tsquery.createQueryClient(region=args.region, profile=args.profile, endpoint=args.endpoint)
     ## Use the following query to get the query parameters from the data
     ## by picking attributes each type of time series to initialize the dimensions.
     ## Introduces some randomization to enable multiple executions to pick different parameters.
-    queryStr = """
-    WITH selectedTaskCompleted AS (
-        SELECT *
-        FROM "{0}"."{1}"
-        WHERE measure_name = 'task_completed'
-            AND time BETWEEN {2} - 2h AND {2}
-        LIMIT 100
-    ), selectedCpu AS (
-        SELECT t.*
-        FROM "{0}"."{1}" t INNER JOIN selectedTaskCompleted c ON c.instance_name = t.instance_name
-        WHERE t.measure_name = 'cpu_user'
-            AND t.time BETWEEN {2} - 2h AND {2}
-        ORDER BY random()
-        LIMIT 1
-    )
-    SELECT * FROM(
-        (
-        SELECT * FROM selectedCpu
+    if args.wide:
+        queryStr = """
+        WITH selectedTaskCompleted AS (
+            SELECT *
+            FROM "{0}"."{1}"
+            WHERE measure_name = 'events'
+                AND time BETWEEN {2} - 12h AND {2}
+            LIMIT 1
+        ), selectedCpu AS (
+            SELECT t.*
+            FROM "{0}"."{1}" t INNER JOIN selectedTaskCompleted c ON c.instance_name = t.instance_name
+            WHERE t.measure_name = 'metrics'
+                AND t.time BETWEEN {2} - 12h AND {2}
+            LIMIT 1
         )
-        UNION
-        (
-        SELECT * FROM selectedTaskCompleted
+        SELECT * FROM(
+            (
+            SELECT * FROM selectedCpu
+            )
+            UNION
+            (
+            SELECT * FROM selectedTaskCompleted
+            )
         )
-    )
-    ORDER BY measure_name
-    """.format(args.databaseName, args.tableName, args.queryEndTime)
+        ORDER BY measure_name DESC
+        """.format(args.databaseName, args.tableName, args.queryEndTime)
+    else:
+        queryStr = """
+        WITH selectedTaskCompleted AS (
+            SELECT *
+            FROM "{0}"."{1}"
+            WHERE measure_name = 'task_completed'
+                AND time BETWEEN {2} - 12h AND {2}
+            LIMIT 1
+        ), selectedCpu AS (
+            SELECT t.*
+            FROM "{0}"."{1}" t INNER JOIN selectedTaskCompleted c ON c.instance_name = t.instance_name
+            WHERE t.measure_name = 'cpu_user'
+                AND t.time BETWEEN {2} - 12h AND {2}
+            LIMIT 1
+        )
+        SELECT * FROM(
+            (
+            SELECT * FROM selectedCpu
+            )
+            UNION
+            (
+            SELECT * FROM selectedTaskCompleted
+            )
+        )
+        ORDER BY measure_name
+        """.format(args.databaseName, args.tableName, args.queryEndTime)
     print(queryStr)
     result = tsquery.executeQueryAndReturnAsDataframe(client, queryStr, True)
     params = Params(args.databaseName, args.tableName, result['region'][0], result['availability_zone'][0], result['cell'][0],
