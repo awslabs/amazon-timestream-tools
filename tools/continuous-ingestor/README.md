@@ -44,7 +44,7 @@ The tool generates for each instances 20 common host metrics and 5 process event
 | Network | latency_per_read | 8 +/- | A normal distributed value of mean 8 and standard deviation 4 | 
 | | latency_per_write | 12 +/- | A normal distributed value of mean 12 and standard deviation 8 | 
 | | network_bytes_in | 0-1000 | A uniform distributed value between 0 and 1000 bytes | 
-| | network_bytes_out | 0-5000 | A uniform distributed value between 0 and 4000 bytes | 
+| | network_bytes_out | 0-5000 | A uniform distributed value between 0 and 5000 bytes | 
 
 The generated process (event) metrics are described in the following table:
 
@@ -160,7 +160,7 @@ python3 timestream_sample_continuous_data_ingestor_application.py -c 30 -s 3 -d 
 ### Single-threaded ingest to specified endpoint
 Starts a single-threaded ingest process the continues until SIGINT signal (CTRL + C) is received.
 ```
-python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb -t testTable -r 'us-east-1' -url 'https://ingest-cell2.timestream.eu-west-1.amazonaws.com'
+python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb -t testTable -r 'us-east-1' -url 'https://ingest-cell1.timestream.eu-west-1.amazonaws.com'
 ```
 
 ## CPU Signal Overlay
@@ -174,7 +174,7 @@ python3 timestream_sample_continuous_data_ingestor_application.py \
   --sin-signal-cpu 100 --sin-frq-cpu m 
 ```
 
-Similarily one can create a saw signal overlay with the parameters ```--saw-signal-cpu``` and ```--saw-frq-cpu```. Some examples are shown below in the picture. 
+Similarly one can create a saw signal overlay with the parameters ```--saw-signal-cpu``` and ```--saw-frq-cpu```. Some examples are shown below in the picture. 
 
 ```
 python3 timestream_sample_continuous_data_ingestor_application.py \
