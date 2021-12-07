@@ -47,13 +47,14 @@ The tool generates for each instances 20 common host metrics and 5 process event
 | | network_bytes_out | 0-5000 | A uniform distributed value between 0 and 4000 bytes | 
 
 The generated process (event) metrics are described in the following table:
+
 | Domain  | Metric | Value Range | Description | 
 |:---     |:---    |:-------:    |:---         | 
 | JVM     | gc_reclaimed | 0-100 | The uniform distributed value between 0-100 % |
 |         | gc_pause | 0-100 | The uniform distributed value between 0-100 % |
 |         | memory_free | 0-100 | The uniform distributed value between 0-100 % |
 | Task    | task_completed | 0-500 | The uniform distributed value of finished tasks |
-|         | task_end_state | SUCCESS_WITH_NO_RESULT, SUCCESS_WITH_RESULT, INTERNAL_ERROR, USER_ERROR, UNKNOWN, THROTTLED | One of the previouse text values with likelehood `[0.2, 0.7, 0.01, 0.07, 0.01, 0.01]`
+|         | task_end_state | SUCCESS_WITH_NO_RESULT, SUCCESS_WITH_RESULT, INTERNAL_ERROR, USER_ERROR, UNKNOWN, THROTTLED | One of the previous text values with likelihood `[0.2, 0.7, 0.01, 0.07, 0.01, 0.01]`
 
 The generator now creates as many measures as possible for each dimension set. The dimension set for each of the metric measurements is defined as shown in this example. The dimension names are `[region, cell, silo, availability_zone, microservice_name, instance_name, instance_type, os_version]`
 ```
@@ -87,9 +88,9 @@ while the dimensions for events overlap with the metrics, they also define proce
 ]
 ```
 
-Depending on the parametrization one can enable data generation for instances across 1-7 regions, each region will have between 1 and 15 predefined cells, within each cell having 1 to 3 silos. In total we can have up to 101 silos. In each silo between 1-3 instances per microservice are then simulated. The configuration spreads thereby 10 instances across the 5 microservices `[apollo, athena, demeter, hercules, zeus]`. 
+Depending on the parameterization one can enable data generation for instances across 1-7 regions, each region will have between 1 and 15 predefined cells, within each cell having 1 to 3 silos. In total we can have up to 101 silos. In each silo between 1-3 instances per microservice are then simulated. The configuration spreads thereby 10 instances across the 5 microservices `[apollo, athena, demeter, hercules, zeus]`. 
 
-Depending on the parametrization one can therefore define up to 1010 server instances spread across the globe in 101 silos. For each of the instances the tool generates the 25 host metrics and additionally 5 process events as fast as possible. The generator loops over all dimension permutations and creates and inserts the metrics with the current time stamp, while not creating more than one measurement per second per time series. In turn this means that the tool is not ensuring equidistant measurements.
+Depending on the parameterization one can therefore define up to 1010 server instances spread across the globe in 101 silos. For each of the instances the tool generates the 25 host metrics and additionally 5 process events as fast as possible. The generator loops over all dimension permutations and creates and inserts the metrics with the current time stamp, while not creating more than one measurement per second per time series. In turn this means that the tool is not ensuring equidistant measurements.
 
 ## Command Line Parameters
 ```
@@ -125,7 +126,7 @@ python3 timestream_sample_continuous_data_ingestor_application.py -h
                         The SIN signal frequency (m | h | d | we | mo | qu | ye) (default:m)
   --seed SEED           The seed with which to initialize random, (default: now()).
   --autostop AUTOSTOP   Add autostop to stop each individual ingestor thread after N iterates records. (default:0, unlimited)
-  --dry-run             Add dry run to preview the dimenions of metrics and events.
+  --dry-run             Add dry run to preview the dimensions of metrics and events.
 
 ```
 
@@ -143,7 +144,7 @@ python3 timestream_sample_continuous_data_ingestor_application.py -c 1 -d testDb
 ```
 
 ### Multi threaded ingest
-As a single thread is limited with the number of records which can be generated, we allow for parallism. A concurrency parameter greate than 1 starts a  multi-threaded ingest process which will continues until SIGINT signal (CTRL + C) is received. The number of threads is controlled by the option `-c`.
+As a single thread is limited with the number of records which can be generated, we allow for parallelism. A concurrency parameter greater than 1 starts a  multi-threaded ingest process which will continous until SIGINT signal (CTRL + C) is received. The number of threads is controlled by the option `-c`.
 
 ```
 python3 timestream_sample_continuous_data_ingestor_application.py -c 30 -d testDb -t testTable -r 'us-east-1'
