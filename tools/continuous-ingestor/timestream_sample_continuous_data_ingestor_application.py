@@ -156,7 +156,6 @@ def generateDimensions(regionINC, microserviceINC, scaleFactor):
     for region in myRegions:
         cellsForRegion = cellsPerRegion[region]
         siloForRegion = siloPerCell[region]
-
         for cell in range(1, cellsForRegion + 1):
             for silo in range(1, siloForRegion + 1):
                 for microservice in myMicroservices:

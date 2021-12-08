@@ -68,8 +68,6 @@ import static com.amazonaws.services.timestream.ScheduledQueryExample.Notificati
 
 public class TimestreamDependencyHelper {
     public static final JsonParser JSON_PARSER = new JsonParser();
-    final AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
-
     public static final String POLICY_DOCUMENT =
                     "{" +
                     "  \"Version\": \"2012-10-17\"," +
@@ -463,7 +461,7 @@ public class TimestreamDependencyHelper {
         return rolePolicy;
     }
 
-    public String createS3Bucket(String bucketName) {
+    public String createS3Bucket(AmazonS3 s3Client, String bucketName) {
         System.out.println("Creating S3 bucket " + bucketName);
         if (s3Client.doesBucketExistV2(bucketName)) {
             System.out.format("Bucket %s already exists.\n", bucketName);
@@ -479,7 +477,7 @@ public class TimestreamDependencyHelper {
         return bucketName;
     }
 
-    public void deleteS3Bucket(String bucketName) {
+    public void deleteS3Bucket(AmazonS3 s3Client, String bucketName) {
         System.out.println("Deleting S3 bucket " + bucketName);
         ObjectListing objectListing;
         try {
@@ -511,7 +509,7 @@ public class TimestreamDependencyHelper {
         }
     }
 
-    public Bucket getBucket(String bucketName) {
+    public Bucket getBucket(AmazonS3 s3Client, String bucketName) {
         Bucket namedBucket = null;
         List<Bucket> buckets = s3Client.listBuckets();
         for (Bucket b : buckets) {
@@ -522,7 +520,7 @@ public class TimestreamDependencyHelper {
         return namedBucket;
     }
 
-    public List<S3Object> listObjectsInS3Bucket(String bucketName, String prefix) {
+    public List<S3Object> listObjectsInS3Bucket(AmazonS3 s3Client, String bucketName, String prefix) {
         System.out.println("Listing objects in S3 bucket " + bucketName);
         List<S3Object> s3Objects = new ArrayList<>();
 
@@ -556,7 +554,7 @@ public class TimestreamDependencyHelper {
         return s3Objects;
     }
 
-    public JsonObject getS3ObjectJson(S3Object s3Object, String bucketName) {
+    public JsonObject getS3ObjectJson(AmazonS3 s3Client, S3Object s3Object, String bucketName) {
         return JSON_PARSER.parse(s3Client.getObjectAsString(bucketName, s3Object.getKey())).getAsJsonObject();
     }
 
