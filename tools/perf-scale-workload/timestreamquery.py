@@ -15,7 +15,7 @@ from collections import defaultdict, namedtuple
 ##################################################
 ## Create a timestream query client.    ##########
 ##################################################
-def createQueryClient(region, retries = 5, readTimeout = 335, profile = None):
+def createQueryClient(region, retries = 5, readTimeout = 335, profile = None, endpoint=None):
     if profile == None:
         print("Using credentials from the environment")
 
@@ -23,12 +23,20 @@ def createQueryClient(region, retries = 5, readTimeout = 335, profile = None):
     config = Config(read_timeout = readTimeout, connect_timeout = 5, retries = {'max_attempts': retries, 'mode': 'adaptive'})
     if profile != None:
         session = boto3.Session(profile_name = profile)
-        client = session.client(service_name = 'timestream-query',
-                        region_name = region, config = config)
+        if endpoint != None:
+            client = session.client(service_name = 'timestream-query', endpoint_url=endpoint,
+                region_name = region, config = config)
+        else:
+            client = session.client(service_name = 'timestream-query',
+                region_name = region, config = config)
     else:
         session = boto3.Session()
-        client = session.client(service_name = 'timestream-query',
-                            region_name = region, config = config)
+        if endpoint != None:
+            client = session.client(service_name = 'timestream-query', endpoint_url=endpoint,
+                region_name = region, config = config)
+        else:
+            client = session.client(service_name = 'timestream-query',
+                region_name = region, config = config)
 
     return client
 
@@ -150,7 +158,11 @@ def executeQuery(client, query, timing = False, logFile = None):
         ## If there were no result, then return the last empty page to carry over the query results context
         if len(pages) == 0 and lastPage != None:
             pages.append(lastPage)
-        infoMsg = "Read {} pages of result. Empty pages: {}".format(len(pages), emptyPages)
+        if lastPage != None:
+            if lastPage['QueryStatus'] != None:
+                bytesMetered = int(lastPage['QueryStatus']['CumulativeBytesMetered'])
+                bytesMeteredMB = round(bytesMetered / (1024.0 * 1024), 3)
+        infoMsg = "Read {} pages of result. Empty pages: {}. Bytes metered (MB): {}".format(len(pages), emptyPages, bytesMeteredMB)
         print(infoMsg)
         if logFile != None:
             logFile.write("{}\n".format(infoMsg))

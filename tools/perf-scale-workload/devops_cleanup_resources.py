@@ -13,13 +13,14 @@ if __name__ == "__main__":
 
     parser.add_argument('--database-name', '-d', dest="databaseName", action = "store", required = True, help = "The database name for the workload.")
     parser.add_argument('--table-name', '-t', dest="tableName", action = "store", required = True, help = "The table name for the workload.")
-    parser.add_argument('--endpoint', '-e', action = "store", required = True, help="Specify the region where the Timestream database is located.")
+    parser.add_argument('--region', '-r', action = "store", required = True, help="Specify the region where the Timestream database is located.")
+    parser.add_argument('--endpoint', '-e', action = "store", default = None, help="Specify the endpoint where the Timestream database is located.")
     parser.add_argument('--profile', action = "store", type = str, default= None, help = "The AWS profile to use.")
 
     args = parser.parse_args()
     print(args)
 
-    client = tswrite.createWriteClient(args.endpoint, args.profile)
+    client = tswrite.createWriteClient(region=args.region, profile=args.profile, endpoint=args.endpoint)
     try:
         result = tswrite.deleteTable(client, args.databaseName, args.tableName)
         print("Delete table status: ", result['ResponseMetadata']['HTTPStatusCode'])
