@@ -148,20 +148,14 @@ def generateDimensions(regionINC, microserviceINC, scaleFactor):
     dimensionsMetrics = list()
     dimenstionsEvents = list()
     
-    myRegions = regions.copy()
-    if ( len(regionINC) > 0):
-        myRegions = list(set(regions) & set(regionINC))
-        
-    myMicroservices = microservices.copy()
-    if ( len(microserviceINC) > 0):
-        myMicroservices = list(set(microservices) & set(microserviceINC))
+    myRegions = set(regions) & set(regionINC) if regionINC else regions
+    myMicroservices = set(microservices) & set(microserviceINC) if microserviceINC else microservices
     
     print('Generating dimensions for regions {} and microservices {}'.format(myRegions, myMicroservices))
 
     for region in myRegions:
         cellsForRegion = cellsPerRegion[region]
         siloForRegion = siloPerCell[region]
-        # print('Creating dimensions for region {}: {} cells, {} silo per cell'.format(region,cellsForRegion, siloForRegion))
         for cell in range(1, cellsForRegion + 1):
             for silo in range(1, siloForRegion + 1):
                 for microservice in myMicroservices:
@@ -199,7 +193,7 @@ def addSinSignal(hostId, timestamp, timeUnit, valueMax, sinSignalCpu, sinFrqCpu,
     # SIN Signal: (sin(t) + 1) / 2 => sin(t) = 0..valueMax 
     sigValue = round(valueMax * ((math.sin(timestamp * tf) + 1 ) / 2) , 2) 
     # 100 is defined as no noise
-    if (sinSignalCpu >= 100): return sigValue
+    if sinSignalCpu >= 100: return sigValue
 
     # Noise: random 0..1 * valueMax - valueMax / 2 => -valueMax / 2 ... +valueMax /2
     valueMaxHalf = valueMax / 2
@@ -210,7 +204,7 @@ def addSinSignal(hostId, timestamp, timeUnit, valueMax, sinSignalCpu, sinFrqCpu,
     
     # this can lead to above max / below min, so we need to cut here.
     newValue = max(min(round(newValue, 4), valueMax), 0)
-    if (args.dryRun):
+    if args.dryRun:
         print("{}: {}Hz => {} + {} = {} ==> SNR {} => N={} on hostId {}" \
             .format((datetime.datetime.fromtimestamp(timestamp)).strftime("%Y-%m-%d %H:%M:%S"), \
                 round(tf,4), sigValue, (noiseValue / sinSignalCpu), newValue, sinSignalCpu, noiseValue, hostId))
@@ -228,7 +222,7 @@ def addSawSignal(hostId, timestamp, timeUnit, valueMax, sawSignalCpu, sawFrqCpu,
     # SAW Signal: 0..valueMax in period. (y = k * x % tf + d)
     sigValue = round(valueMax * ((timestamp % tf) / tf ) , 2)
     # 100 is defined as no noise
-    if (sawSignalCpu >= 100): return sigValue
+    if sawSignalCpu >= 100: return sigValue
 
     
     # Noise: random 0..1 * valueMax - valueMax / 2 => -valueMax / 2 ... +valueMax /2
@@ -240,7 +234,7 @@ def addSawSignal(hostId, timestamp, timeUnit, valueMax, sawSignalCpu, sawFrqCpu,
     
     # this can lead to above max / below min, so we need to cut here.
     newValue = max(min(round(newValue, 4), valueMax), 0)
-    if (args.dryRun):
+    if args.dryRun:
         print("{}: {}Hz => {} + {} = {} ==> SNR {} => N={} on hostId {}" \
             .format((datetime.datetime.fromtimestamp(timestamp)).strftime("%Y-%m-%d %H:%M:%S"), \
                 round(tf,4), sigValue, (noiseValue / sawSignalCpu), newValue, sawSignalCpu, noiseValue, hostId))
@@ -253,12 +247,11 @@ def createWriteRecordCommonAttributes(dimensions):
 def createRandomMetrics(hostId, timestamp, timeUnit, args):
     records = list()
 
-    ## CPU measures
-
+    # CPU measures
     # sinSignalCpu, sinFrqCpu, sawSignalCpu, sawFrqCpu
-    if (args.sinSignalCpu > 0):
+    if args.sinSignalCpu > 0:
         cpuUser = addSinSignal(hostId, timestamp, timeUnit, 100.0, args.sinSignalCpu, args.sinFrqCpu, args)
-    elif (args.sawSignalCpu > 0):
+    elif args.sawSignalCpu > 0:
         cpuUser = addSawSignal(hostId, timestamp, timeUnit, 100.0, args.sawSignalCpu, args.sawFrqCpu, args)
     elif hostId in highUtilizationHosts:
         cpuUser = random.gauss(85.0 , 10.0)
@@ -277,7 +270,7 @@ def createRandomMetrics(hostId, timestamp, timeUnit, args):
     for measure in otherCpuMeasures:
         value = round(random.random(),2)
         availableOtherUsage -= value
-        if (totalOtherUsage < 0):
+        if totalOtherUsage < 0:
             value = 0
         totalOtherUsage += value
         records.append(createRecord(measure, value, "DOUBLE", timestamp, timeUnit))
@@ -285,24 +278,20 @@ def createRandomMetrics(hostId, timestamp, timeUnit, args):
     cpuIdle = round(max([100 - cpuUser - totalOtherUsage, 0]),2)
     records.append(createRecord(measureCpuIdle, cpuIdle, "DOUBLE", timestamp, timeUnit))
 
-    # if (args.dryRun):
-    #    print("CPU User/Idle: {:02.2f}/{:02.2f}".format(cpuUser, cpuIdle))
-
     # delete cpu values when working with missing.    
-    if (args.missingCpu > 0) :
+    if args.missingCpu > 0:
         rnd = 100.0 * random.random()
-        if (args.missingCpu > rnd) :
+        if args.missingCpu > rnd:
             records = list()
-            # print("Cleared CPU records. Clearing value {}".format(rnd))
 
-    ## Memory metrics
+    # Memory metrics
     memUsed = 8000.0 * random.random()
     memFree = 8000.0 - memUsed
     records.append(createRecord(measureMemoryFree, "{}".format(memFree) , "DOUBLE", timestamp, timeUnit))
     records.append(createRecord(measureMemoryUsed, "{}".format(memUsed) , "DOUBLE", timestamp, timeUnit))
     records.append(createRecord(measureMemoryCached, "{}".format(4000.0 * random.random()) , "DOUBLE", timestamp, timeUnit))
 
-    ## Disc metrics
+    # Disc metrics
     discUpDown = random.gauss(5.0, 5.0)
     records.append(createRecord(measureDiskUsed, "{}".format(hostId * 30.0 + discUpDown) , "DOUBLE", timestamp, timeUnit))
     records.append(createRecord(measureDiskFree, "{}".format(15.0 - discUpDown) , "DOUBLE", timestamp, timeUnit))
@@ -310,13 +299,12 @@ def createRandomMetrics(hostId, timestamp, timeUnit, args):
     records.append(createRecord(measureDiskIoReads, "{}".format(25000.0 * random.random()) , "DOUBLE", timestamp, timeUnit))
     records.append(createRecord(meausreDiskIoWrites, "{}".format(25000.0 * random.random()) , "DOUBLE", timestamp, timeUnit))
 
-    ## Network metrics
+    # Network metrics
     records.append(createRecord(measureLatencyPerRead, "{}".format(random.gauss(8.0, 4.0)) , "DOUBLE", timestamp, timeUnit))
     records.append(createRecord(measureLatencyPerWrite, "{}".format(random.gauss(12.0, 8.0)) , "DOUBLE", timestamp, timeUnit))
     records.append(createRecord(measureNetworkBytesIn, "{}".format(1000.0 * random.random()) , "DOUBLE", timestamp, timeUnit))
     records.append(createRecord(measureNetworkBytesOut, "{}".format(5000.0 * random.random()) , "DOUBLE", timestamp, timeUnit))
 
-    # print('Created {} metric records.'.format(len(records)))
     return records
 
 def createRandomEvent(hostId, timestamp, timeUnit, args):
@@ -433,7 +421,7 @@ class IngestionThread(threading.Thread):
                 traceback.print_exception(exc_type, exc_value, exc_traceback, limit=5, file=sys.stdout)
 
                 print("T{:02d}: RequestId: {} for timestamp {}".format(self.threadId, e.response['ResponseMetadata']['RequestId'], localTimestamp))
-                if (e.response['RejectedRecords']):
+                if e.response['RejectedRecords']:
                     print(json.dumps(e.response['RejectedRecords'], indent=2))
 
                 print(json.dumps(commonAttributes, indent=2))
@@ -459,7 +447,7 @@ class IngestionThread(threading.Thread):
 
 def ingestRecords(tsClient, dimensionsMetrics, dimensionsEvents, args):
     numThreads = args.concurrency
-    if (numThreads > len(dimensionsMetrics)):
+    if numThreads > len(dimensionsMetrics):
         print("Can't have more threads than dimension metrics. Working with {} thread(s).".format(len(dimensionsMetrics)))
         numThreads = len(dimensionsMetrics)
 
@@ -538,7 +526,7 @@ if __name__ == "__main__":
                         help = "Number of concurrent ingestion threads (default: 10)")
 
     parser.add_argument('--host-scale',  '-s', dest = "hostScale", action = "store", type = int, default = 1, \
-                        help = "The scale factor that determines the number of hosts emitting events and metrics (default: 10).")
+                        help = "The scale factor that determines the number of hosts emitting events and metrics (default: 1).")
 
     parser.add_argument('--include-region', dest = "includeRegion", action = "store", \
                         help = "Comma separated include of regions (default: EMPTY, all)")
@@ -570,11 +558,11 @@ if __name__ == "__main__":
     hostScale = args.hostScale       # scale factor for the hosts.
 
     regionINC = []
-    if (args.includeRegion is not None):
+    if args.includeRegion is not None:
         regionINC = args.includeRegion.split(",")
     
     microserviceINC = []
-    if (args.includeMs is not None):
+    if args.includeMs is not None:
         microserviceINC = args.includeMs.split(",")
 
     random.seed(args.seed)
@@ -588,10 +576,10 @@ if __name__ == "__main__":
     print("{} unique metric dimensions.".format(len(dimensionsMetrics)))
     print("{} unique event dimensions.".format(len(dimensionsEvents)))
 
-    ## Register sigint handler
+    # Register sigint handler
     signal.signal(signal.SIGINT, signalHandler)
 
-    ## Verify the table
+    # Verify the table
     try:
         tsClient = any
         if not (args.dryRun):
@@ -601,5 +589,5 @@ if __name__ == "__main__":
         print(e)
         sys.exit(0)
 
-    ## Run the ingestion load.
+    # Run the ingestion load.
     ingestRecords(tsClient, dimensionsMetrics, dimensionsEvents, args)
