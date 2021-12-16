@@ -130,7 +130,7 @@ namespace TimestreamDotNetSample
                 await DescribeScheduledQuery(scheduledQueryArn);
 
                 // Sleep for 65 seconds to let ScheduledQuery run
-                Console.WriteLine("Waiting for automatic ScheduledQuery runs & notifications");
+                Console.WriteLine("Waiting 65 seconds for automatic ScheduledQuery runs & notifications");
                 Thread.Sleep(65000);
 
                 await ProcessScheduledQueryNotifications(scheduledQueryArn);
