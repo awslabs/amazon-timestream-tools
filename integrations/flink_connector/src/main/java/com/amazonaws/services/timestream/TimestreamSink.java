@@ -106,7 +106,7 @@ public class TimestreamSink extends RichSinkFunction<TimestreamPoint> implements
 
                     LOG.warn("Discarding Malformed Record ->" + rejectedRecords.get(i).toString());
                     LOG.warn("Rejected Record Reason ->" + 	rejectedRecords.get(i).getReason());
-                    bufferedRecords.remove(rejectedRecords.get(i).getRecordIndex());
+                    bufferedRecords.remove(rejectedRecords.get(i).getRecordIndex().intValue());
 
                 }
             }   catch (Exception e) {
