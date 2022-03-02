@@ -43,7 +43,7 @@ python3 -m venv venv
 
 ### Metric Data
 
-Example metric structure is below, which will be parsed as [MyHostMetrics](../sample-kinesis-to-timestream-app/src/main/java/com/amazonaws/samples/kinesis2timestream/model/MyHostMetrics.java) object in sample application:
+Example metric structure is below, which will be parsed as [MyHostMetric](../sample-kinesis-to-timestream-app/src/main/java/com/amazonaws/samples/kinesis2timestream/model/MyHostMetric.java) object in sample application:
 ```json
 {
   "availability_zone": "us-west-2-1",
@@ -81,7 +81,7 @@ Example metric structure is below, which will be parsed as [MyHostMetrics](../sa
 
 ### Event data
 
-Example event structure is below, which will be parsed as [MyHostEvents](../sample-kinesis-to-timestream-app/src/main/java/com/amazonaws/samples/kinesis2timestream/model/MyHostEvents.java) object in sample application: 
+Example event structure is below, which will be parsed as [MyHostEvent](../sample-kinesis-to-timestream-app/src/main/java/com/amazonaws/samples/kinesis2timestream/model/MyHostEvent.java) object in sample application: 
 
 ```json
 {
