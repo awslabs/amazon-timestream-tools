@@ -114,12 +114,12 @@ Example event structure is below, which will be parsed as [MyHostEvent](../sampl
 - Start sending a stream of events where a percentage of the events will be late arriving by ten minutes:
 
     ```
-    python3 timestream_kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1 --late-percent 25 --late-time 600
+    python3 kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1 --late-percent 25 --late-time 600
     ```
 
 - Generate only event data:
 
     ```
-    python3 timestream_kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1 --generate-events 1 --generate-metrics 0
+    python3 kinesis_data_gen.py --stream TimestreamTestStream --region us-east-1 --generate-events 1 --generate-metrics 0
 
     ```
