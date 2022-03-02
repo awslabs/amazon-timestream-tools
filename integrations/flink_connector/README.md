@@ -1,44 +1,77 @@
 <!-- This sample application is part of the Timestream prerelease documentation. The prerelease documentation is confidential and is provided under the terms of your nondisclosure agreement with Amazon Web Services (AWS) or other agreement governing your receipt of AWS confidential information. -->
 
-# Apache Flink sample data connector
+# Amazon Timestream Sink for Apache Flink
 
-Sample application that reads data from Flink and writes to Amazon Timestream
+Write records to Timestream from Flink.
 
 ----
-## How to test it
+## Overview
 
-Java 11 is the recommended version for using Kinesis Data Analytics for Apache Flink Application. If you have multiple Java versions ensure to export Java 11 to your `JAVA_HOME` environment variable.
+This is the root directory for samples which show you end-to-end process of working with Kinesis and Timestream.
+The directory contains:
+ - [sample data generator](/sample-data-generator) - python script which generates and ingests sample data to Kinesis
+ - [sample Kinesis to Timestream Application](/sample-kinesis-to-timestream-app) - sample Flink application which reads records from Kinesis and uses the Timestream Sink to ingest data to Timestream
+ - [Amazon Timestream Flink Sink](/flink-connector-timestream) - Timestream Flink Sink as Maven module
 
-1. Ensure that you have [Apache Maven](https://maven.apache.org/install.html) installed. You can test your Apache Maven install with the following command:
-   ```
-   mvn -version
-   ```
+
+![design](images/root-diagram.png)
+
+## Getting Started
+
+### 1. Install prerequisites
+
+ - Java 11 is the recommended version for using Kinesis Data Analytics for Apache Flink Application. If you have multiple Java versions ensure to export Java 11 to your `JAVA_HOME` environment variable.
+ - Install [Apache Maven](https://maven.apache.org/install.html). You can test your Apache Maven install with the following command:
+```
+mvn -version
+```
+
+### 2. Setup Environment
 
 1. Create an Amazon Kinesis Data Stream with the name "TimestreamTestStream". You can use the below AWS CLI command:
-   ```
-   aws kinesis create-stream --stream-name TimestreamTestStream --shard-count 1
-   ```
+```
+aws kinesis create-stream --stream-name TimestreamTestStream --shard-count 1
+```
 
-1. Compile and run the sample app.
-   ```shell
-   mvn clean compile
-   mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata1"
-   ``` 
-   NOTE: You might need to change the version of timestreamwrite and timestreamquery dependencies in `pom.xml` file based on the version of SDK jar you are using.
-   
-   By default this sample app batches Timestream ingest records in batch of 50. This can be adjusted using `--TimestreamIngestBatchSize` option.
-   ```shell
-   mvn clean compile
-   mvn exec:java -Dexec.mainClass="com.amazonaws.services.kinesisanalytics.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata1 --TimestreamIngestBatchSize 75"
-   ```    
-1. For more information on deploying your Flink application to Kinesis Data Analytics for Apache Flink, a fully managed environment for your Flink applications, please see [Getting Started with Amazon Kinesis Data Analytics for Apache Flink (DataStream API)](https://docs.aws.amazon.com/kinesisanalytics/latest/java/getting-started.html).
+2. Install Timestream Sink, so it's available for other applications as Maven module:
+```shell
+cd flink-connector-timestream
+mvn clean compile && mvn install
+```
 
-## For sending data into the Amazon Kinesis Data Stream
-You can follow the instructions on https://github.com/awslabs/amazon-timestream-tools/tree/master/tools/kinesis_ingestor
+### 3 (option A). Run Sample Flink Application locally
+1. Compile and run the sample application. The application will create target Timestream database/table upon launch automatically, and will start pooling records from Kinesis and writing them to Timestream:
+```
+cd ../sample-kinesis-to-timestream-app
+mvn clean compile && mvn package
+mvn install exec:java -Dexec.mainClass="com.amazonaws.samples.kinesis2timestream.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata" -Dexec.classpathScope=test
+```
 
-## For deploying the sample application to Kinesis Data Analytics for Apache Flink
+2. Follow **Getting Started** section from [sample data generator](/sample-data-generator) to send records to Kinesis.
+3. The records now should be consumed by the sample application and written to Timestream table.
+4. Query Timestream table using [AWS Console](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) or AWS CLI:
+```
+aws timestream-query query --query-string "SELECT * FROM kdaflink.kinesisdata WHERE time >= ago (15m) LIMIT 10"
+```
 
-This sample application is part of the setup for transfering your time series data from Amazon Kinesis, Amazon MSK, Apache Kafka, and other streaming technologies directly into Amazon Timestream.
+## 3 (option B). Run Sample Flink Application on Amazon Kinesis Data Analytics
+1. Compile the sample application:
+```shell
+cd ../sample-kinesis-to-timestream-app
+mvn clean compile && mvn package
+```
+2. Upload Flink Application Jar file to S3 bucket: 
+```shell
+cd ../sample-kinesis-to-timestream-app
+aws s3 cp target/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar s3://YOUR_BUCKET_NAME/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar
+```
+3. Follow the steps in [Create and Run the Kinesis Data Analytics Application](https://docs.aws.amazon.com/kinesisanalytics/latest/java/get-started-exercise.html#get-started-exercise-7)
+ - pick Apache Flink version 1.13.2
+ - in "Edit the IAM Policy" step, add Timestream Write permissions to the created policy
 
-For the full set of instructions: https://docs.aws.amazon.com/timestream/latest/developerguide/ApacheFlink.html
-
+4. Follow **Getting Started** section from [sample data generator](/sample-data-generator) to send records to Kinesis.
+5. The records now should be consumed by the sample application and written to Timestream table.
+6. Query Timestream table using [AWS Console](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) or AWS CLI:
+```
+aws timestream-query query --query-string "SELECT * FROM kdaflink.kinesisdata WHERE time >= ago (15m) LIMIT 10"
+```
