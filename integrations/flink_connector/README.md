@@ -9,9 +9,9 @@ Write records to Timestream from Flink.
 
 This is the root directory for samples which show you end-to-end process of working with Kinesis and Timestream.
 The directory contains:
- - [sample data generator](/sample-data-generator) - python script which generates and ingests sample data to Kinesis
- - [sample Kinesis to Timestream Application](/sample-kinesis-to-timestream-app) - sample Flink application which reads records from Kinesis and uses the Timestream Sink to ingest data to Timestream
- - [Amazon Timestream Flink Sink](/flink-connector-timestream) - Timestream Flink Sink as Maven module
+ - [sample data generator](/integrations/flink_connector/sample-data-generator) - python script which generates and ingests sample data to Kinesis
+ - [sample Kinesis to Timestream Application](/integrations/flink_connector/sample-kinesis-to-timestream-app) - sample Flink application which reads records from Kinesis and uses the Timestream Sink to ingest data to Timestream
+ - [Amazon Timestream Flink Sink](/integrations/flink_connector/flink-connector-timestream) - Timestream Flink Sink as Maven module
 
 
 ![design](images/root-diagram.png)
@@ -47,7 +47,7 @@ mvn clean compile && mvn package
 mvn install exec:java -Dexec.mainClass="com.amazonaws.samples.kinesis2timestream.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata" -Dexec.classpathScope=test
 ```
 
-2. Follow **Getting Started** section from [sample data generator](/sample-data-generator) to send records to Kinesis.
+2. Follow **Getting Started** section from [sample data generator](/integrations/flink_connector/sample-data-generator) to send records to Kinesis.
 3. The records now should be consumed by the sample application and written to Timestream table.
 4. Query Timestream table using [AWS Console](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) or AWS CLI:
 ```
@@ -69,7 +69,7 @@ aws s3 cp target/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar s3://YOUR_BUC
  - pick Apache Flink version 1.13.2
  - in "Edit the IAM Policy" step, add Timestream Write permissions to the created policy
 
-4. Follow **Getting Started** section from [sample data generator](/sample-data-generator) to send records to Kinesis.
+4. Follow **Getting Started** section from [sample data generator](/integrations/flink_connector/sample-data-generator) to send records to Kinesis.
 5. The records now should be consumed by the sample application and written to Timestream table.
 6. Query Timestream table using [AWS Console](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) or AWS CLI:
 ```
