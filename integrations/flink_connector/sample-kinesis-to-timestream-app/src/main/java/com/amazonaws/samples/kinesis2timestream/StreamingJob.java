@@ -115,8 +115,12 @@ public class StreamingJob {
 		String tableName = parameter.get("TimestreamTableName", "kinesisdata");
 		long memoryStoreTTLHours = Long.parseLong(parameter.get("MemoryStoreTTLHours", "24"));
 		long magneticStoreTTLDays = Long.parseLong(parameter.get("MagneticStoreTTLDays", "7"));
+		String endpointOverride = parameter.get("EndpointOverride", "");
+		if (endpointOverride.isEmpty()) {
+			endpointOverride = null;
+		}
 
-		TimestreamInitializer timestreamInitializer = new TimestreamInitializer(region);
+		TimestreamInitializer timestreamInitializer = new TimestreamInitializer(region, endpointOverride);
 		timestreamInitializer.createDatabase(databaseName);
 		timestreamInitializer.createTable(databaseName, tableName, memoryStoreTTLHours, magneticStoreTTLDays);
 
@@ -143,6 +147,7 @@ public class StreamingJob {
 								.maxErrorRetry(10)
 								.region(region)
 								.requestTimeout(Duration.ofSeconds(20))
+								.endpointOverride(endpointOverride)
 								.build())
 						.failureHandlerConfig(TimestreamSinkConfig.FailureHandlerConfig.builder()
 								.failProcessingOnErrorDefault(true)
