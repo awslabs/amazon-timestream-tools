@@ -115,6 +115,8 @@ public class StreamingJob {
 		String tableName = parameter.get("TimestreamTableName", "kinesisdata");
 		long memoryStoreTTLHours = Long.parseLong(parameter.get("MemoryStoreTTLHours", "24"));
 		long magneticStoreTTLDays = Long.parseLong(parameter.get("MagneticStoreTTLDays", "7"));
+
+		// EndpointOverride is optional. Learn more here: https://docs.aws.amazon.com/timestream/latest/developerguide/architecture.html#cells
 		String endpointOverride = parameter.get("EndpointOverride", "");
 		if (endpointOverride.isEmpty()) {
 			endpointOverride = null;
