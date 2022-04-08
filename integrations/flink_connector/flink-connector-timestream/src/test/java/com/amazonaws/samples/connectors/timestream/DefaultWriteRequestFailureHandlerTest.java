@@ -1,20 +1,27 @@
 package com.amazonaws.samples.connectors.timestream;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.function.Consumer;
-
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.Mockito;
+import software.amazon.awssdk.core.endpointdiscovery.EndpointDiscoveryFailedException;
+import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkInterruptedException;
+import software.amazon.awssdk.crt.http.HttpException;
+import software.amazon.awssdk.services.timestreamwrite.model.AccessDeniedException;
 import software.amazon.awssdk.services.timestreamwrite.model.InternalServerException;
 import software.amazon.awssdk.services.timestreamwrite.model.Record;
 import software.amazon.awssdk.services.timestreamwrite.model.RejectedRecordsException;
+import software.amazon.awssdk.services.timestreamwrite.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.timestreamwrite.model.ServiceQuotaExceededException;
 import software.amazon.awssdk.services.timestreamwrite.model.ThrottlingException;
 import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsRequest;
+
+import java.io.IOException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.List;
+import java.util.function.Consumer;
 
 public class DefaultWriteRequestFailureHandlerTest {
     private long countSuccess;
@@ -33,6 +40,42 @@ public class DefaultWriteRequestFailureHandlerTest {
     private final ThrottlingException throttlingException = ThrottlingException.builder().build();
     private final RejectedRecordsException rejectedRecordsException = RejectedRecordsException.builder().build();
     private final InterruptedException interruptedException = new InterruptedException();
+
+    private final List<Exception> retryableExceptionExamples = List.of(
+            // typical exceptions
+            internalServerException,
+            throttlingException,
+            new IOException(),
+
+            // SdkClientExceptions caused by timeouts
+            SdkClientException.builder().cause(ApiCallTimeoutException.builder().build()).build(),
+            SdkClientException.builder().cause(ApiCallAttemptTimeoutException.builder().build()).build(),
+            SdkClientException.builder().cause(new SdkInterruptedException()).build(),
+            SdkClientException.builder().cause(new HttpException(404)).build(),
+            SdkClientException.builder().cause(new SocketTimeoutException()).build(),
+            SdkClientException.builder().cause(new SocketException()).build(),
+
+            // EndpointDiscoveryFailedException caused by timeouts
+            EndpointDiscoveryFailedException.builder().cause(ApiCallTimeoutException.builder().build()).build(),
+            EndpointDiscoveryFailedException.builder().cause(ApiCallAttemptTimeoutException.builder().build()).build(),
+            EndpointDiscoveryFailedException.builder().cause(new SdkInterruptedException()).build(),
+            EndpointDiscoveryFailedException.builder().cause(new HttpException(404)).build(),
+            EndpointDiscoveryFailedException.builder().cause(new SocketTimeoutException()).build(),
+            EndpointDiscoveryFailedException.builder().cause(new SocketException()).build()
+    );
+
+    private final List<Exception> nonRetryableExceptionExamples = List.of(
+            // typical exceptions
+            AccessDeniedException.builder().build(),
+
+            // SdkClientExceptions caused by non-retryable exceptions
+            SdkClientException.builder().cause(AccessDeniedException.builder().build()).build(),
+            SdkClientException.builder().cause(ResourceNotFoundException.builder().build()).build(),
+
+            // EndpointDiscoveryFailedException caused by non-retryable exceptions
+            EndpointDiscoveryFailedException.builder().cause(AccessDeniedException.builder().build()).build(),
+            EndpointDiscoveryFailedException.builder().cause(ResourceNotFoundException.builder().build()).build()
+    );
 
     @Test
     public void testNoFailureSettings() {
@@ -92,6 +135,34 @@ public class DefaultWriteRequestFailureHandlerTest {
         // retry on interrupted
         handler.handleRetryableException(fakeRecords, fakeRequest, interruptedException, incSuccess, incDrop);
         assertCount(3, 0, 3);
+    }
+
+    @Test
+    public void testIsRetryableExceptionCheck() {
+        for (final Exception exc : retryableExceptionExamples) {
+            Assertions.assertTrue(DefaultWriteRequestFailureHandler.checkIsRetryableException(exc),
+                    "The following exception should have been evaluated as retryable: "
+                            + getExceptionMessageWithCause(exc)
+            );
+        }
+
+        for (final Exception exc : nonRetryableExceptionExamples) {
+            Assertions.assertFalse(DefaultWriteRequestFailureHandler.checkIsRetryableException(exc),
+                    "The following exception should have been evaluated as non-retryable: "
+                            + getExceptionMessageWithCause(exc)
+            );
+        }
+    }
+
+    private static String getExceptionMessageWithCause(Throwable e) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(e);
+        Throwable t = e.getCause();
+        while (t != null) {
+            sb.append("\nCaused by: ").append(t);
+            t = t.getCause();
+        }
+        return sb.toString();
     }
 
     private void assertCount(long countSuccess, long countDrop, long countFail) {
