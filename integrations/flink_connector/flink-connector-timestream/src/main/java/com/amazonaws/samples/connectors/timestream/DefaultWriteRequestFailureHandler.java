@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.internal.AwsErrorCode;
+import software.amazon.awssdk.core.endpointdiscovery.EndpointDiscoveryFailedException;
 import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.core.exception.RetryableException;
@@ -29,7 +30,6 @@ import java.io.IOException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +42,7 @@ public class DefaultWriteRequestFailureHandler implements WriteRequestFailureHan
     private static final long serialVersionUID = -818223387498623035L;
 
     private static final Set<String> RETRYABLE_ERROR_CODES = Set.of("InternalFailure", "ServiceUnavailable");
-    private static final Set<Integer> RETRYABLE_HTTP_STATUS_CODES = Set.of(500, 503);
+    private static final Set<Integer> RETRYABLE_HTTP_STATUS_CODES = Set.of(400, 403, 408, 500, 502, 503, 509);
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultWriteRequestFailureHandler.class);
     private boolean printFailedRequests;
@@ -66,13 +66,11 @@ public class DefaultWriteRequestFailureHandler implements WriteRequestFailureHan
 
     public DefaultWriteRequestFailureHandler() {
         exceptionTypeToExceptionHandleMethod = new HashMap<>();
+        // For retryable cases check @{code checkIsRetryableException} method.
         // TimestreamWriteException subclasses, special cases:
         exceptionTypeToExceptionHandleMethod.put(RejectedRecordsException.class, this::handleRejectedRecordsException);
         exceptionTypeToExceptionHandleMethod.put(ValidationException.class, this::handleValidationException);
 
-        // TimestreamWriteException subclasses, explicitly retryable cases (despite the @{code checkIsRetryableException} method):
-        exceptionTypeToExceptionHandleMethod.put(InternalServerException.class, this::handleRetryableException);
-        exceptionTypeToExceptionHandleMethod.put(ThrottlingException.class, this::handleRetryableException);
 
         // TimestreamWriteException subclasses, default behavior (based on configuration - fail or drop):
         exceptionTypeToExceptionHandleMethod.put(AccessDeniedException.class, this::handleDefaultException);
@@ -217,7 +215,13 @@ public class DefaultWriteRequestFailureHandler implements WriteRequestFailureHan
         }
     }
 
-    public static boolean checkIsRetryableException(final @NonNull Exception e) {
+    protected static boolean checkIsRetryableException(final @NonNull Exception e) {
+        // Most common, TimestreamWriteException subclasses exceptions:
+        if (e instanceof InternalServerException || e instanceof ThrottlingException) {
+            return true;
+        }
+
+        // Other generic AwsServiceExceptions:
         if (e instanceof AwsServiceException) {
             AwsServiceException awsServiceException = (AwsServiceException) e;
             if (awsServiceException.awsErrorDetails() != null) {
@@ -232,23 +236,26 @@ public class DefaultWriteRequestFailureHandler implements WriteRequestFailureHan
             }
         }
 
-        return (e instanceof SdkException && ((SdkException)e).retryable()) ||
-                isRetryableSdkClientException(e) ||
-                e instanceof HttpException || // AWS CRT HTTP
-                e instanceof ApiCallTimeoutException || e instanceof ApiCallAttemptTimeoutException ||
-                e instanceof RetryableException ||
-                e instanceof SdkInterruptedException ||
-                e instanceof SocketTimeoutException || e instanceof SocketException;
+        // Nested exceptions:
+        return isRetryableException(e) ||
+                (e instanceof SdkException && ((SdkException)e).retryable());
     }
 
-    private static boolean isRetryableSdkClientException(Throwable e) {
-        if (e instanceof SdkClientException && e.getCause() != null) {
-            // Retry on SdkClientExceptions caused by IOExceptions & AWS CRT HttpException
-            return e.getCause() instanceof IOException || e.getCause() instanceof HttpException ||
-                    // Retry on SdkClientExceptions caused by wrapped TimeoutException
-                    (e.getCause().getCause() != null && e.getCause().getCause() instanceof TimeoutException);
+
+    private static boolean isRetryableException(final Throwable t) {
+        if (t instanceof SdkClientException && t.getCause() != null) {
+            return isRetryableException(t.getCause());
+        } else if (t instanceof EndpointDiscoveryFailedException && t.getCause() != null) {
+            return isRetryableException(t.getCause());
         } else {
-            return false;
+            return t instanceof IOException ||
+                    // Retry on exceptions caused by wrapped TimeoutException
+                    (t.getCause() != null && t.getCause() instanceof TimeoutException) ||
+                    t instanceof HttpException || // AWS CRT HTTP
+                    t instanceof ApiCallTimeoutException || t instanceof ApiCallAttemptTimeoutException ||
+                    t instanceof RetryableException ||
+                    t instanceof SdkInterruptedException ||
+                    t instanceof SocketTimeoutException || t instanceof SocketException;
         }
     }
 
