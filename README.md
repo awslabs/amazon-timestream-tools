@@ -24,15 +24,15 @@ This repository contains fully functional sample applications to help you get st
 The getting started application shows how to create a database and table, populate the table with ~126K rows of sample data, and run sample queries. 
 This sample application is currently available for the following programming languages:
 
-* [Getting started with Java](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/java/)
-* [Getting started with Java v2](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/javaV2/)
-* [Getting started with Python](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/python/)
-* [Getting started with Go](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/go/)
-* [Getting started with Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/js/)
-* [Getting started with .NET](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps/dotnet/)
+* [Getting started with Java](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/java/)
+* [Getting started with Java v2](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/javaV2/)
+* [Getting started with Python](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/python/)
+* [Getting started with Go](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/go/)
+* [Getting started with Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/js/)
+* [Getting started with .NET](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/dotnet/)
 
 To query time series data using Amazon Timestream's JDBC driver, refer to the following application:
-* [Querying data with JDBC](https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps/jdbc)
+* [Querying data with JDBC](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/integrations/jdbc)
 
 
 ## Working with other tools and services
