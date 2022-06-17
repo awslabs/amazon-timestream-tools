@@ -19,23 +19,14 @@ This directory contains the sink code itself - a reusable component which you ca
 
 ## Using Timestream Sink in a new project
 
-### Install to local Maven repository
-
-First, you need to make Timestream Sink available for other Maven projects. ** Note: this is a necessary step if you want to use the sink in other projects as Maven module.**. Execute the following command in this directory to install the sink to local Maven repository:
+The sink is available [in the Maven repository](https://mvnrepository.com/artifact/software.amazon.timestream/flink-connector-timestream/0.1). Define the Maven dependency on the sink as follows:
 
 ```
-mvn install
-```
-
-### Define Maven dependency
-
-After the Sink is installed locally, you can use it as any other Maven module. Define the Maven dependency on the sink as follows:
-
-```
+<!-- https://mvnrepository.com/artifact/software.amazon.timestream/flink-connector-timestream -->
 <dependency>
-    <groupId>com.amazonaws.samples.connectors.timestream</groupId>
+    <groupId>software.amazon.timestream</groupId>
     <artifactId>flink-connector-timestream</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <version>0.1</version>
 </dependency>
 ```
 
@@ -140,6 +131,29 @@ Run tests:
 mvn test
 ```
 
+## Developing Timestream Sink
+
+Follow the steps below to use custom compiled sink version in your projects.
+
+### Install to local Maven repository
+
+First, you need to make your custom Timestream Sink available for other Maven projects. **Note: this is a necessary step if you want to use the sink in other projects as Maven module.** Execute the following command in this directory to install the sink to local Maven repository:
+
+```
+mvn install
+```
+
+### Define Maven dependency
+
+After the Sink is installed locally, you can use it as any other Maven module. Define the Maven dependency on the sink as follows:
+
+```
+<dependency>
+    <groupId>com.amazonaws.samples.connectors.timestream</groupId>
+    <artifactId>flink-connector-timestream</artifactId>
+    <version>0.1-SNAPSHOT</version>
+</dependency>
+```
 
 ## Troubleshooting
 

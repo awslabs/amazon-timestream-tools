@@ -25,7 +25,7 @@ under the License.
     <packaging>jar</packaging>
 
     <name>Sample Kinesis to Timestream Application</name>
-    <url>http://TODO.REPLACE.com/docs</url>
+    <url>https://github.com/awslabs/amazon-timestream-tools/tree/mainline/integrations/flink_connector/sample-kinesis-to-timestream-app</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -114,9 +114,9 @@ under the License.
         </dependency>
         <!-- For writing to Timestream -->
         <dependency>
-            <groupId>com.amazonaws.samples.connectors.timestream</groupId>
+            <groupId>software.amazon.timestream</groupId>
             <artifactId>flink-connector-timestream</artifactId>
-            <version>0.1-SNAPSHOT</version>
+            <version>0.1</version>
         </dependency>
 
         <!-- sdk dependencies -->
