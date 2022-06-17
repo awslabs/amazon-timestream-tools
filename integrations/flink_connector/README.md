@@ -28,15 +28,9 @@ mvn -version
 
 ### 2. Setup Environment
 
-1. Create an Amazon Kinesis Data Stream with the name "TimestreamTestStream". You can use the below AWS CLI command:
+Create an Amazon Kinesis Data Stream with the name "TimestreamTestStream". You can use the below AWS CLI command:
 ```
 aws kinesis create-stream --stream-name TimestreamTestStream --shard-count 1
-```
-
-2. Install Timestream Sink, so it's available for other applications as Maven module:
-```shell
-cd flink-connector-timestream
-mvn clean compile && mvn install
 ```
 
 ### 3 (option A). Run Sample Flink Application locally
