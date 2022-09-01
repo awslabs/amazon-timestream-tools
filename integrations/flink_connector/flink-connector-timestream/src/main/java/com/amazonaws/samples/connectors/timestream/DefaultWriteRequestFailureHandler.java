@@ -42,7 +42,7 @@ public class DefaultWriteRequestFailureHandler implements WriteRequestFailureHan
     private static final long serialVersionUID = -818223387498623035L;
 
     private static final Set<String> RETRYABLE_ERROR_CODES = Set.of("InternalFailure", "ServiceUnavailable");
-    private static final Set<Integer> RETRYABLE_HTTP_STATUS_CODES = Set.of(400, 403, 408, 500, 502, 503, 509);
+    private static final Set<Integer> RETRYABLE_HTTP_STATUS_CODES = Set.of(500, 502, 503, 509);
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultWriteRequestFailureHandler.class);
     private boolean printFailedRequests;
