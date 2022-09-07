@@ -2,6 +2,7 @@ package com.amazonaws.samples.connectors.timestream;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.endpointdiscovery.EndpointDiscoveryFailedException;
 import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
@@ -15,6 +16,7 @@ import software.amazon.awssdk.services.timestreamwrite.model.RejectedRecordsExce
 import software.amazon.awssdk.services.timestreamwrite.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.timestreamwrite.model.ServiceQuotaExceededException;
 import software.amazon.awssdk.services.timestreamwrite.model.ThrottlingException;
+import software.amazon.awssdk.services.timestreamwrite.model.TimestreamWriteException;
 import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsRequest;
 
 import java.io.IOException;
@@ -51,7 +53,9 @@ public class DefaultWriteRequestFailureHandlerTest {
             SdkClientException.builder().cause(ApiCallTimeoutException.builder().build()).build(),
             SdkClientException.builder().cause(ApiCallAttemptTimeoutException.builder().build()).build(),
             SdkClientException.builder().cause(new SdkInterruptedException()).build(),
+            SdkClientException.builder().cause(new HttpException(400)).build(),
             SdkClientException.builder().cause(new HttpException(404)).build(),
+            SdkClientException.builder().cause(new HttpException(500)).build(),
             SdkClientException.builder().cause(new SocketTimeoutException()).build(),
             SdkClientException.builder().cause(new SocketException()).build(),
 
@@ -59,7 +63,9 @@ public class DefaultWriteRequestFailureHandlerTest {
             EndpointDiscoveryFailedException.builder().cause(ApiCallTimeoutException.builder().build()).build(),
             EndpointDiscoveryFailedException.builder().cause(ApiCallAttemptTimeoutException.builder().build()).build(),
             EndpointDiscoveryFailedException.builder().cause(new SdkInterruptedException()).build(),
+            EndpointDiscoveryFailedException.builder().cause(new HttpException(400)).build(),
             EndpointDiscoveryFailedException.builder().cause(new HttpException(404)).build(),
+            EndpointDiscoveryFailedException.builder().cause(new HttpException(500)).build(),
             EndpointDiscoveryFailedException.builder().cause(new SocketTimeoutException()).build(),
             EndpointDiscoveryFailedException.builder().cause(new SocketException()).build()
     );
@@ -67,6 +73,15 @@ public class DefaultWriteRequestFailureHandlerTest {
     private final List<Exception> nonRetryableExceptionExamples = List.of(
             // typical exceptions
             AccessDeniedException.builder().build(),
+
+            // invalid security token
+            TimestreamWriteException.builder()
+                    .statusCode(403)
+                    .awsErrorDetails(AwsErrorDetails.builder()
+                            .errorCode("UnrecognizedClientException")
+                            .errorMessage("The security token included in the request is invalid.")
+                            .build())
+                    .build(),
 
             // SdkClientExceptions caused by non-retryable exceptions
             SdkClientException.builder().cause(AccessDeniedException.builder().build()).build(),
