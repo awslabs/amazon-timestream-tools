@@ -261,8 +261,14 @@ func IngestToTimestream(writeSvc *timestreamwrite.Client,
 	_, err := writeSvc.WriteRecords(context.TODO(), writeRecordsInputMulti)
 
 	if err != nil {
-		fmt.Printf("Error: %s\n", err.Error())
-	} else {
+		log.Println("Error:", err)
+		var rre *types.RejectedRecordsException
+		if errors.As(err, &rre) {
+			for _, rr := range rre.RejectedRecords {
+				log.Println("reject reason:", aws.ToString(rr.Reason), "record index: ", rr.RecordIndex)
+			}
+		}
+		} else {
 		fmt.Println(message)
 	}
 }
