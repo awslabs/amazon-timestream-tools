@@ -7,6 +7,17 @@ This sample application shows to
 
 This application populates the table with ~63K rows of sample  multi measure value data (provided as part of csv) , and run sample queries to jumpstart your evaluation and/or proof-of-concept applications with Amazon Timestream.
 
+### Preparation
+Before running make sure to download the dependencies. Execute these commands in the `sample_apps_reinvent2021/goV2` directory.
+1. Prepare go modules:
+```
+go mod init go_sample
+```
+2. Download all dependencies:
+```
+go get ./...
+```
+
 ### Sample Applications Usage
 1. #### Sample application to create scheduled query and run
      1. View list of arguments
