@@ -87,13 +87,9 @@ namespace TimestreamDotNetSample
             try
             {
                 Console.WriteLine("Creating SNS Topic");
-                var attrs = new Dictionary<string, string>
-                {
-                    {"FifoTopic", "true"},
-                    {"ContentBasedDeduplication", "false"}
-                };
+
                 CreateTopicResponse responseCreate = await snsClient.CreateTopicAsync(
-                    new CreateTopicRequest() {Name = topicName, Attributes = attrs});
+                    new CreateTopicRequest() {Name = topicName});
                 Console.WriteLine($"Topic Arn: {responseCreate.TopicArn}");
                 return responseCreate.TopicArn;
             }
@@ -126,13 +122,9 @@ namespace TimestreamDotNetSample
             try
             {
                 Console.WriteLine("Creating SQS Queue");
-                var attrs = new Dictionary<string, string>
-                {
-                    {QueueAttributeName.FifoQueue, "true"},
-                    {QueueAttributeName.ContentBasedDeduplication, "false"}
-                };
+
                 CreateQueueResponse responseCreate = await sqsClient.CreateQueueAsync(
-                    new CreateQueueRequest {QueueName = queueName, Attributes = attrs});
+                    new CreateQueueRequest {QueueName = queueName});
                 return responseCreate.QueueUrl;
             }
             catch (Exception e)

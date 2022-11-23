@@ -7,9 +7,9 @@ const MEASURE_VALUE_SAMPLE_DB = "measureValueSampleDb";
 const MEASURE_VALUE_SAMPLE_TABLE = "measureValueSampleTable";
 const HT_TTL_HOURS = 24;
 const CT_TTL_DAYS = 7;
-const TOPIC_NAME = 'scheduled_queries_topic.fifo';
+const TOPIC_NAME = 'scheduled_queries_topic';
 const ROLE_NAME = 'ScheduledQuerySampleApplicationRole';
-const QUEUE_NAME = "sq_sample_app_queue.fifo";
+const QUEUE_NAME = "sq_sample_app_queue";
 const POLICY_NAME = "SampleApplicationExecutionAccess";
 const SQ_ERROR_CONFIGURATION_S3_BUCKET_NAME_PREFIX = "error-configuration-sample-s3-bucket-";
 

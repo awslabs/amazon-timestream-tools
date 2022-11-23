@@ -172,7 +172,6 @@ func parseNotificationMessage(message string) (NotificationMessage, error) {
 func (timestreamDependencyHelper TimestreamDependencyHelper) CreateSnsTopic(topicName string) (string, error) {
 	createTopicInput := &sns.CreateTopicInput{
 		Name:       aws.String(topicName),
-		Attributes: map[string]*string{"FifoTopic": aws.String("true"), "ContentBasedDeduplication": aws.String("false")},
 	}
 
 	createTopicOutput, err := timestreamDependencyHelper.SnsSvc.CreateTopic(createTopicInput)
@@ -190,7 +189,6 @@ func (timestreamDependencyHelper TimestreamDependencyHelper) CreateSqsQueue(queu
 
 	createQueueInput := &sqs.CreateQueueInput{
 		QueueName:  aws.String(queueName),
-		Attributes: map[string]*string{"FifoQueue": aws.String("true"), "ContentBasedDeduplication": aws.String("false")},
 	}
 
 	createQueueOutput, err := timestreamDependencyHelper.SqsSvc.CreateQueue(createQueueInput)

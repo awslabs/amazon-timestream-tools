@@ -288,13 +288,9 @@ public class TimestreamDependencyHelper {
         System.out.println("Creating SNS Topic");
         try {
             CreateTopicResponse result = null;
-            Map<String, String> topicAttributes = new HashMap<>();
 
-            topicAttributes.put("FifoTopic", "true");
-            topicAttributes.put("ContentBasedDeduplication", "false");
             CreateTopicRequest request = CreateTopicRequest.builder()
                     .name(topicName)
-                    .attributes(topicAttributes)
                     .build();
 
             result = snsClient.createTopic(request);

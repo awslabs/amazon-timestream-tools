@@ -25,8 +25,8 @@ func main() {
 
 	databaseName := utils.DATABASE_NAME
 	tableName := utils.TABLE_NAME
-	sqSampleAppTopicName := "sq_sample_app_topic.fifo"
-	sqSampleAppQueueName := "sq_sample_app_queue.fifo"
+	sqSampleAppTopicName := "sq_sample_app_topic"
+	sqSampleAppQueueName := "sq_sample_app_queue"
 	sqResultsDatabaseName := utils.SQ_DATABASE_NAME
 	sqResultsTableName := utils.SQ_TABLE_NAME
 	region := flag.String("region", utils.REGION, "region")

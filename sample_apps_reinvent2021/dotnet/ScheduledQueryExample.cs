@@ -28,9 +28,8 @@ namespace TimestreamDotNetSample
 
         public const string SqTableName = "sq_result_table_multi";
 
-        // Use a FIFO queue & FIFO SNS subscription to enforce strict ordering of messages
-        public const string TopicName = "scheduled_queries_topic.fifo";
-        public const string FifoQueueName = "sq_sample_app_queue.fifo";
+        public const string TopicName = "scheduled_queries_topic";
+        public const string FifoQueueName = "sq_sample_app_queue";
 
         public const string IamRoleName = "ScheduledQuerySampleApplicationRole";
         public const string PolicyName = "SampleApplicationExecutionAccess";

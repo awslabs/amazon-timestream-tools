@@ -5,11 +5,7 @@ var s3ErrorReportBucketName = null;
 async function createSnsTopic() {
     console.log("Creating SNS Topic");
     const params = {
-        Name: constants.TOPIC_NAME,
-        Attributes: {
-            'FifoTopic': 'true',
-            'ContentBasedDeduplication': 'false'
-        }
+        Name: constants.TOPIC_NAME
     }
     try {
         const data = await snsClient.createTopic(params).promise();
@@ -81,11 +77,7 @@ async function deleteIamRole() {
 async function createSqsQueue() {
     console.log("Creating SQS Queue");
     var params = {
-        QueueName: constants.QUEUE_NAME,
-        Attributes: {
-            'FifoQueue': 'true',
-            'ContentBasedDeduplication': 'false'
-        }
+        QueueName: constants.QUEUE_NAME
     };
 
     try {

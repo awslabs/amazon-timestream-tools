@@ -38,9 +38,8 @@ public class Main {
     public static final String SQ_DATABASE_NAME = "sq_result_database_multi";
     public static final String SQ_TABLE_NAME = "sq_result_table_multi";
 
-    // Use a FIFO queue & FIFO SNS subscription to enforce strict ordering of messages
-    public static final String TOPIC = "scheduled_queries_topic.fifo";
-    public static final String QUEUE_NAME = "sq_sample_app_queue.fifo";
+    public static final String TOPIC = "scheduled_queries_topic";
+    public static final String QUEUE_NAME = "sq_sample_app_queue";
 
     public static final String ROLE_NAME = "ScheduledQuerySampleApplicationRole";
     public static final String POLICY_NAME = "SampleApplicationExecutionAccess";
