@@ -199,15 +199,15 @@ public class DefaultWriteRequestFailureHandler implements WriteRequestFailureHan
                              final Consumer<List<Record>> dropCompletionConsumer) {
         final Class<? extends Exception> exceptionClass = exception.getClass();
         LOG.debug("Sending WriteRecordsRequest failed. Starting handling exception: {}", exceptionClass.getName());
-        if (checkIsRetryableException(exception)) {
-            handleRetryableException(requestEntries, writeRecordsRequest, exception,
-                    retryOrSuccessCompletionConsumer, dropCompletionConsumer);
-        } else if (exceptionTypeToExceptionHandleMethod.containsKey(exceptionClass)) {
+        if (exceptionTypeToExceptionHandleMethod.containsKey(exceptionClass)) {
             LOG.debug("Found designated exception handler method.");
             exceptionTypeToExceptionHandleMethod
                     .get(exceptionClass)
                     .accept(requestEntries, writeRecordsRequest, exception,
                             retryOrSuccessCompletionConsumer, dropCompletionConsumer);
+        } else if (checkIsRetryableException(exception)) {
+            handleRetryableException(requestEntries, writeRecordsRequest, exception,
+                    retryOrSuccessCompletionConsumer, dropCompletionConsumer);
         } else {
             LOG.debug("No designated exception handler method found. Launching the default handler.");
             handleDefaultException(requestEntries, writeRecordsRequest, exception,
