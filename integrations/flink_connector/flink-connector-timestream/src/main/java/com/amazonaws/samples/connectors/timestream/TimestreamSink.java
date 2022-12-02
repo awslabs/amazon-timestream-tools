@@ -1,21 +1,22 @@
 package com.amazonaws.samples.connectors.timestream;
 
 import com.amazonaws.samples.connectors.timestream.metrics.CloudWatchEmittedMetricGroupHelper;
-import imported.vnext.org.apache.flink.connector.base.sink.sink.AsyncSinkBase;
-import imported.vnext.org.apache.flink.connector.base.sink.sink.writer.ElementConverter;
 import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.api.connector.sink.SinkWriter;
+import org.apache.flink.connector.base.sink.AsyncSinkBase;
+import org.apache.flink.connector.base.sink.writer.BufferedRequestState;
+import org.apache.flink.connector.base.sink.writer.ElementConverter;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.timestreamwrite.model.Record;
 
+import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.Collections;
 
 @PublicEvolving
 public class TimestreamSink<InputT> extends AsyncSinkBase<InputT, Record> {
+    private static final long serialVersionUID = 1L;
     private static final Logger LOG = LoggerFactory.getLogger(TimestreamSink.class);
 
     // Timestream does not limit record/WriteRecordsRequest size in bytes - although there are limits
@@ -44,7 +45,12 @@ public class TimestreamSink<InputT> extends AsyncSinkBase<InputT, Record> {
     }
 
     @Override
-    public SinkWriter<InputT, Void, Collection<Record>> createWriter(InitContext context, List<Collection<Record>> states) {
+    public StatefulSinkWriter<InputT, BufferedRequestState<Record>> createWriter(InitContext initContext) throws IOException {
+        return restoreWriter(initContext, Collections.emptyList());
+    }
+
+    @Override
+    public StatefulSinkWriter<InputT, BufferedRequestState<Record>> restoreWriter(InitContext context, Collection<BufferedRequestState<Record>> collection) throws IOException {
         LOG.debug("Creating a new TimestreamSinkWriter...");
         CloudWatchEmittedMetricGroupHelper.StaticEmitSinkMetricsToCloudWatch = timestreamSinkConfig.isEmitSinkMetricsToCloudWatch();
         return new TimestreamSinkWriter<>(
@@ -55,15 +61,8 @@ public class TimestreamSink<InputT> extends AsyncSinkBase<InputT, Record> {
         );
     }
 
-    /**
-     * Any stateful sink needs to provide this state serializer and implement {@link
-     * SinkWriter#snapshotState()} properly. The respective state is used in {@link
-     * #createWriter(InitContext, List)} on recovery.
-     *
-     * @return the serializer of the writer's state type.
-     */
     @Override
-    public Optional<SimpleVersionedSerializer<Collection<Record>>> getWriterStateSerializer() {
-        return Optional.empty();
+    public SimpleVersionedSerializer<BufferedRequestState<Record>> getWriterStateSerializer() {
+        return new NoOpSimpleVersionedSerializer();
     }
 }
