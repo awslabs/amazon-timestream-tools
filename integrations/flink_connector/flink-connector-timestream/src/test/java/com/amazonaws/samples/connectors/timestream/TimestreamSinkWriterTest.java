@@ -1,10 +1,14 @@
 package com.amazonaws.samples.connectors.timestream;
 
-import com.amazonaws.samples.connectors.timestream.metrics.MetricsCollector;
-import imported.vnext.org.apache.flink.connector.base.sink.sink.writer.ElementConverter;
-import org.apache.flink.api.connector.sink.Sink;
+import org.apache.flink.api.connector.sink2.Sink.InitContext;
+import org.apache.flink.connector.base.sink.writer.ElementConverter;
 import org.apache.flink.streaming.runtime.tasks.TestProcessingTimeService;
-import org.junit.jupiter.api.*;
+
+import com.amazonaws.samples.connectors.timestream.metrics.MetricsCollector;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteAsyncClient;
 import software.amazon.awssdk.services.timestreamwrite.model.MeasureValue;
@@ -14,18 +18,20 @@ import software.amazon.awssdk.services.timestreamwrite.model.ThrottlingException
 import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsRequest;
 import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsResponse;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
 public class TimestreamSinkWriterTest {
     private TimestreamSinkWriter<Record> sinkWriter;
-    private final TimestreamWriteAsyncClient asyncClient = Mockito.mock(
-            TimestreamWriteAsyncClient.class);
-    private final MetricsCollector metricsCollector = Mockito.mock(
-            MetricsCollector.class);
+    private final TimestreamWriteAsyncClient asyncClient = mock(TimestreamWriteAsyncClient.class);
+    private final MetricsCollector metricsCollector = mock(MetricsCollector.class);
     private SinkInitContext sinkInitContext;
     private final Exception failedException = new RuntimeException("Failed");
 
@@ -104,7 +110,7 @@ public class TimestreamSinkWriterTest {
     }
 
     @Test
-    public void testSingleWrite() throws IOException {
+    public void testSingleWrite() throws Exception {
         mockNormalClient();
         sinkWriter = new TimestreamTestSinkWriter<>(
             elementConverter, batchConverter, sinkInitContext, getTimestreamSinkConfig(80, 1, 160, 15000)
@@ -116,13 +122,13 @@ public class TimestreamSinkWriterTest {
             recordsIngested.add(currentRecord);
         }
         WriteRecordsRequest request = batchConverter.apply(recordsIngested);
-        Mockito.verify(asyncClient).writeRecords(request);
-        Mockito.verify(metricsCollector).collectPreWriteMetrics(request);
-        Mockito.verify(metricsCollector).collectSuccessMetrics(request);
+        verify(asyncClient).writeRecords(request);
+        verify(metricsCollector).collectPreWriteMetrics(request);
+        verify(metricsCollector).collectSuccessMetrics(request);
     }
 
     @Test
-    public void testMultipleBatchWrites() throws IOException {
+    public void testMultipleBatchWrites() throws Exception {
         mockNormalClient();
         sinkWriter = new TimestreamTestSinkWriter<>(
                 elementConverter, batchConverter, sinkInitContext, getTimestreamSinkConfig(10, 1, 160, 15000)
@@ -136,48 +142,19 @@ public class TimestreamSinkWriterTest {
             sinkWriter.write(currentRecord, null);
             batchRecordsIngested.get(i/10).add(currentRecord);
         }
+
+        sinkWriter.flush(true);
+
         for (List<Record> currBatch : batchRecordsIngested) {
             WriteRecordsRequest request = batchConverter.apply(currBatch);
-            Mockito.verify(asyncClient).writeRecords(request);
-            Mockito.verify(metricsCollector).collectPreWriteMetrics(request);
-            Mockito.verify(metricsCollector).collectSuccessMetrics(request);
+            verify(asyncClient).writeRecords(request);
+            verify(metricsCollector).collectPreWriteMetrics(request);
+            verify(metricsCollector).collectSuccessMetrics(request);
         }
     }
 
     @Test
-    public void testUnwrittenRecordsInBufferAndFlush() throws Exception {
-        mockNormalClient();
-        sinkWriter = new TimestreamTestSinkWriter<>(
-                elementConverter, batchConverter, sinkInitContext, getTimestreamSinkConfig(10, 1, 160, 15000)
-        );
-        List<List<Record>> batchRecordsIngested = new ArrayList<>(8);
-        for (int i = 0; i < 9; i++) {
-            batchRecordsIngested.add(new ArrayList<>());
-        }
-        for (int i = 0; i < 83; i++) {
-            Record currentRecord = getRecordFromSeed(i);
-            sinkWriter.write(currentRecord, null);
-            batchRecordsIngested.get(i/10).add(currentRecord);
-        }
-        for (int i = 0; i < 8; i++) {
-            WriteRecordsRequest request = batchConverter.apply(batchRecordsIngested.get(i));
-            Mockito.verify(asyncClient).writeRecords(request);
-            Mockito.verify(metricsCollector).collectPreWriteMetrics(request);
-            Mockito.verify(metricsCollector).collectSuccessMetrics(request);
-        }
-        //Last 3 entries not getting written as buffer not full and timer stay put
-        Assertions.assertEquals(3, batchRecordsIngested.get(8).size());
-        Mockito.verifyNoMoreInteractions(asyncClient);
-
-        sinkWriter.prepareCommit(true);
-        WriteRecordsRequest request = batchConverter.apply(batchRecordsIngested.get(8));
-        Mockito.verify(asyncClient).writeRecords(request);
-        Mockito.verify(metricsCollector).collectPreWriteMetrics(request);
-        Mockito.verify(metricsCollector).collectSuccessMetrics(request);
-    }
-
-    @Test
-    public void testNormalFailure() throws IOException{
+    public void testNormalFailure() throws Exception {
         mockFailureClient();
         sinkWriter = new TimestreamTestSinkWriter<>(
                 elementConverter, batchConverter, sinkInitContext, getTimestreamSinkConfig(1, 1, 160, 15000)
@@ -188,12 +165,12 @@ public class TimestreamSinkWriterTest {
         sinkWriter.write(record, null);
         Exception e = Assertions.assertThrows(
                 RuntimeException.class,
-                () -> sinkWriter.prepareCommit(true)
+                () -> sinkWriter.flush(true)
         );
         Assertions.assertEquals(failedException.getMessage(), e.getMessage());
-        Mockito.verify(asyncClient).writeRecords(request);
-        Mockito.verify(metricsCollector).collectPreWriteMetrics(request);
-        Mockito.verify(metricsCollector).collectExceptionMetrics(failedException);
+        verify(asyncClient).writeRecords(request);
+        verify(metricsCollector).collectPreWriteMetrics(request);
+        verify(metricsCollector).collectExceptionMetrics(failedException);
     }
 
     @Test
@@ -213,15 +190,15 @@ public class TimestreamSinkWriterTest {
         Mockito.verifyNoMoreInteractions(asyncClient);
         tpts.setCurrentTime(200);
 
-        Mockito.verify(asyncClient).writeRecords(request);
-        Mockito.verify(metricsCollector).collectPreWriteMetrics(request);
-        Mockito.verify(metricsCollector).collectSuccessMetrics(request);
+        verify(asyncClient).writeRecords(request);
+        verify(metricsCollector).collectPreWriteMetrics(request);
+        verify(metricsCollector).collectSuccessMetrics(request);
     }
 
     @Test
-    public void testThrottledRecord() {
+    public void testThrottledRecord() throws Exception {
         sinkWriter = new TimestreamTestSinkWriter<>(
-                elementConverter, batchConverter, sinkInitContext, getTimestreamSinkConfig(3, 1, 160, 15000)
+                elementConverter, batchConverter, sinkInitContext, getTimestreamSinkConfig(10, 1, 160, 15000)
         );
         List<Record> recordsIngested = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
@@ -232,23 +209,44 @@ public class TimestreamSinkWriterTest {
         for (int i = 0; i < 3; i++) {
             sinkWriter.write(recordsIngested.get(i), null);
         }
-        sinkWriter.prepareCommit(true);
+        sinkWriter.flush(true);
 
         // 1st write. Prewrite, Exception, Retry
         // 2nd write. Prewrite, Success
-        Mockito.verify(asyncClient, Mockito.times(2)).writeRecords(origRequest);
-        Mockito.verify(metricsCollector, Mockito.times(2)).collectPreWriteMetrics(origRequest);
-        Mockito.verify(metricsCollector).collectSuccessMetrics(origRequest);
-        Mockito.verify(metricsCollector).collectRetries(origRequest.records());
-        Mockito.verify(metricsCollector).collectExceptionMetrics(Mockito.any(ThrottlingException.class));
+        verify(asyncClient, Mockito.times(2)).writeRecords(origRequest);
+        verify(metricsCollector, Mockito.times(2)).collectPreWriteMetrics(origRequest);
+        verify(metricsCollector).collectSuccessMetrics(origRequest);
+        verify(metricsCollector).collectRetries(origRequest.records());
+        verify(metricsCollector).collectExceptionMetrics(Mockito.any(ThrottlingException.class));
     }
 
+    @Test
+    public void testFlushOnSnapshot() throws Exception {
+        mockNormalClient();
+        sinkWriter = new TimestreamTestSinkWriter<>(
+                elementConverter, batchConverter, sinkInitContext, getTimestreamSinkConfig(80, 1, 160, 15000)
+        );
+        List<Record> recordsIngested = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            Record currentRecord = getRecordFromSeed(i);
+            sinkWriter.write(currentRecord, null);
+            recordsIngested.add(currentRecord);
+        }
+        WriteRecordsRequest request = batchConverter.apply(recordsIngested);
+        verify(asyncClient, never()).writeRecords(any(WriteRecordsRequest.class));
+
+        sinkWriter.snapshotState(1);
+
+        verify(asyncClient).writeRecords(request);
+        verify(metricsCollector).collectPreWriteMetrics(request);
+        verify(metricsCollector).collectSuccessMetrics(request);
+    }
 
     private class TimestreamTestSinkWriter<InputT> extends TimestreamSinkWriter<InputT> {
         public TimestreamTestSinkWriter(
                ElementConverter<InputT, Record> elementConverter,
                BatchConverter batchConverter,
-               Sink.InitContext context,
+               InitContext context,
                TimestreamSinkConfig timestreamSinkConfig) {
            super(elementConverter, batchConverter, context, timestreamSinkConfig);
         }
@@ -259,7 +257,7 @@ public class TimestreamSinkWriterTest {
         }
 
         @Override
-        protected MetricsCollector openMetricCollector(Sink.InitContext context) {
+        protected MetricsCollector openMetricCollector(InitContext context) {
             return metricsCollector;
         }
     }

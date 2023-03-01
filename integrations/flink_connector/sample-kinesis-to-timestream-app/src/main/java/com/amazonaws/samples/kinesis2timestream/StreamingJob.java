@@ -127,9 +127,7 @@ public class StreamingJob {
 		timestreamInitializer.createTable(databaseName, tableName, memoryStoreTTLHours, magneticStoreTTLDays);
 
 		TimestreamSink<MyHostBase> sink = new TimestreamSink<>(
-				(recordObject, context) -> {
-					return TimestreamRecordConverter.convert(recordObject);
-				},
+				(recordObject, context) -> TimestreamRecordConverter.convert(recordObject),
 				(List<Record> records) -> {
 					LOG.debug("Preparing WriteRecordsRequest with {} records", records.size());
 					return WriteRecordsRequest.builder()

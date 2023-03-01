@@ -3,7 +3,6 @@ package com.amazonaws.samples.kinesis2timestream;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import com.amazonaws.ClientConfiguration;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteClient;
 import software.amazon.awssdk.services.timestreamwrite.model.ConflictException;
