@@ -1,16 +1,17 @@
 package com.amazonaws.samples.connectors.timestream;
 
+import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.connector.sink2.Sink.InitContext;
+import org.apache.flink.connector.base.sink.writer.AsyncSinkWriter;
+import org.apache.flink.connector.base.sink.writer.BufferedRequestState;
+import org.apache.flink.connector.base.sink.writer.ElementConverter;
+import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.util.InstantiationUtil;
+
 import com.amazonaws.samples.connectors.timestream.metrics.CloudWatchEmittedMetricGroupHelper;
 import com.amazonaws.samples.connectors.timestream.metrics.MetricsCollector;
 import com.amazonaws.samples.connectors.timestream.metrics.TimestreamSinkMetricGroup;
-import imported.vnext.org.apache.flink.connector.base.sink.sink.writer.AsyncSinkWriter;
-import imported.vnext.org.apache.flink.connector.base.sink.sink.writer.ElementConverter;
-import imported.vnext.org.apache.flink.connector.base.sink.sink.writer.SinkMetricGroup;
 import lombok.SneakyThrows;
-import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.api.connector.sink.Sink;
-import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.util.InstantiationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -31,7 +32,6 @@ import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsRequest
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletionException;
@@ -51,7 +51,7 @@ public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record
     public TimestreamSinkWriter(
             ElementConverter<InputT, Record> elementConverter,
             BatchConverter batchConverter,
-            Sink.InitContext context,
+            InitContext context,
             TimestreamSinkConfig timestreamSinkConfig) {
         super(elementConverter,
                 context,
@@ -67,17 +67,10 @@ public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record
         this.metricsCollector = openMetricCollector(context);
     }
 
-    TimestreamSinkMetricGroup createTimestreamSinkMetricGroup(final Sink.InitContext context) {
+    TimestreamSinkMetricGroup createTimestreamSinkMetricGroup(final InitContext context) {
         final MetricGroup metricGroup = CloudWatchEmittedMetricGroupHelper.extendMetricGroup(context.metricGroup());
         return new TimestreamSinkMetricGroup(metricGroup);
     }
-
-    @Override
-    protected SinkMetricGroup createSinkMetricGroup(Sink.InitContext context) {
-        final MetricGroup metricGroup = CloudWatchEmittedMetricGroupHelper.extendMetricGroup(context.metricGroup());
-        return new SinkMetricGroup(metricGroup);
-    }
-
 
     @SneakyThrows
     protected WriteRequestFailureHandler createFailureHandler(TimestreamSinkConfig timestreamSinkConfig) {
@@ -91,7 +84,7 @@ public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record
     }
 
     @VisibleForTesting
-    protected MetricsCollector openMetricCollector(Sink.InitContext context) {
+    protected MetricsCollector openMetricCollector(InitContext context) {
         return new MetricsCollector(createTimestreamSinkMetricGroup(context));
     }
 
@@ -208,7 +201,6 @@ public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record
         });
     }
 
-
     /**
      * This method allows the getting of the size of a {@code RequestEntryT} in bytes. The size in
      * this case is measured as the total bytes that is written to the destination as a result of
@@ -224,17 +216,14 @@ public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record
     }
 
     @Override
-    public List<Collection<Record>> snapshotState() {
-        LOG.debug("snapshotState invoked");
-        super.prepareCommit(true); // always flush all pending records
-        return Collections.emptyList();
-    }
+    public List<BufferedRequestState<Record>> snapshotState(long checkpointId) {
+        // This sink does not participate in checkpointing, instead we flush the buffer
+        try {
+            flush(true);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while flushing buffer during snapshotState", e);
+        }
 
-    @SneakyThrows
-    @Override
-    public List<Void> prepareCommit(boolean flush) {
-        LOG.debug("prepareCommit invoked with flush: {}", flush);
-        super.prepareCommit(true); // always flush all pending records
-        return Collections.emptyList();
+        return super.snapshotState(checkpointId);
     }
 }

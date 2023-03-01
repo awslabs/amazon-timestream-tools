@@ -29,13 +29,12 @@ under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <flink.version>1.13.2</flink.version>
+        <flink.version>1.15.3</flink.version>
         <kda.version>2.0.0</kda.version>
         <kda.runtime.version>1.2.0</kda.runtime.version>
         <java.version>1.11</java.version>
         <jdk.version>11</jdk.version>
         <next.jdk.version>12</next.jdk.version>
-        <scala.binary.version>2.12</scala.binary.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <log4j.version>2.17.1</log4j.version>
@@ -78,13 +77,13 @@ under the License.
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
+            <artifactId>flink-streaming-java</artifactId>
             <version>${flink.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-clients_${scala.binary.version}</artifactId>
+            <artifactId>flink-clients</artifactId>
             <version>${flink.version}</version>
             <scope>provided</scope>
         </dependency>
@@ -93,7 +92,7 @@ under the License.
         <!-- For reading from Kinesis -->
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-connector-kinesis_${scala.binary.version}</artifactId>
+            <artifactId>flink-connector-kinesis</artifactId>
             <version>${flink.version}</version>
         </dependency>
         <dependency>
@@ -114,7 +113,7 @@ under the License.
         </dependency>
         <!-- For writing to Timestream -->
         <dependency>
-            <groupId>software.amazon.timestream</groupId>
+            <groupId>com.amazonaws.samples.connectors.timestream</groupId>
             <artifactId>flink-connector-timestream</artifactId>
             <version>0.2</version>
         </dependency>
