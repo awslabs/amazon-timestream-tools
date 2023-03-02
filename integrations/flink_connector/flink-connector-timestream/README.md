@@ -26,7 +26,7 @@ The sink is available [in the Maven repository](https://mvnrepository.com/artifa
 <dependency>
     <groupId>software.amazon.timestream</groupId>
     <artifactId>flink-connector-timestream</artifactId>
-    <version>0.2</version>
+    <version>0.3</version>
 </dependency>
 ```
 
