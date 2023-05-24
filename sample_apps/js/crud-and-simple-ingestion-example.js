@@ -1,14 +1,18 @@
-const constants = require('./constants');
+import { constants } from "./constants.js";
+import {
+    CreateDatabaseCommand, CreateTableCommand, DeleteDatabaseCommand, DeleteTableCommand,
+    DescribeDatabaseCommand, DescribeTableCommand,
+    ListDatabasesCommand, ListTablesCommand,
+    UpdateDatabaseCommand, UpdateTableCommand, WriteRecordsCommand
+} from "@aws-sdk/client-timestream-write";
 
-async function createDatabase() {
+export async function createDatabase(writeClient) {
     console.log("Creating Database");
-    const params = {
+    const params = new CreateDatabaseCommand({
         DatabaseName: constants.DATABASE_NAME
-    };
+    });
 
-    const promise = writeClient.createDatabase(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         (data) => {
             console.log(`Database ${data.Database.DatabaseName} created successfully`);
         },
@@ -22,15 +26,13 @@ async function createDatabase() {
     );
 }
 
-async function describeDatabase () {
+export async function describeDatabase (writeClient) {
     console.log("Describing Database");
-    const params = {
+    const params = new DescribeDatabaseCommand({
         DatabaseName: constants.DATABASE_NAME
-    };
+    });
 
-    const promise = writeClient.describeDatabase(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         (data) => {
             console.log(`Database ${data.Database.DatabaseName} has id ${data.Database.Arn}`);
         },
@@ -45,21 +47,19 @@ async function describeDatabase () {
     );
 }
 
-async function updateDatabase(updatedKmsKeyId) {
+export async function updateDatabase(updatedKmsKeyId) {
 
     if (updatedKmsKeyId === undefined) {
         console.log("Skipping UpdateDatabase; KmsKeyId was not given");
         return;
     }
     console.log("Updating Database");
-    const params = {
+    const params = new UpdateDatabaseCommand({
         DatabaseName: constants.DATABASE_NAME,
         KmsKeyId: updatedKmsKeyId
-    }
+    });
 
-    const promise = writeClient.updateDatabase(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         (data) => {
             console.log(`Database ${data.Database.DatabaseName} updated kmsKeyId to ${updatedKmsKeyId}`);
         },
@@ -73,25 +73,24 @@ async function updateDatabase(updatedKmsKeyId) {
     );
 }
 
-async function listDatabases() {
+export async function listDatabases(writeClient) {
     console.log("Listing databases:");
-    const databases = await getDatabasesList(null);
+    const databases = await getDatabasesList(null, writeClient);
     databases.forEach(function(database){
         console.log(database.DatabaseName);
     });
 }
 
-function getDatabasesList(nextToken, databases = []) {
-    var params = {
+function getDatabasesList(nextToken, writeClient, databases = []) {
+    var params = new ListDatabasesCommand({
         MaxResults: 15
-    };
+    });
 
     if(nextToken) {
         params.NextToken = nextToken;
     }
 
-    return writeClient.listDatabases(params).promise()
-        .then(
+    return writeClient.send(params).then(
             (data) => {
                 databases.push.apply(databases, data.Databases);
                 if (data.NextToken) {
@@ -105,20 +104,18 @@ function getDatabasesList(nextToken, databases = []) {
             });
 }
 
-async function createTable() {
+export async function createTable(writeClient) {
     console.log("Creating Table");
-    const params = {
+    const params = new CreateTableCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         RetentionProperties: {
             MemoryStoreRetentionPeriodInHours: constants.HT_TTL_HOURS,
             MagneticStoreRetentionPeriodInDays: constants.CT_TTL_DAYS
         }
-    };
+    });
 
-    const promise = writeClient.createTable(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         (data) => {
             console.log(`Table ${data.Table.TableName} created successfully`);
         },
@@ -133,20 +130,18 @@ async function createTable() {
     );
 }
 
-async function updateTable() {
+export async function updateTable(writeClient) {
     console.log("Updating Table");
-    const params = {
+    const params = new UpdateTableCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         RetentionProperties: {
             MemoryStoreRetentionPeriodInHours: constants.HT_TTL_HOURS,
             MagneticStoreRetentionPeriodInDays: constants.CT_TTL_DAYS
         }
-    };
+    });
 
-    const promise = writeClient.updateTable(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         (data) => {
             console.log("Table updated")
         },
@@ -157,16 +152,14 @@ async function updateTable() {
     );
 }
 
-async function describeTable() {
+export async function describeTable(writeClient) {
     console.log("Describing Table");
-    const params = {
+    const params = new DescribeTableCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME
-    };
+    });
 
-    const promise = writeClient.describeTable(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         (data) => {
             console.log(`Table ${data.Table.TableName} has id ${data.Table.Arn}`);
         },
@@ -181,26 +174,25 @@ async function describeTable() {
     );
 }
 
-async function listTables() {
+export async function listTables(writeClient) {
     console.log("Listing tables:");
-    const tables = await getTablesList(null);
+    const tables = await getTablesList(null, writeClient);
     tables.forEach(function(table){
         console.log(table.TableName);
     });
 }
 
-function getTablesList(nextToken, tables = []) {
-    var params = {
+function getTablesList(nextToken, writeClient, tables = []) {
+    var params = new ListTablesCommand({
         DatabaseName: constants.DATABASE_NAME,
         MaxResults: 15
-    };
+    });
 
     if(nextToken) {
         params.NextToken = nextToken;
     }
 
-    return writeClient.listTables(params).promise()
-        .then(
+    return writeClient.send(params).then(
             (data) => {
                 tables.push.apply(tables, data.Tables);
                 if (data.NextToken) {
@@ -214,7 +206,7 @@ function getTablesList(nextToken, tables = []) {
             });
 }
 
-async function writeRecords() {
+export async function writeRecords(writeClient) {
     console.log("Writing records");
     const currentTime = Date.now().toString(); // Unix time in milliseconds
 
@@ -242,15 +234,13 @@ async function writeRecords() {
 
     const records = [cpuUtilization, memoryUtilization];
 
-    const params = {
+    const params = new WriteRecordsCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         Records: records
-    };
+    });
 
-    const request = writeClient.writeRecords(params);
-
-    await request.promise().then(
+    await writeClient.send(params).then(
         (data) => {
             console.log("Write records successful");
         },
@@ -263,7 +253,7 @@ async function writeRecords() {
     );
 }
 
-async function writeRecordsWithCommonAttributes() {
+export async function writeRecordsWithCommonAttributes(writeClient) {
     console.log("Writing records with common attributes");
     const currentTime = Date.now().toString(); // Unix time in milliseconds
 
@@ -291,16 +281,14 @@ async function writeRecordsWithCommonAttributes() {
 
     const records = [cpuUtilization, memoryUtilization];
 
-    const params = {
+    const params = new WriteRecordsCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         Records: records,
         CommonAttributes: commonAttributes
-    };
+    });
 
-    const request = writeClient.writeRecords(params);
-
-    await request.promise().then(
+    await writeClient.send(params).then(
         (data) => {
             console.log("Write records successful");
         },
@@ -313,7 +301,7 @@ async function writeRecordsWithCommonAttributes() {
     );
 }
 
-async function writeRecordsWithUpsert() {
+export async function writeRecordsWithUpsert(writeClient) {
     console.log("Writing records with upsert");
     const currentTime = Date.now().toString(); // Unix time in milliseconds
     // To achieve upsert (last writer wins) semantic, one example is to use current time as the version if you are writing directly from the data source
@@ -344,17 +332,15 @@ async function writeRecordsWithUpsert() {
 
     const records = [cpuUtilization, memoryUtilization];
 
-    const params = {
+    const params = new WriteRecordsCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         Records: records,
         CommonAttributes: commonAttributes
-    };
-
-    const request = writeClient.writeRecords(params);
+    });
 
     // write records for first time
-    await request.promise().then(
+    await writeClient.send(params).then(
         (data) => {
             console.log("Write records successful for first time.");
         },
@@ -367,7 +353,7 @@ async function writeRecordsWithUpsert() {
     );
 
     // Successfully retry same writeRecordsRequest with same records and versions, because writeRecords API is idempotent.
-    await request.promise().then(
+    await writeClient.send(params).then(
         (data) => {
             console.log("Write records successful for retry.");
         },
@@ -401,28 +387,26 @@ async function writeRecordsWithUpsert() {
 
     const upsertedRecords = [updatedCpuUtilization, updatedMemoryUtilization];
 
-    const upsertedParamsWithLowerVersion = {
+    const upsertedParamsWithLowerVersion = new WriteRecordsCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         Records: upsertedRecords,
         CommonAttributes: commonAttributesWithLowerVersion
-    };
+    });
 
-    const upsertRequestWithLowerVersion = writeClient.writeRecords(upsertedParamsWithLowerVersion);
-
-    await upsertRequestWithLowerVersion.promise().then(
+    await writeClient.send(upsertedParamsWithLowerVersion).then(
         (data) => {
             console.log("Write records for upsert with lower version successful");
         },
         (err) => {
-            console.log("Error writing records for upsert with lower version:", err);
+            console.log("Error writing records:", err);
             if (err.code === 'RejectedRecordsException') {
                 printRejectedRecordsException(upsertRequestWithLowerVersion);
             }
         }
     );
     
-    // upsert with higher version as new data is generated
+    // upsert with higher version as new data in generated
     version = Date.now();
 
     const commonAttributesWithHigherVersion = {
@@ -432,16 +416,14 @@ async function writeRecordsWithUpsert() {
         'Version': version
     };
 
-    const upsertedParamsWithHigherVerion = {
+    const upsertedParamsWithHigherVerion = new WriteRecordsCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         Records: upsertedRecords,
         CommonAttributes: commonAttributesWithHigherVersion
-    };
+    });
 
-    const upsertRequestWithHigherVersion = writeClient.writeRecords(upsertedParamsWithHigherVerion);
-
-    await upsertRequestWithHigherVersion.promise().then(
+    await writeClient.send(upsertedParamsWithHigherVerion).then(
         (data) => {
             console.log("Write records upsert successful with higher version");
         },
@@ -452,17 +434,16 @@ async function writeRecordsWithUpsert() {
             }
         }
     );
+
 }
 
-async function deleteDatabase() {
+export async function deleteDatabase(writeClient) {
     console.log("Deleting Database");
-    const params = {
+    const params = new DeleteDatabaseCommand({
         DatabaseName: constants.DATABASE_NAME
-    };
+    })
 
-    const promise = writeClient.deleteDatabase(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         function (data) {
             console.log("Deleted database");
          },
@@ -477,16 +458,14 @@ async function deleteDatabase() {
     );
 }
 
-async function deleteTable() {
+export async function deleteTable(writeClient) {
     console.log("Deleting Table");
-    const params = {
+    const params = new DeleteTableCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME
-    };
+    });
 
-    const promise = writeClient.deleteTable(params).promise();
-
-    await promise.then(
+    await writeClient.send(params).then(
         function (data) {
             console.log("Deleted table");
         },
@@ -505,6 +484,3 @@ function printRejectedRecordsException(request) {
     const responsePayload = JSON.parse(request.response.httpResponse.body.toString());
                 console.log("RejectedRecords: ", responsePayload.RejectedRecords);
 }
-
-module.exports = {createDatabase, describeDatabase, updateDatabase, listDatabases, createTable, describeTable,
-    updateTable, listTables, writeRecords, writeRecordsWithCommonAttributes, writeRecordsWithUpsert, deleteDatabase, deleteTable};

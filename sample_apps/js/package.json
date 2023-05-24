@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Sample NodeJs application to use Timestream",
   "main": "main.js",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/awslabs/amazon-timestream-tools.git"
@@ -18,7 +19,15 @@
   },
   "homepage": "https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps/js#readme",
   "dependencies": {
-    "aws-sdk": "^2.1036.0",
-    "minimist": "^1.2.6"
+    "@aws-sdk/client-s3": "^3.329.0",
+    "@aws-sdk/client-sts": "^3.332.0",
+    "@aws-sdk/client-timestream-query": "^3.329.0",
+    "@aws-sdk/client-timestream-write": "^3.329.0",
+    "@js-joda/core": "^5.5.3",
+    "aws-sdk": "^2.1374.0",
+    "csv-parser": "^3.0.0",
+    "decompress": "^4.2.1",
+    "minimist": "^1.2.8",
+    "zlib": "^1.0.5"
   }
 }

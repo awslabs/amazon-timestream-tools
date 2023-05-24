@@ -1,18 +1,18 @@
+#!/usr/bin/python
+
+import sys
 import boto3
 import argparse
 
-from CrudAndSimpleIngestionExample import CrudAndSimpleIngestionExample
-from CsvIngestionExample import CsvIngestionExample
-from QueryExample import QueryExample
+from enum import Enum
 from botocore.config import Config
+from utils.WriteUtil import WriteUtil
+from UnloadExample import UnloadExample
+from BasicExample import BasicExample
+from Constant import *
 
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--csv_file_path", help="This file will be used for ingesting records")
-    parser.add_argument("-k", "--kmsId", help="This will be used for updating the database")
-    args = parser.parse_args()
-
+def main(app_type, csv_file_path, kmsId, region, skip_deletion_string):
+    skip_deletion = skip_deletion_string == "true"
     session = boto3.Session()
 
     # Recommended Timestream write client SDK configuration:
@@ -20,43 +20,48 @@ if __name__ == '__main__':
     #  - Use SDK DEFAULT_BACKOFF_STRATEGY
     #  - Set RequestTimeout to 20 seconds .
     #  - Set max connections to 5000 or higher.
-    write_client = session.client('timestream-write', config=Config(read_timeout=20, max_pool_connections=5000,
-                                                                    retries={'max_attempts': 10}))
-    query_client = session.client('timestream-query')
+    write_client = session.client('timestream-write', config=Config(region_name=region, read_timeout=20, max_pool_connections = 5000, retries={'max_attempts': 10}))
+    query_client = session.client('timestream-query', config=Config(region_name=region))
 
-    crud_and_simple_ingestion_example = CrudAndSimpleIngestionExample(write_client)
-    csv_ingestion_example = CsvIngestionExample(write_client)
-    query_example = QueryExample(query_client)
+    app_type = AppType(app_type)
+    if app_type is AppType.BASIC:
+        basic_example = BasicExample(write_client, query_client, kmsId, csv_file_path, skip_deletion)
+        basic_example.run()
+    elif app_type is AppType.UNLOAD:
+        unload_example = UnloadExample(args.region, write_client, query_client)
+        unload_example.run(args.csv_file_path, skip_deletion)
+    elif app_type is AppType.CLEANUP:
+        write_util = WriteUtil(write_client)
+        write_util.delete_table(DATABASE_NAME, TABLE_NAME)
+        write_util.delete_database(DATABASE_NAME)
 
-    crud_and_simple_ingestion_example.create_database()
-    crud_and_simple_ingestion_example.describe_database()
-    crud_and_simple_ingestion_example.list_databases()
+class BaseEnum(Enum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
-    if args.kmsId is not None:
-        crud_and_simple_ingestion_example.update_database(args.kmsId)
-        crud_and_simple_ingestion_example.describe_database()
+class AppType(BaseEnum):
+    BASIC = 'basic'
+    UNLOAD = 'unload'
+    CLEANUP = 'cleanup'
 
-    crud_and_simple_ingestion_example.create_table()
-    crud_and_simple_ingestion_example.describe_table()
-    crud_and_simple_ingestion_example.list_tables()
-    crud_and_simple_ingestion_example.update_table()
 
-    crud_and_simple_ingestion_example.write_records()
-    crud_and_simple_ingestion_example.write_records_with_common_attributes()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t",
+                        "--type",
+                        default=AppType.BASIC.value,
+                        nargs="?",
+                        choices=AppType.list(),
+                        help="choose type of workload to run (default: %(default)s)")
+    parser.add_argument("-f", "--csv_file_path", help="file to ingest")
+    parser.add_argument("-k", "--kmsId", help="KMS key for updating the database")
+    parser.add_argument("-r", "--region", default="us-west-2")
+    parser.add_argument("-sd",
+                        "--skip_deletion",
+                        default="true",
+                        choices=("true", "false"),
+                        help="skip deletion of table and database created by this script")
+    args = parser.parse_args()
 
-    crud_and_simple_ingestion_example.write_records_with_upsert()
-
-    if args.csv_file_path is not None:
-        csv_ingestion_example.bulk_write_records(args.csv_file_path)
-
-    query_example.run_all_queries()
-
-    # Try cancelling a query
-    query_example.cancel_query()
-
-    # Try a query with multiple pages
-    query_example.run_query_with_multiple_pages(20000)
-
-    # Cleanup commented out
-    # crud_and_simple_ingestion_example.delete_table()
-    # crud_and_simple_ingestion_example.delete_database()
+    main(args.type, args.csv_file_path, args.kmsId, args.region, args.skip_deletion)

@@ -1,18 +1,18 @@
 
-const fs = require('fs');
-const readline = require('readline');
+import fs from 'fs';
+import readline from 'readline';
+import { constants } from "./constants.js";
+import { WriteRecordsCommand } from "@aws-sdk/client-timestream-write";
 
-const constants = require('./constants');
-
-async function processCSV(filePath) {
+export async function processCSV(writeClient, filePath) {
     try {
-        await ingestCsvRecords(filePath);
+        await ingestCsvRecords(writeClient, filePath);
     } catch (e) {
         console.log('e', e);
     }
 }
 
-async function ingestCsvRecords(filePath) {
+async function ingestCsvRecords(writeClient, filePath) {
     const currentTime = Date.now().toString(); // Unix time in milliseconds
 
     var records = [];
@@ -45,13 +45,13 @@ async function ingestCsvRecords(filePath) {
         counter++;
 
         if (records.length === 100) {
-            promises.push(submitBatch(records, counter));
+            promises.push(submitBatch(writeClient, records, counter));
             records = [];
         }
     }
 
     if (records.length !== 0) {
-        promises.push(submitBatch(records, counter));
+        promises.push(submitBatch(writeClient, records, counter));
     }
 
     await Promise.all(promises);
@@ -59,16 +59,14 @@ async function ingestCsvRecords(filePath) {
     console.log(`Ingested ${counter} records`);
 }
 
-function submitBatch(records, counter) {
-    const params = {
+function submitBatch(writeClient, records, counter) {
+    const params = new WriteRecordsCommand({
         DatabaseName: constants.DATABASE_NAME,
         TableName: constants.TABLE_NAME,
         Records: records
-    };
+    });
 
-    var promise = writeClient.writeRecords(params).promise();
-
-    return promise.then(
+    return writeClient.send(params).then(
         (data) => {
             console.log(`Processed ${counter} records.`);
         },
@@ -77,5 +75,3 @@ function submitBatch(records, counter) {
         }
     );
 }
-
-module.exports = {processCSV};

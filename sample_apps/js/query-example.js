@@ -1,7 +1,8 @@
 
-const constants = require('./constants');
+import { constants } from "./constants.js";
+import {CancelQueryCommand, QueryCommand} from "@aws-sdk/client-timestream-query";
 
-const HOSTNAME = "host1";
+const HOSTNAME = "host-24Gju";
 
 // See records ingested into this table so far
 const SELECT_ALL_QUERY = "SELECT * FROM " +  constants.DATABASE_NAME + "." +  constants.TABLE_NAME;
@@ -223,69 +224,73 @@ const QUERY_12 = "WITH time_series_view AS ( " +
     "     s -> IF(s.count = 0, NULL, s.sum / s.count)) AS avg_cpu " +
     "FROM time_series_view";
 
-async function runAllQueries() {
+export async function runAllQueries(queryClient) {
     const queries = [QUERY_1, QUERY_2, QUERY_3, QUERY_4, QUERY_5, QUERY_6, QUERY_7, QUERY_8, QUERY_9, QUERY_10, QUERY_11, QUERY_12];
 
     for (let i = 0; i < queries.length; i++) {
         console.log(`Running query ${i+1} : ${queries[i]}`);
-        await getAllRows(queries[i], null);
+        await getAllRows(queryClient, queries[i], null);
     }
 }
 
-async function getAllRows(query, nextToken = undefined) {
-    let response;
-    try {
-        response = await queryClient.query(params = {
-            QueryString: query,
-            NextToken: nextToken,
-        }).promise();
-    } catch (err) {
-        console.error("Error while querying:", err);
-        throw err;
+export async function getAllRows(queryClient, query, nextToken) {
+    const params = new QueryCommand({
+        QueryString: query
+    });
+
+    if (nextToken) {
+        params.NextToken = nextToken;
     }
 
-    parseQueryResult(response);
-    if (response.NextToken) {
-        await getAllRows(query, response.NextToken);
-    }
+    await queryClient.send(params).then(
+            (response) => {
+                parseQueryResult(response);
+                if (response.NextToken) {
+                    getAllRows(queryClient, query, response.NextToken);
+                }
+            },
+            (err) => {
+                console.error("Error while querying:", err);
+            });
 }
 
-async function tryQueryWithMultiplePages(limit) {
+export async function tryQueryWithMultiplePages(queryClient, limit) {
     const queryWithLimits = SELECT_ALL_QUERY + " LIMIT " + limit;
     console.log(`Running query with multiple pages: ${queryWithLimits}`);
-    await getAllRows(queryWithLimits)
+    await getAllRows(queryClient, queryWithLimits, null)
 }
 
-async function tryCancelQuery() {
-    const params = {
+export async function tryCancelQuery(queryClient) {
+    const params = new QueryCommand({
         QueryString: SELECT_ALL_QUERY
-    };
+    });
     console.log(`Running query: ${SELECT_ALL_QUERY}`);
 
-    const response = await queryClient.query(params).promise();
-
-    console.log(`Sending cancellation for query: ${SELECT_ALL_QUERY}`);
-
-    await cancelQuery(response.QueryId);
+    await queryClient.send(params)
+        .then(
+            async (response) => {
+                await cancelQuery(queryClient, response.QueryId);
+            },
+            (err) => {
+                console.error("Error while executing select all query:", err);
+            });
 }
 
-async function cancelQuery(queryId) {
-    try {
-        await queryClient.cancelQuery({
-            QueryId: queryId
-        }).promise();
-    } catch (err) {
-        console.error("Error while cancelling query:", err);
-        throw err;
-    }
-
-    console.log("Query has been cancelled successfully");
+export async function cancelQuery(queryClient, queryId) {
+    const cancelParams = new CancelQueryCommand({
+        QueryId: queryId
+    });
+    console.log(`Sending cancellation for query: ${SELECT_ALL_QUERY}`);
+    await queryClient.send(cancelParams).then(
+            (response) => {
+                console.log("Query has been cancelled successfully");
+            },
+            (err) => {
+                console.error("Error while cancelling select all:", err);
+            });
 }
 
 function parseQueryResult(response) {
-    const queryStatus = response.QueryStatus;
-    console.log("Current query status: " + JSON.stringify(queryStatus));
-
     const columnInfo = response.ColumnInfo;
     const rows = response.Rows;
 
@@ -303,8 +308,8 @@ function parseRow(columnInfo, row) {
 
     var i;
     for ( i = 0; i < data.length; i++ ) {
-        info = columnInfo[i];
-        datum = data[i];
+        let info = columnInfo[i];
+        let datum = data[i];
         rowOutput.push(parseDatum(info, datum));
     }
 
@@ -363,5 +368,3 @@ function parseArray(arrayColumnInfo, arrayValues) {
     });
     return `[${arrayOutput.join(", ")}]`
 }
-
-module.exports = {runAllQueries, tryCancelQuery, tryQueryWithMultiplePages, getAllRows};
