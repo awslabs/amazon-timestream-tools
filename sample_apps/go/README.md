@@ -1,11 +1,12 @@
 # Getting started with Amazon Timestream with Go
 
 This sample application shows how you can create a database and table, populate the table with ~126K rows of sample data, and run sample queries to jumpstart your evaluation and/or proof-of-concept applications with Amazon Timestream.
+1. Install [Go](https://go.dev/doc/install)
 
 1. To run the sample application, you can use the following commands. This will create a Timestream database called devops with a table named host_metrics and inserts 4 records in the table.
     ```
     go mod init go_sample
-    go run crud-ingestion-sample.go
+    go mod tidy
     ```
 1. To run with sample application and ingest data from sample csv data file, you can use the following command:
     ```
@@ -35,12 +36,4 @@ The following sample application will insert ~13k rows into a Timestream table a
 1. To run the sample application and execute Unload queries without deleting the Timestream resources, you can run the following command
     ```
     go run unload-sample.go -skip_deletion=true -region=us-east-1 -csv_file_path=../data/sample_unload.csv
-    ```
-
----
-# Release Note
-
-1. To run ingest and upsert code samples, please update sdk to [v1.35.35](https://github.com/aws/aws-sdk-go) or above.
-    ```
-    go get github.com/aws/aws-sdk-go@latest
     ```
