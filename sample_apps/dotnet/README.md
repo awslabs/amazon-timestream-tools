@@ -17,12 +17,15 @@ This sample application shows how you can create a database and table, populate 
    dotnet nuget locals all --clear
    ```
 
-3. Install required NuGet. Ensure AWSSDK.Core version is 3.3.107 or newer.
+3. Install required NuGet. Ensure package version are higher than what is mentioned in provided .csproj file.
    ```
    dotnet add package AWSSDK.Core
+   dotnet add package AWSSDK.S3
+   dotnet add package AWSSDK.SecurityToken
    dotnet add package AWSSDK.TimestreamWrite
    dotnet add package AWSSDK.TimestreamQuery 
    dotnet add package CommandLineParser
+   dotnet add package Newtonsoft.Json
    ```
 
 4. Run the project
@@ -38,4 +41,12 @@ This sample application shows how you can create a database and table, populate 
 6. Run with sample csv data file
    ```
    dotnet run -- -f ../data/sample.csv
+   ```
+7. Run Unload with sample csv data file
+   ```shell
+   dotnet run -- -t UNLOAD -f ../data/sample_unload.csv
+   ```
+8. Cleanup and delete the resources generated
+   ```shell
+   dotnet run -- -t CLEANUP
    ```

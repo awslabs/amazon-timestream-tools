@@ -1,68 +1,43 @@
 package com.amazonaws.services.timestream;
 
+import java.io.IOException;
+
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.services.timestream.utils.WriteUtil;
 import com.amazonaws.services.timestreamquery.AmazonTimestreamQuery;
 import com.amazonaws.services.timestreamquery.AmazonTimestreamQueryClient;
 import com.amazonaws.services.timestreamwrite.AmazonTimestreamWrite;
 import com.amazonaws.services.timestreamwrite.AmazonTimestreamWriteClientBuilder;
 
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
-
-import java.io.IOException;
+import static com.amazonaws.services.timestream.utils.Constants.DATABASE_NAME;
+import static com.amazonaws.services.timestream.utils.Constants.TABLE_NAME;
+import static com.amazonaws.services.timestream.utils.Constants.UNLOAD_TABLE_NAME;
 
 public class Main {
-    public static final String DATABASE_NAME = "devops";
-    public static final String TABLE_NAME = "host_metrics";
 
     public static void main(String[] args) throws IOException {
         InputArguments inputArguments = parseArguments(args);
-        AmazonTimestreamWrite writeClient = buildWriteClient();
-        final AmazonTimestreamQuery queryClient = buildQueryClient();
-
-        CrudAndSimpleIngestionExample crudAndSimpleIngestionExample = new CrudAndSimpleIngestionExample(writeClient);
-        CsvIngestionExample csvIngestionExample = new CsvIngestionExample(writeClient);
-        QueryExample queryExample = new QueryExample(queryClient);
-
-        crudAndSimpleIngestionExample.createDatabase();
-        crudAndSimpleIngestionExample.describeDatabase();
-        if (inputArguments.kmsId != null) {
-            crudAndSimpleIngestionExample.updateDatabase(inputArguments.kmsId);
-            crudAndSimpleIngestionExample.describeDatabase();
+        AmazonTimestreamWrite writeClient = buildWriteClient(inputArguments.getRegion());
+        final AmazonTimestreamQuery queryClient = buildQueryClient(inputArguments.getRegion());
+        switch (inputArguments.getAppType()) {
+            case BASIC:
+                new BasicExample(inputArguments, writeClient, queryClient).run();
+                break;
+            case UNLOAD:
+                new UnloadExample(inputArguments, writeClient, queryClient).run();
+                break;
+            case CLEANUP:
+                WriteUtil writeUtil = new WriteUtil(writeClient);
+                writeUtil.deleteTable(DATABASE_NAME, TABLE_NAME);
+                writeUtil.deleteTable(DATABASE_NAME, UNLOAD_TABLE_NAME);
+                writeUtil.deleteDatabase(DATABASE_NAME);
+                break;
+            default:
+                throw new UnsupportedOperationException("App Type not supported: " + inputArguments.getAppType());
         }
-        crudAndSimpleIngestionExample.listDatabases();
-
-
-        crudAndSimpleIngestionExample.createTable();
-        crudAndSimpleIngestionExample.describeTable();
-        crudAndSimpleIngestionExample.listTables();
-        crudAndSimpleIngestionExample.updateTable();
-
-        // simple record ingestion
-        crudAndSimpleIngestionExample.writeRecords();
-        crudAndSimpleIngestionExample.writeRecordsWithCommonAttributes();
-
-        // upsert records
-        crudAndSimpleIngestionExample.writeRecordsWithUpsert();
-
-        if (inputArguments.inputFile != null) {
-            // Bulk record ingestion for bootstrapping a table with fresh data
-            csvIngestionExample.bulkWriteRecords(inputArguments.inputFile);
-        }
-
-        // Query samples
-        queryExample.runAllQueries();
-
-        // Try cancelling a query
-        queryExample.cancelQuery();
-
-        // Run a query with Multiple pages
-        queryExample.runQueryWithMultiplePages(20000);
-
-        // Cleanup commented out
-        // crudAndSimpleIngestionExample.deleteTable();
-        // crudAndSimpleIngestionExample.deleteDatabase();
-
         System.exit(0);
     }
 
@@ -84,12 +59,12 @@ public class Main {
 
     /**
      * Recommended Timestream write client SDK configuration:
-     *  - Set SDK retry count to 10.
-     *  - Use SDK DEFAULT_BACKOFF_STRATEGY
-     *  - Set RequestTimeout to 20 seconds .
-     *  - Set max connections to 5000 or higher.
+     * - Set SDK retry count to 10.
+     * - Use SDK DEFAULT_BACKOFF_STRATEGY
+     * - Set RequestTimeout to 20 seconds .
+     * - Set max connections to 5000 or higher.
      */
-    private static AmazonTimestreamWrite buildWriteClient() {
+    private static AmazonTimestreamWrite buildWriteClient(String region) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration()
                 .withMaxConnections(5000)
                 .withRequestTimeout(20 * 1000)
@@ -97,14 +72,13 @@ public class Main {
 
         return AmazonTimestreamWriteClientBuilder
                 .standard()
-                .withRegion("us-east-1")
+                .withRegion(region)
                 .withClientConfiguration(clientConfiguration)
                 .build();
     }
 
-    private static AmazonTimestreamQuery buildQueryClient() {
-        AmazonTimestreamQuery client = AmazonTimestreamQueryClient.builder().withRegion("us-east-1").build();
-        return client;
+    private static AmazonTimestreamQuery buildQueryClient(String region) {
+        return AmazonTimestreamQueryClient.builder().withRegion(region).build();
     }
 
 }

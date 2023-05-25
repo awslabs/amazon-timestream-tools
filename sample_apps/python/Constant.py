@@ -1,5 +1,8 @@
-DATABASE_NAME = "devops"
-TABLE_NAME = "host_metrics"
-HT_TTL_HOURS = 24
+#!/usr/bin/python
+
+DATABASE_NAME = "timestream_sample_database"
+TABLE_NAME = "timestream_sample_table"
+S3BUCKETPREFIX = "timestream-sample-"
+HT_TTL_HOURS = 12
 CT_TTL_DAYS = 7
-ONE_GB_IN_BYTES = 1073741824
+

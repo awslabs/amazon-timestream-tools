@@ -9,18 +9,20 @@ import java.util.List;
 import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteClient;
 import software.amazon.awssdk.services.timestreamwrite.model.Dimension;
 import software.amazon.awssdk.services.timestreamwrite.model.Record;
-import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsRequest;
-import software.amazon.awssdk.services.timestreamwrite.model.WriteRecordsResponse;
 
-import static com.amazonaws.services.timestream.Main.DATABASE_NAME;
-import static com.amazonaws.services.timestream.Main.TABLE_NAME;
+import com.amazonaws.services.timestream.utils.WriteUtil;
+
+import static com.amazonaws.services.timestream.utils.Constants.DATABASE_NAME;
+import static com.amazonaws.services.timestream.utils.Constants.TABLE_NAME;
 
 public class CsvIngestionExample {
 
     private final TimestreamWriteClient timestreamWriteClient;
+    private final WriteUtil writeUtil;
 
     public CsvIngestionExample(TimestreamWriteClient timestreamWriteClient) {
         this.timestreamWriteClient = timestreamWriteClient;
+        this.writeUtil = new WriteUtil(timestreamWriteClient);
     }
 
     public void bulkWriteRecords(String csvFilePath) throws IOException {
@@ -58,29 +60,16 @@ public class CsvIngestionExample {
                 counter++;
                 // when the batch hits the max size, submit the batch
                 if (records.size() == 100) {
-                    submitBatch(records, counter);
+                    writeUtil.submitBatch(DATABASE_NAME, TABLE_NAME, records, counter);
                     records.clear();
                 }
             }
             if (records.size() != 0) {
-                submitBatch(records, counter);
+                writeUtil.submitBatch(DATABASE_NAME, TABLE_NAME, records, counter);
             }
             System.out.println("ingested " + counter + "records");
         } finally {
             reader.close();
-        }
-    }
-
-    private void submitBatch(List<Record> records, int counter) {
-        WriteRecordsRequest writeRecordsRequest = WriteRecordsRequest.builder()
-                .databaseName(DATABASE_NAME).tableName(TABLE_NAME).records(records).build();
-
-        try {
-            WriteRecordsResponse writeRecordsResponse = timestreamWriteClient.writeRecords(writeRecordsRequest);
-            System.out.println("Processed " + counter + " records. WriteRecords Status: " +
-                    writeRecordsResponse.sdkHttpResponse().statusCode());
-        } catch (Exception e) {
-            System.out.println("Error: " + e);
         }
     }
 }

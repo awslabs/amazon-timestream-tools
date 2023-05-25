@@ -25,6 +25,14 @@ This sample application shows how you can create a database and table, populate 
     ```shell
     node main.js --csvFilePath=../data/sample.csv
     ``` 
+ 1. Run sample application to remove table and database created
+    ```shell
+    node main.js --type cleanup
+    ```
+1. Run sample application to execute Unload queries
+   ```shell
+   node main.js --type unload --csvFilePath=../data/sample_unload.csv
+   ```
          
 ---
 # Release Note

@@ -15,6 +15,7 @@ This sample application shows how you can create a database and table, populate 
     ```
     go run crud-ingestion-sample.go --kms_key_id updatedKmsKeyId
     ```
+
 1. To run sample queries,  
     1. Make .sh files executable:
         ```
@@ -28,6 +29,13 @@ This sample application shows how you can create a database and table, populate 
         ```
         ./devops.sh devops host_metrics <host name copied from above>
        ```
+
+The following sample application will insert ~13k rows into a Timestream table and run queries to export data to S3
+
+1. To run the sample application and execute Unload queries without deleting the Timestream resources, you can run the following command
+    ```
+    go run unload-sample.go -skip_deletion=true -region=us-east-1 -csv_file_path=../data/sample_unload.csv
+    ```
 
 ---
 # Release Note

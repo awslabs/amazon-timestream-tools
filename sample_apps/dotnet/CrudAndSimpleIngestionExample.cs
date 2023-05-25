@@ -16,7 +16,7 @@ namespace TimestreamDotNetSample
             this.writeClient = writeClient;
         }
 
-        public async Task CreateDatabase()
+        public async Task CreateDatabase(string databaseName)
         {
             Console.WriteLine("Creating Database");
 
@@ -24,10 +24,10 @@ namespace TimestreamDotNetSample
             {
                 var createDatabaseRequest = new CreateDatabaseRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME
+                    DatabaseName = databaseName
                 };
                 CreateDatabaseResponse response = await writeClient.CreateDatabaseAsync(createDatabaseRequest);
-                Console.WriteLine($"Database {Constants.DATABASE_NAME} created");
+                Console.WriteLine($"Database {databaseName} created");
             }
             catch (ConflictException)
             {
@@ -40,7 +40,7 @@ namespace TimestreamDotNetSample
 
         }
 
-        public async Task DescribeDatabase()
+        public async Task DescribeDatabase(string databaseName)
         {
             Console.WriteLine("Describing Database");
 
@@ -48,10 +48,10 @@ namespace TimestreamDotNetSample
             {
                 var describeDatabaseRequest = new DescribeDatabaseRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME
+                    DatabaseName = databaseName
                 };
                 DescribeDatabaseResponse response = await writeClient.DescribeDatabaseAsync(describeDatabaseRequest);
-                Console.WriteLine($"Database {Constants.DATABASE_NAME} has id:{response.Database.Arn}");
+                Console.WriteLine($"Database {databaseName} has id:{response.Database.Arn}");
             }
             catch (ResourceNotFoundException)
             {
@@ -92,7 +92,7 @@ namespace TimestreamDotNetSample
 
         }
 
-        public async Task UpdateDatabase(String updatedKmsKeyId)
+        public async Task UpdateDatabase(String databaseName, String updatedKmsKeyId)
         {
             Console.WriteLine("Updating Database");
 
@@ -100,11 +100,11 @@ namespace TimestreamDotNetSample
             {
                 var updateDatabaseRequest = new UpdateDatabaseRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME,
+                    DatabaseName = databaseName,
                     KmsKeyId = updatedKmsKeyId
                 };
                 UpdateDatabaseResponse response = await writeClient.UpdateDatabaseAsync(updateDatabaseRequest);
-                Console.WriteLine($"Database {Constants.DATABASE_NAME} updated with KmsKeyId {updatedKmsKeyId}");
+                Console.WriteLine($"Database {databaseName} updated with KmsKeyId {updatedKmsKeyId}");
             }
             catch (ResourceNotFoundException)
             {
@@ -123,21 +123,21 @@ namespace TimestreamDotNetSample
                 Console.WriteLine($"Database:{database.DatabaseName}");
         }
 
-        public async Task DeleteDatabase()
+        public async Task DeleteDatabase(String databaseName)
         {
             Console.WriteLine("Deleting database");
             try
             {
                 var deleteDatabaseRequest = new DeleteDatabaseRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME
+                    DatabaseName = databaseName
                 };
                 DeleteDatabaseResponse response = await writeClient.DeleteDatabaseAsync(deleteDatabaseRequest);
-                Console.WriteLine($"Database {Constants.DATABASE_NAME} delete request status:{response.HttpStatusCode}");
+                Console.WriteLine($"Database {databaseName} delete request status:{response.HttpStatusCode}");
             }
             catch (ResourceNotFoundException)
             {
-                Console.WriteLine($"Database {Constants.DATABASE_NAME} does not exists");
+                Console.WriteLine($"Database {databaseName} does not exists");
             }
             catch (Exception e)
             {
@@ -145,7 +145,7 @@ namespace TimestreamDotNetSample
             }
         }
 
-        public async Task CreateTable()
+        public async Task CreateTable(String databaseName, String tableName)
         {
             Console.WriteLine("Creating Table");
 
@@ -153,8 +153,8 @@ namespace TimestreamDotNetSample
             {
                 var createTableRequest = new CreateTableRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME,
-                    TableName = Constants.TABLE_NAME,
+                    DatabaseName = databaseName,
+                    TableName = tableName,
                     RetentionProperties = new RetentionProperties
                     {
                         MagneticStoreRetentionPeriodInDays = Constants.CT_TTL_DAYS,
@@ -162,7 +162,7 @@ namespace TimestreamDotNetSample
                     }
                 };
                 CreateTableResponse response = await writeClient.CreateTableAsync(createTableRequest);
-                Console.WriteLine($"Table {Constants.TABLE_NAME} created");
+                Console.WriteLine($"Table {tableName} created");
             }
             catch (ConflictException)
             {
@@ -175,7 +175,7 @@ namespace TimestreamDotNetSample
 
         }
 
-        public async Task DescribeTable()
+        public async Task DescribeTable(String databaseName, String tableName)
         {
             Console.WriteLine("Describing Table");
 
@@ -183,11 +183,11 @@ namespace TimestreamDotNetSample
             {
                 var describeTableRequest = new DescribeTableRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME,
-                    TableName = Constants.TABLE_NAME
+                    DatabaseName = databaseName,
+                    TableName = tableName
                 };
                 DescribeTableResponse response = await writeClient.DescribeTableAsync(describeTableRequest);
-                Console.WriteLine($"Table {Constants.TABLE_NAME} has id:{response.Table.Arn}");
+                Console.WriteLine($"Table {tableName} has id:{response.Table.Arn}");
             }
             catch (ResourceNotFoundException)
             {
@@ -200,7 +200,7 @@ namespace TimestreamDotNetSample
 
         }
 
-        public async Task ListTables()
+        public async Task ListTables(String databaseName)
         {
             Console.WriteLine("Listing Tables");
 
@@ -209,7 +209,7 @@ namespace TimestreamDotNetSample
                 var listTablesRequest = new ListTablesRequest
                 {
                     MaxResults = 5,
-                    DatabaseName = Constants.DATABASE_NAME
+                    DatabaseName = databaseName
                 };
                 ListTablesResponse response = await writeClient.ListTablesAsync(listTablesRequest);
                 PrintTables(response.Tables);
@@ -235,7 +235,7 @@ namespace TimestreamDotNetSample
                 Console.WriteLine($"Table: {table.TableName}");
         }
 
-        public async Task UpdateTable()
+        public async Task UpdateTable(String databaseName, String tableName)
         {
             Console.WriteLine("Updating Table");
 
@@ -243,8 +243,8 @@ namespace TimestreamDotNetSample
             {
                 var updateTableRequest = new UpdateTableRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME,
-                    TableName = Constants.TABLE_NAME,
+                    DatabaseName = databaseName,
+                    TableName = tableName,
                     RetentionProperties = new RetentionProperties
                     {
                         MagneticStoreRetentionPeriodInDays = Constants.CT_TTL_DAYS,
@@ -252,7 +252,7 @@ namespace TimestreamDotNetSample
                     }
                 };
                 UpdateTableResponse response = await writeClient.UpdateTableAsync(updateTableRequest);
-                Console.WriteLine($"Table {Constants.TABLE_NAME} updated");
+                Console.WriteLine($"Table {tableName} updated");
             }
             catch (ResourceNotFoundException)
             {
@@ -265,22 +265,22 @@ namespace TimestreamDotNetSample
 
         }
 
-        public async Task DeleteTable()
+        public async Task DeleteTable(String databaseName, String tableName)
         {
             Console.WriteLine("Deleting table");
             try
             {
                 var deleteTableRequest = new DeleteTableRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME,
-                    TableName = Constants.TABLE_NAME
+                    DatabaseName = databaseName,
+                    TableName = tableName
                 };
                 DeleteTableResponse response = await writeClient.DeleteTableAsync(deleteTableRequest);
-                Console.WriteLine($"Table {Constants.TABLE_NAME} delete request status: {response.HttpStatusCode}");
+                Console.WriteLine($"Table {tableName} delete request status: {response.HttpStatusCode}");
             }
             catch (ResourceNotFoundException)
             {
-                Console.WriteLine($"Table {Constants.TABLE_NAME} does not exists");
+                Console.WriteLine($"Table {tableName} does not exists");
             }
             catch (Exception e)
             {
@@ -288,7 +288,7 @@ namespace TimestreamDotNetSample
             }
         }
 
-        public async Task WriteRecords()
+        public async Task WriteRecords(String databaseName, String tableName)
         {
             Console.WriteLine("Writing records");
 
@@ -329,8 +329,8 @@ namespace TimestreamDotNetSample
             {
                 var writeRecordsRequest = new WriteRecordsRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME,
-                    TableName = Constants.TABLE_NAME,
+                    DatabaseName = databaseName,
+                    TableName = tableName,
                     Records = records
                 };
                 WriteRecordsResponse response = await writeClient.WriteRecordsAsync(writeRecordsRequest);
@@ -345,7 +345,7 @@ namespace TimestreamDotNetSample
             }
         }
 
-        public async Task WriteRecordsWithCommonAttributes()
+        public async Task WriteRecordsWithCommonAttributes(String databaseName, String tableName)
         {
             Console.WriteLine("Writing records with common attributes");
 
@@ -386,8 +386,8 @@ namespace TimestreamDotNetSample
             {
                 var writeRecordsRequest = new WriteRecordsRequest
                 {
-                    DatabaseName = Constants.DATABASE_NAME,
-                    TableName = Constants.TABLE_NAME,
+                    DatabaseName = databaseName,
+                    TableName = tableName,
                     Records = records,
                     CommonAttributes = commonAttributes
                 };
@@ -403,7 +403,7 @@ namespace TimestreamDotNetSample
             }
         }
 
-        public async Task WriteRecordsWithUpsert()
+        public async Task WriteRecordsWithUpsert(String databaseName, String tableName)
             {
                 Console.WriteLine("Writing records with upsert");
 
@@ -448,8 +448,8 @@ namespace TimestreamDotNetSample
                 {
                     var writeRecordsRequest = new WriteRecordsRequest
                     {
-                        DatabaseName = Constants.DATABASE_NAME,
-                        TableName = Constants.TABLE_NAME,
+                        DatabaseName = databaseName,
+                        TableName = tableName,
                         Records = records,
                         CommonAttributes = commonAttributes
                     };
@@ -469,8 +469,8 @@ namespace TimestreamDotNetSample
                 {
                     var writeRecordsRequest = new WriteRecordsRequest
                     {
-                        DatabaseName = Constants.DATABASE_NAME,
-                        TableName = Constants.TABLE_NAME,
+                        DatabaseName = databaseName,
+                        TableName = tableName,
                         Records = records,
                         CommonAttributes = commonAttributes
                     };
@@ -501,8 +501,8 @@ namespace TimestreamDotNetSample
                 {
                     var writeRecordsUpsertRequest = new WriteRecordsRequest
                     {
-                        DatabaseName = Constants.DATABASE_NAME,
-                        TableName = Constants.TABLE_NAME,
+                        DatabaseName = databaseName,
+                        TableName = tableName,
                         Records = upsertedRecords,
                         CommonAttributes = commonAttributes
                     };
@@ -510,7 +510,6 @@ namespace TimestreamDotNetSample
                     Console.WriteLine($"WriteRecords Status for upsert with lower version: {upsertResponse.HttpStatusCode.ToString()}");
                 }
                 catch (RejectedRecordsException e) {
-                    Console.WriteLine($"WriteRecords Status for upsert with lower version.");
                     PrintRejectedRecordsException(e);
                 }
                 catch (Exception e)
@@ -518,7 +517,7 @@ namespace TimestreamDotNetSample
                     Console.WriteLine("Write records failure:" + e.ToString());
                 }
 
-                // upsert with higher version as new data is generated
+                // upsert with higher version as new data in generated
                 now = DateTimeOffset.UtcNow;
                 version = now.ToUnixTimeMilliseconds();
                 recordType.GetProperty("Version").SetValue(commonAttributes, version);
@@ -527,8 +526,8 @@ namespace TimestreamDotNetSample
                 {
                     var writeRecordsUpsertRequest = new WriteRecordsRequest
                     {
-                        DatabaseName = Constants.DATABASE_NAME,
-                        TableName = Constants.TABLE_NAME,
+                        DatabaseName = databaseName,
+                        TableName = tableName,
                         Records = upsertedRecords,
                         CommonAttributes = commonAttributes
                     };

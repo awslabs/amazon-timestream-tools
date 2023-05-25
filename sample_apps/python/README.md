@@ -31,3 +31,8 @@ This sample application shows how you can create a database and table, populate 
     UpdateDatabase API will be called if the kmsId is provided. This kmsId should refer to a valid kms key present in your account. If the kmsId is not provided, UpdateDatabase will not be called.
 	
     Provide a csv file to perform data ingestion.
+
+1. Run the following commands to insert data into Timestream and export the data into S3 using Unload
+   ```
+   python3 SampleApplication.py -t unload --csv_file_path ../data/sample_unload.csv
+   ```
