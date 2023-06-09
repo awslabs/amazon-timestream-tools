@@ -35,6 +35,9 @@ public class Main {
                 writeUtil.deleteTable(DATABASE_NAME, UNLOAD_TABLE_NAME);
                 writeUtil.deleteDatabase(DATABASE_NAME);
                 break;
+            case COMPOSITE_PARTITION_KEY:
+                new CompositePartitionKeyExample(inputArguments, writeClient, queryClient).run();
+                break;
             default:
                 throw new UnsupportedOperationException("App Type not supported: " + inputArguments.getAppType());
         }
@@ -69,7 +72,6 @@ public class Main {
                 .withMaxConnections(5000)
                 .withRequestTimeout(20 * 1000)
                 .withMaxErrorRetry(10);
-
         return AmazonTimestreamWriteClientBuilder
                 .standard()
                 .withRegion(region)

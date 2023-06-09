@@ -9,6 +9,7 @@ from botocore.config import Config
 from utils.WriteUtil import WriteUtil
 from UnloadExample import UnloadExample
 from BasicExample import BasicExample
+from CompositePartitionKeyExample import CompositePartitionKeyExample
 from Constant import *
 
 def main(app_type, csv_file_path, kmsId, region, skip_deletion_string):
@@ -30,6 +31,10 @@ def main(app_type, csv_file_path, kmsId, region, skip_deletion_string):
     elif app_type is AppType.UNLOAD:
         unload_example = UnloadExample(args.region, write_client, query_client)
         unload_example.run(args.csv_file_path, skip_deletion)
+    elif app_type is AppType.COMPOSITE_PARTITION_KEY:
+        composite_partition_key_example = CompositePartitionKeyExample(write_client, query_client,
+                                                                       skip_deletion, args.region)
+        composite_partition_key_example.run()
     elif app_type is AppType.CLEANUP:
         write_util = WriteUtil(write_client)
         write_util.delete_table(DATABASE_NAME, TABLE_NAME)
@@ -43,6 +48,7 @@ class BaseEnum(Enum):
 class AppType(BaseEnum):
     BASIC = 'basic'
     UNLOAD = 'unload'
+    COMPOSITE_PARTITION_KEY = 'composite_partition_key'
     CLEANUP = 'cleanup'
 
 

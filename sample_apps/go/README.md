@@ -37,3 +37,11 @@ The following sample application will insert ~13k rows into a Timestream table a
     ```
     go run unload-sample.go -skip_deletion=true -region=us-east-1 -csv_file_path=../data/sample_unload.csv
     ```
+
+The following sample application will demonstrate creating tables with composite partition keys (dimension partition key & measure partition key) and ingest records. Also demonstrate that records will be rejected if table has a dimension partition key with REQUIRED as enforcement and records are ingested without the partition key dimension
+
+1. Create S3 bucket with bucket name `timestream-sample-bucket`
+2. To run the sample application for composite partition key
+    ```
+    go run composite-partition-key-sample.go
+    ```
