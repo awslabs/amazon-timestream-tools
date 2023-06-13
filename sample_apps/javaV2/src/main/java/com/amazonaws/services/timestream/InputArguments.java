@@ -29,7 +29,8 @@ public class InputArguments {
     public enum AppType {
         BASIC,
         UNLOAD,
-        CLEANUP
+        CLEANUP,
+        COMPOSITE_PARTITION_KEY
     }
 
 }

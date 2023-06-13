@@ -7,5 +7,4 @@ public class Constants {
     public static final long HT_TTL_HOURS = 24L;
     public static final long CT_TTL_DAYS = 7L;
     public static final String S3_BUCKET_PREFIX = "timestream-sample";
-
 }

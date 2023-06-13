@@ -40,6 +40,9 @@ public class Main {
                 writeUtil.deleteTable(DATABASE_NAME, UNLOAD_TABLE_NAME);
                 writeUtil.deleteDatabase(DATABASE_NAME);
                 break;
+            case COMPOSITE_PARTITION_KEY:
+                new CompositePartitionKeyExample(inputArguments, writeClient, queryClient).run();
+                break;
             default:
                 throw new UnsupportedOperationException("App Type not supported: " + inputArguments.getAppType());
         }

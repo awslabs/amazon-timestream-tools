@@ -34,3 +34,8 @@ Ensure your Java SDK and runtime are 1.8 or higher.
    mvn clean compile
    mvn exec:java -Dexec.mainClass="com.amazonaws.services.timestream.Main" -Dexec.args="--type UNLOAD --region us-west-2 --skip_deletion --inputFile ../data/sample_unload.csv"
    ``` 
+1. To run sample application for composite partition key
+   ```shell
+   mvn clean compile
+   mvn exec:java -Dexec.mainClass="com.amazonaws.services.timestream.Main" -Dexec.args="--type COMPOSITE_PARTITION_KEY --region us-west-2 --skip_deletion"
+   ```
