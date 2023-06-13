@@ -29,5 +29,5 @@ This sample application shows how you can create a database and table, populate 
    ```
 5. Run the following command to run sample application for composite partition key:
    ```
-   python3 src/timestream_customer_sample_python/SampleApplication.py --type composite_partition_key
+   python SampleApplication.py -t composite_partition_key
    ```
