@@ -14,6 +14,11 @@ static class Constants
     public const string S3_BUCKET_PREFIX = "timestream-sample";
     public const long HT_TTL_HOURS = 24;
     public const long CT_TTL_DAYS = 7;
+    public const string PARTITION_KEY_DIMENSION_TABLE_NAME = "host_metrics_dim_pk";
+    public const string PARTITION_KEY_MEASURE_TABLE_NAME = "host_metrics_measure_pk";
+    public const string COMPOSITE_PARTITION_KEY_DIM_NAME = "hostId";
+    public const string COMPOSITE_PARTITION_KEY_DIM_VALUE = "host1";
+    public const string COMPOSITE_PARTITION_KEY_DIFF_NAME = "hostIdDiff";
 }
 
 namespace TimestreamDotNetSample
@@ -75,6 +80,10 @@ namespace TimestreamDotNetSample
             string accountId = await timestreamDependencyHelper.GetAccount();
             UnloadExample unloadExample = new UnloadExample(queryClient, writeClient, s3Client, region, accountId);
 
+            CompositePartitionKeyExample compositePartitionKeyExample =
+                new CompositePartitionKeyExample(writeClient, queryExample, 
+                    region, accountId, s3Client);
+
             if (type == AppType.BASIC.ToString())
             {
                 await CallServices(crudAndSimpleIngestionExample, csvIngestionExample,
@@ -83,6 +92,10 @@ namespace TimestreamDotNetSample
             else if (type == AppType.UNLOAD.ToString())
             {
                 await CallUnload(unloadExample, csvFilePath, region, skipDeletion);
+            }
+            else if (type == AppType.COMPOSITE_PARTITION_KEY.ToString())
+            {
+                await CallCompositePartitionKeyExample(compositePartitionKeyExample, skipDeletion);
             }
             else if (type == AppType.CLEANUP.ToString())
             {
@@ -136,17 +149,24 @@ namespace TimestreamDotNetSample
         {
             await unloadExample.Run(csvFilePath, region, skipDeletion);
         }
+        
+        static async Task CallCompositePartitionKeyExample(CompositePartitionKeyExample compositePartitionKeyExample, bool skipDeletion)
+        {
+            await compositePartitionKeyExample.Run(skipDeletion);
+        }
 
         static async Task Cleanup(CrudAndSimpleIngestionExample crudAndSimpleIngestionExample)
         {
             await crudAndSimpleIngestionExample.DeleteTable(Constants.DATABASE_NAME, Constants.TABLE_NAME);
             await crudAndSimpleIngestionExample.DeleteTable(Constants.DATABASE_NAME, Constants.UNLOAD_TABLE_NAME);
+            await crudAndSimpleIngestionExample.DeleteTable(Constants.DATABASE_NAME, Constants.PARTITION_KEY_DIMENSION_TABLE_NAME);
+            await crudAndSimpleIngestionExample.DeleteTable(Constants.DATABASE_NAME, Constants.PARTITION_KEY_MEASURE_TABLE_NAME);
             await crudAndSimpleIngestionExample.DeleteDatabase(Constants.DATABASE_NAME);
         }
     }
 
     public enum AppType
     {
-         BASIC, UNLOAD, CLEANUP
+         BASIC, UNLOAD, COMPOSITE_PARTITION_KEY, CLEANUP
     }
 }

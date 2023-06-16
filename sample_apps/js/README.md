@@ -5,39 +5,37 @@ This sample application shows how you can create a database and table, populate 
 -----
 ## How to use
 
- 1. Install Node.js if not already installed.
-    ```
-    https://nodejs.org/en/
-    ```
- 1. Install necessary node dependencies. 
+1. Install Node.js if not already installed.
+   ```
+   https://nodejs.org/en/
+   ```
+2. Install necessary node dependencies.
+   ```shell
+   npm install
+   ```
+3. Run the sample application
+   ```shell
+   node main.js
+   ```
+4. UpdateDatabase will be skipped unless --kmsKeyId flag is given
     ```shell
-    npm install
+    node main.js --kmsKeyId=updatedKmsKeyId
     ```
- 1. Run the sample application
-    ```shell
-    node main.js
-    ```
- 1. UpdateDatabase will be skipped unless --kmsKeyId flag is given
-     ```shell
-     node main.js --kmsKeyId=updatedKmsKeyId
-     ```
- 1. Run the sample application with sample data by adding --csvFilePath flag
-    ```shell
-    node main.js --csvFilePath=../data/sample.csv
-    ``` 
- 1. Run sample application to remove table and database created
-    ```shell
-    node main.js --type cleanup
-    ```
-1. Run sample application to execute Unload queries
+5. Run the sample application with sample data by adding --csvFilePath flag
+   ```shell
+   node main.js --csvFilePath=../data/sample.csv
+   ``` 
+6. Run sample application to remove table and database created
+   ```shell
+   node main.js --type cleanup
+   ```
+7. Run sample application to execute Unload queries
    ```shell
    node main.js --type unload --csvFilePath=../data/sample_unload.csv
    ```
+8. Run sample application with composite partition key
+   ```shell
+   node main.js --type compositePartitionKey
+   ```
          
----
-# Release Note
 
-1. To run `writeRecordsWithUpsert()`, please update sdk to [v2.799.0](https://github.com/aws/aws-sdk-js) or above.
-    ```
-    npm update aws-sdk
-    ```

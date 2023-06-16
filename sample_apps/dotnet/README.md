@@ -8,7 +8,7 @@ This sample application shows how you can create a database and table, populate 
 ### Using .Net Core 
 1. Install [.NET](https://docs.microsoft.com/en-us/dotnet/core/install/) 
 
-2.  NOTE: If the older SDK has been installed, you might have to remove the older packages and clean cache before adding new SDKs.
+2. NOTE: If the older SDK has been installed, you might have to remove the older packages and clean cache before adding new SDKs.
    ```
    dotnet remove package AWSSDK.Core
    dotnet remove package AWSSDK.TimestreamWrite
@@ -46,7 +46,11 @@ This sample application shows how you can create a database and table, populate 
    ```shell
    dotnet run -- -t UNLOAD -f ../data/sample_unload.csv
    ```
-8. Cleanup and delete the resources generated
+8. Run CompositePartitionKey sample
+   ```shell
+   dotnet run -- -t COMPOSITE_PARTITION_KEY
+   ```
+9. Cleanup and delete the resources generated
    ```shell
    dotnet run -- -t CLEANUP
    ```

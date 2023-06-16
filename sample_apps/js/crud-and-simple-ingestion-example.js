@@ -17,7 +17,7 @@ export async function createDatabase(writeClient) {
             console.log(`Database ${data.Database.DatabaseName} created successfully`);
         },
         (err) => {
-            if (err.code === 'ConflictException') {
+            if (err.name === 'ConflictException') {
                 console.log(`Database ${params.DatabaseName} already exists. Skipping creation.`);
             } else {
                 console.log("Error creating database", err);
@@ -37,7 +37,7 @@ export async function describeDatabase (writeClient) {
             console.log(`Database ${data.Database.DatabaseName} has id ${data.Database.Arn}`);
         },
         (err) => {
-            if (err.code === 'ResourceNotFoundException') {
+            if (err.name === 'ResourceNotFoundException') {
                 console.log("Database doesn't exists.");
             } else {
                 console.log("Describe database failed.", err);
@@ -64,7 +64,7 @@ export async function updateDatabase(updatedKmsKeyId) {
             console.log(`Database ${data.Database.DatabaseName} updated kmsKeyId to ${updatedKmsKeyId}`);
         },
         (err) => {
-            if (err.code === 'ResourceNotFoundException') {
+            if (err.name === 'ResourceNotFoundException') {
                 console.log("Database doesn't exist.");
             } else {
                 console.log("Update database failed.", err);
@@ -120,7 +120,7 @@ export async function createTable(writeClient) {
             console.log(`Table ${data.Table.TableName} created successfully`);
         },
         (err) => {
-            if (err.code === 'ConflictException') {
+            if (err.name === 'ConflictException') {
                 console.log(`Table ${params.TableName} already exists on db ${params.DatabaseName}. Skipping creation.`);
             } else {
                 console.log("Error creating table. ", err);
@@ -164,7 +164,7 @@ export async function describeTable(writeClient) {
             console.log(`Table ${data.Table.TableName} has id ${data.Table.Arn}`);
         },
         (err) => {
-            if (err.code === 'ResourceNotFoundException') {
+            if (err.name === 'ResourceNotFoundException') {
                 console.log("Table or Database doesn't exists.");
             } else {
                 console.log("Describe table failed.", err);
@@ -245,9 +245,10 @@ export async function writeRecords(writeClient) {
             console.log("Write records successful");
         },
         (err) => {
-            console.log("Error writing records:", err);
-            if (err.code === 'RejectedRecordsException') {
-                printRejectedRecordsException(request);
+            if (err.name === 'RejectedRecordsException') {
+                printRejectedRecordsException(err);
+            } else {
+                console.log("Error writing records:", err);
             }
         }
     );
@@ -294,8 +295,10 @@ export async function writeRecordsWithCommonAttributes(writeClient) {
         },
         (err) => {
             console.log("Error writing records:", err);
-            if (err.code === 'RejectedRecordsException') {
-                printRejectedRecordsException(request);
+            if (err.name === 'RejectedRecordsException') {
+                printRejectedRecordsException(err);
+            } else {
+                console.log("Error writing records:", err);
             }
         }
     );
@@ -345,9 +348,10 @@ export async function writeRecordsWithUpsert(writeClient) {
             console.log("Write records successful for first time.");
         },
         (err) => {
-            console.log("Error writing records:", err);
-            if (err.code === 'RejectedRecordsException') {
-                printRejectedRecordsException(request);
+            if (err.name === 'RejectedRecordsException') {
+                printRejectedRecordsException(err);
+            } else {
+                console.log("Error writing records:", err);
             }
         }
     );
@@ -358,9 +362,10 @@ export async function writeRecordsWithUpsert(writeClient) {
             console.log("Write records successful for retry.");
         },
         (err) => {
-            console.log("Error writing records:", err);
-            if (err.code === 'RejectedRecordsException') {
-                printRejectedRecordsException(request);
+            if (err.name === 'RejectedRecordsException') {
+                printRejectedRecordsException(err);
+            } else {
+                console.log("Error writing records:", err);
             }
         }
     );
@@ -399,9 +404,10 @@ export async function writeRecordsWithUpsert(writeClient) {
             console.log("Write records for upsert with lower version successful");
         },
         (err) => {
-            console.log("Error writing records:", err);
-            if (err.code === 'RejectedRecordsException') {
-                printRejectedRecordsException(upsertRequestWithLowerVersion);
+            if (err.name === 'RejectedRecordsException') {
+                printRejectedRecordsException(err);
+            } else {
+                console.log("Error writing records:", err);
             }
         }
     );
@@ -428,28 +434,28 @@ export async function writeRecordsWithUpsert(writeClient) {
             console.log("Write records upsert successful with higher version");
         },
         (err) => {
-            console.log("Error writing records:", err);
-            if (err.code === 'RejectedRecordsException') {
-                printRejectedRecordsException(upsertedParamsWithHigherVerion);
+            if (err.name === 'RejectedRecordsException') {
+                printRejectedRecordsException(err);
+            } else {
+                console.log("Error writing records:", err);
             }
         }
     );
-
 }
 
 export async function deleteDatabase(writeClient) {
-    console.log("Deleting Database");
+    console.log(`Deleting Database: ${constants.DATABASE_NAME}`);
     const params = new DeleteDatabaseCommand({
         DatabaseName: constants.DATABASE_NAME
     })
 
     await writeClient.send(params).then(
-        function (data) {
+        (data) => {
             console.log("Deleted database");
          },
-        function(err) {
-            if (err.code === 'ResourceNotFoundException') {
-                console.log(`Database ${params.DatabaseName} doesn't exists.`);
+        (err) => {
+            if (err.name === 'ResourceNotFoundException') {
+                console.log(`Database ${constants.DATABASE_NAME} doesn't exists.`);
             } else {
                 console.log("Delete database failed.", err);
                 throw err;
@@ -458,20 +464,20 @@ export async function deleteDatabase(writeClient) {
     );
 }
 
-export async function deleteTable(writeClient) {
-    console.log("Deleting Table");
+export async function deleteTable(writeClient, databaseName, tableName) {
+    console.log(`Deleting Table: ${tableName}`);
     const params = new DeleteTableCommand({
-        DatabaseName: constants.DATABASE_NAME,
-        TableName: constants.TABLE_NAME
+        DatabaseName: databaseName,
+        TableName: tableName
     });
 
     await writeClient.send(params).then(
-        function (data) {
+        (data) => {
             console.log("Deleted table");
         },
-        function(err) {
-            if (err.code === 'ResourceNotFoundException') {
-                console.log(`Table ${params.TableName} or Database ${params.DatabaseName} doesn't exists.`);
+        (err) => {
+            if (err.name === 'ResourceNotFoundException') {
+                console.log(`Table ${tableName} or Database ${databaseName} doesn't exists.`);
             } else {
                 console.log("Delete table failed.", err);
                 throw err;
@@ -480,7 +486,14 @@ export async function deleteTable(writeClient) {
     );
 }
 
-function printRejectedRecordsException(request) {
-    const responsePayload = JSON.parse(request.response.httpResponse.body.toString());
-                console.log("RejectedRecords: ", responsePayload.RejectedRecords);
+export function printRejectedRecordsException(err) {
+    // Full log stack is printed in error print so let us print main message and the rejected records only
+    console.log("Error writing records: RejectedRecordsException: One or more records have been rejected. See RejectedRecords for details.");
+    err.RejectedRecords.forEach((rr) => {
+        console.log(`Rejected Index ${rr.RecordIndex}: ${rr.Reason}`);
+        if (rr.ExistingVersion) {
+            console.log(`Rejected record existing version: ${rr.ExistingVersion}`);
+        }
+    })
+
 }

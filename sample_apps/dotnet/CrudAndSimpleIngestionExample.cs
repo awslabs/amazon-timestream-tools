@@ -188,6 +188,16 @@ namespace TimestreamDotNetSample
                 };
                 DescribeTableResponse response = await writeClient.DescribeTableAsync(describeTableRequest);
                 Console.WriteLine($"Table {tableName} has id:{response.Table.Arn}");
+                List<PartitionKey> compositePartitionKey = response.Table.Schema.CompositePartitionKey;
+                if (compositePartitionKey != null)
+                {
+                    compositePartitionKey.ForEach(delegate(PartitionKey key)
+                    {
+                        Console.WriteLine($"Table {tableName} has PartitionKey with name:{key.Name}");
+                        Console.WriteLine($"Table {tableName} has PartitionKey with Enforcement:{key.EnforcementInRecord}");
+                        Console.WriteLine($"Table {tableName} has PartitionKey with Type:{key.Type}");
+                    });
+                }
             }
             catch (ResourceNotFoundException)
             {
@@ -543,9 +553,9 @@ namespace TimestreamDotNetSample
                 }
             }
 
-        private void PrintRejectedRecordsException(RejectedRecordsException e)
+        public void PrintRejectedRecordsException(RejectedRecordsException e)
         {
-            Console.WriteLine("RejectedRecordsException:" + e.ToString());
+            Console.WriteLine("RejectedRecordsException:" + e.Message);
             foreach (RejectedRecord rr in e.RejectedRecords) {
                 Console.WriteLine("RecordIndex " + rr.RecordIndex + " : " + rr.Reason);
                 long? existingVersion = rr.ExistingVersion;
