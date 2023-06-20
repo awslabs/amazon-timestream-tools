@@ -249,7 +249,7 @@ namespace TimestreamDotNetSample
             }
         }
 
-        private async Task RunQueryAsync(string queryString)
+        public async Task RunQueryAsync(string queryString)
         {
             try
             {

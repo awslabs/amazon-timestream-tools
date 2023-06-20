@@ -1,44 +1,33 @@
-import {TimestreamWriteClient} from "@aws-sdk/client-timestream-write";
+import { TimestreamWriteClient } from "@aws-sdk/client-timestream-write";
 import { TimestreamQueryClient } from "@aws-sdk/client-timestream-query";
-import {TimestreamDependencyHelper} from "./utils/timestream-dependency-helper.js";
+import { TimestreamDependencyHelper } from "./utils/timestream-dependency-helper.js";
 import * as crudAndSimpleIngestionExample from "./crud-and-simple-ingestion-example.js";
 import * as queryExample from "./query-example.js";
 import * as csvIngestExample from "./csv-ingestion-example.js";
+import {
+    runSampleWithDimensionPartitionKey,
+    runSampleWithMeasureNamePartitionKey
+} from "./composite-partition-key-example.js";
 import https from 'https';
 import minimist from 'minimist';
-import {UnloadExample} from "./unload-example.js";
-import {constants} from "./constants.js";
-
+import { UnloadExample } from "./unload-example.js";
+import { constants } from "./constants.js";
 
 const appType = {
     Basic: "basic",
     Unload: "unload",
-    Cleanup: "cleanup"
+    Cleanup: "cleanup",
+    CompositePartitionKey: "compositePartitionKey",
 }
 
 const argv = minimist(process.argv.slice(2), {
     boolean: "skipDeletion"
 });
 
-let csvFilePath = null;
-let type = appType.Basic;
-let region = "us-west-2";
-let skipDeletion = true;
-if (argv.csvFilePath !== undefined) {
-    csvFilePath = argv.csvFilePath;
-}
-
-if (argv.type !== undefined) {
-    type = argv.type;
-}
-
-if (argv.region != undefined) {
-    region = argv.region;
-}
-
-if (argv.skipDeletion != undefined) {
-    skipDeletion = argv.skipDeletion;
-}
+const type = argv.type ?? appType.Basic;
+const region = argv.region ?? "us-west-2";
+const skipDeletion = argv.skipDeletion ?? true;
+const csvFilePath = argv.csvFilePath ?? null;
 
 /**
  * Recommended Timestream write client SDK configuration:
@@ -51,13 +40,13 @@ const agent = new https.Agent({
     maxSockets: 5000
 });
 const writeClient = new TimestreamWriteClient({
-        maxRetries: 10,
-        httpOptions: {
-            timeout: 20000,
-            agent: agent
-        },
+    maxRetries: 10,
+    httpOptions: {
+        timeout: 20000,
+        agent: agent
+    },
     region: region
-    });
+});
 const queryClient = new TimestreamQueryClient({
     region: region
 });
@@ -84,18 +73,18 @@ async function callServices() {
     }
     await queryExample.runAllQueries(queryClient);
 
-    // Try a query with multiple pages
-    await queryExample.tryQueryWithMultiplePages(queryClient, 20000);
-
     //Try cancelling a query
     //This could fail if there is no data in the table, and the example query has finished before it was cancelled.
     await queryExample.tryCancelQuery(queryClient);
+
+    // Try a query with multiple pages
+    await queryExample.tryQueryWithMultiplePages(queryClient, 20000);
 }
 
 async function callUnload() {
     const timestreamDependencyHelper = new TimestreamDependencyHelper(region);
     const account = await timestreamDependencyHelper.getAccount();
-    const bucketName = constants.S3BUCKETPREFIX + region + "-" + account;
+    const bucketName = constants.S3_BUCKET_PREFIX_UNLOAD + region + "-" + account;
     const unloadExample = new UnloadExample(writeClient, queryClient, timestreamDependencyHelper, csvFilePath, bucketName);
     
     await createResources();
@@ -107,15 +96,39 @@ async function callUnload() {
     }
 }
 
+async function callCompositePartitionKey() {
+    const timestreamDependencyHelper = new TimestreamDependencyHelper(region);
+    const bucketName = constants.S3_BUCKET_PREFIX_CPK + timestreamDependencyHelper.generateRandomStringWithSize(5);
+    await timestreamDependencyHelper.createS3Bucket(bucketName);
+    await crudAndSimpleIngestionExample.createDatabase(writeClient);
+
+    await runSampleWithDimensionPartitionKey(writeClient, queryClient, bucketName);
+    await runSampleWithMeasureNamePartitionKey(writeClient, queryClient, bucketName);
+
+    if (!skipDeletion) {
+        await timestreamDependencyHelper.deleteS3Bucket(bucketName);
+        await cleanup();
+    }
+}
+
 async function cleanup() {
-    await crudAndSimpleIngestionExample.deleteTable(writeClient);
+    await crudAndSimpleIngestionExample.deleteTable(writeClient, constants.DATABASE_NAME, constants.TABLE_NAME);
+    await crudAndSimpleIngestionExample.deleteTable(writeClient, constants.DATABASE_NAME, constants.PARTITION_KEY_DIMENSION_TABLE_NAME);
+    await crudAndSimpleIngestionExample.deleteTable(writeClient, constants.DATABASE_NAME, constants.PARTITION_KEY_MEASURE_TABLE_NAME);
     await crudAndSimpleIngestionExample.deleteDatabase(writeClient);
 }
 
-if (!type || appType.Basic === type.toLowerCase()) {
-    callServices();
-} else if (appType.Unload === type.toLowerCase()) {
-    callUnload();
-} else if (appType.Cleanup === type.toLowerCase()) {
-    cleanup();
+switch (type) {
+    case appType.Basic:
+        callServices();
+        break;
+    case appType.Unload:
+        callUnload();
+        break;
+    case appType.Cleanup:
+        cleanup();
+        break;
+    case appType.CompositePartitionKey:
+        callCompositePartitionKey();
+        break;
 }

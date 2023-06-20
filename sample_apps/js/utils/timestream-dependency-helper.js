@@ -130,4 +130,14 @@ export class TimestreamDependencyHelper {
         const key = uri.replace("s3://", "").split('/').slice(1).join('/');
         return {bucketName, key};
     }
+
+     generateRandomStringWithSize(size) {
+        const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+        let result = "";
+        for (let i = 0; i < size; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
 }
