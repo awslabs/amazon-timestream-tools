@@ -60,6 +60,11 @@ public class SinkInitContext implements InitContext {
         return 0;
     }
 
+    @Override
+    public int getAttemptNumber() {
+        return 1;
+    }
+
     /**
      * @return The metric group this writer belongs to.
      */
