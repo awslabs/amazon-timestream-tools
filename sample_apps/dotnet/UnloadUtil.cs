@@ -95,7 +95,7 @@ using Amazon.TimestreamQuery;
              List<ColumnInfo> columnInfo = response.ColumnInfo;
              var options = new JsonSerializerOptions
              {
-                 IgnoreNullValues = true
+                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
              };
              List<String> columnInfoStrings = columnInfo.ConvertAll(x => JsonSerializer.Serialize(x, options));
              List<Row> rows = response.Rows;
