@@ -62,7 +62,7 @@ public class SinkInitContext implements InitContext {
 
     @Override
     public int getAttemptNumber() {
-        return 1;
+        return 1; //The default number for writer to attempts in case of fail, 0 - no attempts
     }
 
     /**
