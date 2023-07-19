@@ -1,5 +1,8 @@
 ## Amazon Timestream Tools and Samples 
 
+![Code Coverage Instructions](../../../.github/badges/jacoco.svg)
+![Code Coverage Branches](../../../.github/badges/branches.svg)
+
 [Amazon Timestream](https://aws.amazon.com/timestream/) is a fast, scalable, fully managed, purpose-built time series database that makes it easy to store and
  analyze trillions of time series data points per day. Amazon Timestream saves you time and cost in managing the 
  lifecycle of time series data by keeping recent data in memory and moving historical data to a cost optimized storage 
