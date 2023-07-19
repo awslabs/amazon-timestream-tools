@@ -1,5 +1,8 @@
 # Amazon Timestream Connector for Apache Flink
 
+![Code Coverage Instructions](./.github/badges/jacoco.svg)
+![Code Coverage Branches](./.github/badges/branches.svg)
+
 This project contains Timestream Sink connector for Apache Flink. The sink will buffer, batch, and write data in parallel to Timestream database.
 
 ## Features
