@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Amazon.TimestreamQuery;
 using Amazon.TimestreamQuery.Model;
@@ -278,7 +279,8 @@ namespace TimestreamDotNetSample
             List<ColumnInfo> columnInfo = response.ColumnInfo;
             var options = new JsonSerializerOptions
             {
-                IgnoreNullValues = true
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                //To ignore all null-value properties, see all possible JsonIgnoreCondition values from .net original documentation
             };
             List<String> columnInfoStrings = columnInfo.ConvertAll(x => JsonSerializer.Serialize(x, options));
             List<Row> rows = response.Rows;
