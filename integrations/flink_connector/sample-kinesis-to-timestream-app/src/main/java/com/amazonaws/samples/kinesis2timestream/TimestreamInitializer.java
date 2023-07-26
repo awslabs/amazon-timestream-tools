@@ -15,22 +15,12 @@ import software.amazon.awssdk.services.timestreamwrite.model.RetentionProperties
  * Checks if required database and table exists in Timestream. If they do not exists, it creates them
  */
 public class TimestreamInitializer {
-    private final TimestreamWriteClient writeClient;
+    private final String region;
+    private final String endpointOverride;
 
     public TimestreamInitializer(String region, String endpointOverride) {
-        if (endpointOverride != null) {
-            URI endpointOverrideURI = parseEndpointOverride(endpointOverride);
-            this.writeClient = TimestreamWriteClient
-                    .builder()
-                    .region(Region.of(region))
-                    .endpointOverride(endpointOverrideURI)
-                    .build();
-        } else {
-            this.writeClient = TimestreamWriteClient
-                    .builder()
-                    .region(Region.of(region))
-                    .build();
-        }
+        this.region = region;
+        this.endpointOverride = endpointOverride;
     }
 
     public void createDatabase(String databaseName) {
@@ -38,8 +28,10 @@ public class TimestreamInitializer {
         CreateDatabaseRequest request = CreateDatabaseRequest.builder()
                 .databaseName(databaseName)
                 .build();
-        try {
-            writeClient.createDatabase(request);
+
+        //Auto close client writer only for sample, it better (for performance) to reuse client for multiple write operations
+        try(TimestreamWriteClient client = createClient()) {
+            client.createDatabase(request);
             System.out.println("Database [" + databaseName + "] created successfully");
         } catch (ConflictException e) {
             System.out.println("Database [" + databaseName + "] exists. Skipping database creation");
@@ -59,8 +51,9 @@ public class TimestreamInitializer {
                 .retentionProperties(retentionProperties)
                 .build();
 
-        try {
-            writeClient.createTable(createTableRequest);
+        //Auto close client writer only for sample, it better (for performance) to reuse client for multiple write operations
+        try(TimestreamWriteClient client = createClient()) {
+            client.createTable(createTableRequest);
             System.out.println("Table [" + tableName + "] successfully created.");
         } catch (ConflictException e) {
             System.out.println("Table [" + tableName + "] exists on database [" + databaseName + "]. Skipping table creation");
@@ -74,4 +67,21 @@ public class TimestreamInitializer {
             throw new RuntimeException("Invalid EndpointOverride Config: " + endpointOverride);
         }
     }
+
+    private TimestreamWriteClient createClient() {
+        if (endpointOverride != null) {
+            URI endpointOverrideURI = parseEndpointOverride(endpointOverride);
+            return TimestreamWriteClient
+                    .builder()
+                    .region(Region.of(region))
+                    .endpointOverride(endpointOverrideURI)
+                    .build();
+        } else {
+            return TimestreamWriteClient
+                    .builder()
+                    .region(Region.of(region))
+                    .build();
+        }
+    }
 }
+
