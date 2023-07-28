@@ -16,7 +16,7 @@ class TestStreamQuery(unittest.TestCase):
     def test_bool_invalid(self):
         with self.assertRaises(ValueError) as context:
             timestreamquery.toBool('Incorrect')
-        self.assertTrue('Incorrect Boolean value. Allowed values true/false', context.exception)
+        self.assertTrue('Error converting value: (Incorrect) to boolean. Allowed values true/false', context.exception)
 
 
 if __name__ == '__main__':

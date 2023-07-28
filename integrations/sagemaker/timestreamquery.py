@@ -69,7 +69,7 @@ def toBool(data):
     elif lowerData == 'false':
         return False
     else:
-        raise ValueError("Incorrect Boolean value. Allowed values true/false")
+        raise ValueError('Error converting value: (%s) to boolean. Allowed values true/false' % data)
 
 def parseArrayData(c_type, data):
     if data == None:
