@@ -63,7 +63,13 @@ def parseScalar(c_type, data):
         return data
 
 def toBool(data):
-    return str(data).lower() in ('y', 'yes', 't', 'true', 'on', '1')
+    lowerData = str(data).lower()
+    if lowerData == 'true':
+        return True
+    elif lowerData == 'false':
+        return False
+    else:
+        raise ValueError("Incorrect Boolean value. Allowed values true/false")
 
 def parseArrayData(c_type, data):
     if data == None:
