@@ -239,7 +239,7 @@ export async function getAllRows(queryClient, query, nextToken) {
     });
 
     if (nextToken) {
-        params.NextToken = nextToken;
+        params.input.NextToken = nextToken
     }
 
     await queryClient.send(params).then(
