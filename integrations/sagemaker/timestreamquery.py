@@ -56,11 +56,20 @@ def parseScalar(c_type, data):
     elif (c_type == "INTEGER"):
         return int(data)
     elif (c_type == "BOOLEAN"):
-        return bool(data)
+        return toBool(data)
     elif (c_type == "TIMESTAMP"):
         return data
     else:
         return data
+
+def toBool(data):
+    lowerData = str(data).lower()
+    if lowerData == 'true':
+        return True
+    elif lowerData == 'false':
+        return False
+    else:
+        raise ValueError('Error converting value: (%s) to boolean. Allowed values true/false' % data)
 
 def parseArrayData(c_type, data):
     if data == None:
