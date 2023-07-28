@@ -110,11 +110,11 @@ public class DefaultWriteRequestFailureHandler implements WriteRequestFailureHan
             // if it's AwsServiceException, log it along StatusCode and RequestId
             AwsServiceException se = (AwsServiceException) e;
             // no reason to log stack trace - there won't be anything what can help
-            LOG.error("Retryable '{}' occurred while inserting to Timestream. Records insertion will be retried. " +
-                    "Details: Status Code: {}, Request ID: {}", e.getClass().getSimpleName(), se.statusCode(), se.requestId());
+            LOG.error(String.format("Retryable '%s' occurred while inserting to Timestream. Records insertion will be retried. " +
+                    "Details: Status Code: %s, Request ID: %s", e.getClass().getSimpleName(), se.statusCode(), se.requestId()), e);
         } else {
-            LOG.error("Retryable '{}' occurred while inserting to Timestream. Records insertion will be retried.",
-                    e.getClass().getSimpleName());
+            LOG.error(String.format("Retryable '%s' occurred while inserting to Timestream. Records insertion will be retried.",
+                    e.getClass().getSimpleName()), e);
         }
         retryOrSuccessCompletionConsumer.accept(records); // retry all records
     }
