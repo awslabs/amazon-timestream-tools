@@ -1,6 +1,6 @@
 # Getting started with Amazon Timestream with PHP
 
-This sample application shows how you can create a database and table, populate the table with sample data records, and run sample queries to jumpstart your evaluation and/or proof-of-concept applications with Amazon Timestream.
+The example PHP application gives developers a basic understanding of how to begin using Amazon Timestream with PHP. The application exemplifies the beginning phases of database creation with some sample data population and how to execute queries against a database.
 
 -----
 ## How to use
