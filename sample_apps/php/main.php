@@ -11,18 +11,30 @@
     const MAGNETIC_STORE_RETENTION_PERIOD_IN_DAYS = 1;
     const MEMORY_STORE_RETENTION_PERIOD_IN_HOURS = 1;
 
+    /*
+     * This function create Database for Timestream DB
+     * as parameters it uses aws client and database Name.
+     */
     function createDatabase($client, $dbName) {
         return $client->createDatabase([
                    'DatabaseName' => $dbName
                ]);
     }
 
+    /*
+     * This function delete Database for Timestream DB
+     * as parameters it uses aws client and database Name.
+     */
     function deleteDatabase($client, $dbName) {
         return $client->deleteDatabase([
                    'DatabaseName' => $dbName,
                ]);
     }
 
+    /*
+     * This function create Table for Timestream DB
+     * as parameters it uses aws client and database Name and table Name.
+     */
     function createTable($client, $dbName, $dbTableName) {
         return $client->createTable([
                     'DatabaseName' => $dbName,
@@ -34,6 +46,10 @@
                 ]);
     }
 
+    /*
+     * This function delete Table on Timestream DB
+     * as parameters it uses aws client and database Name and table Name.
+     */
     function deleteTable($client, $dbName, $dbTableName) {
         return $client->deleteTable([
                    'DatabaseName' => $dbName,
@@ -41,6 +57,11 @@
                ]);
     }
 
+    /*
+     * This function write records to Timestream DB Table
+     * as parameters it uses aws client and database Name and table Name,
+     * records that has Dimensions and Time and Measure information.
+     */
     function writeRecords($client, $dbName, $dbTableName, $records) {
         return $client->writeRecords([
                    'DatabaseName' => $dbName,
@@ -49,6 +70,9 @@
                 ]);
     }
 
+    /*
+     * This function generate sample records
+     */
     function generateRecords() {
         $records = [];
         $arr = range(0, 5);
@@ -73,6 +97,10 @@
         return $records;
     }
 
+    /*
+     * This function returns AWS Timestream write client
+     * To get all list of available methods for client please look official documentation.
+     */
     function createClient() {
         return new \Aws\TimestreamWrite\TimestreamWriteClient([
                    'version' => 'latest',
@@ -81,6 +109,10 @@
                ]);
     }
 
+    /*
+     * This function returns AWS Timestream read client
+     * To get all list of available methods for client please look official documentation.
+     */
     function createReader() {
         return new \Aws\TimestreamQuery\TimestreamQueryClient([
                    'version' => 'latest',

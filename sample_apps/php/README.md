@@ -27,3 +27,15 @@ Specify aws clientId and secret in the main.php:
 php main.php
 ```
 
+### System information
+#### OS and processor
+Tested on Chip (Apple M2 Max)
+
+macOS Ventura Version 13.4.1
+#### PHP Version
+An example has been tested with PHP 8.2.8
+#### Composer Version
+Composer 2.5.8
+#### AWS SDK Version (aws-sdk-php)
+An example has been tested with version 3
+
