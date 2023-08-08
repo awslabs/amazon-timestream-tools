@@ -24,12 +24,13 @@ This repository contains fully functional sample applications to help you get st
 The getting started application shows how to create a database and table, populate the table with ~126K rows of sample data, and run sample queries. 
 This sample application is currently available for the following programming languages:
 
-* [Getting started with Java](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/java/)
-* [Getting started with Java v2](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/javaV2/)
-* [Getting started with Python](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/python/)
-* [Getting started with Go](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/go/)
-* [Getting started with Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/js/)
-* [Getting started with .NET](https://github.com/awslabs/amazon-timestream-tools/blob/master/sample_apps_reinvent2021/dotnet/)
+* [Getting started with Java](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/java/)
+* [Getting started with Java v2](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/javaV2/)
+* [Getting started with Python](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/python/)
+* [Getting started with Go](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/go/)
+* [Getting started with Go v2](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/goV2/)
+* [Getting started with Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/js/)
+* [Getting started with .NET](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/dotnet/)
 
 To query time series data using Amazon Timestream's JDBC driver, refer to the following application:
 * [Querying data with JDBC](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/integrations/jdbc)
@@ -38,19 +39,17 @@ To query time series data using Amazon Timestream's JDBC driver, refer to the fo
 ## Working with other tools and services
 To continue to use your preferred data collection, analytics, visualization, and machine learning tools with Amazon Timestream, refer to the following:
 
-* [Analyzing time series data with Amazon SageMaker Notebooks](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/sagemaker/)
-* [Sending data to Amazon Timestream using AWS IoT Core](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/iot_core/)
-* [Sending data to Amazon Timestream using open source Telegraf](https://github.com/awslabs/amazon-timestream-tools/tree/master/integrations/telegraf/)
-* [Sending data to Amazon Timestream using Apache Flink](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/flink_connector/)
-* [Writing and Querying with Pandas (AWS Data Wrangler)](https://github.com/awslabs/amazon-timestream-tools/blob/master/integrations/pandas/)
+* [Analyzing time series data with Amazon SageMaker Notebooks](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/sagemaker/)
+* [Sending data to Amazon Timestream using AWS IoT Core](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/iot_core/)
+* [Sending data to Amazon Timestream using open source Telegraf](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/integrations/telegraf/)
+* [Sending data to Amazon Timestream using Apache Flink](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/flink_connector/)
+* [Writing and Querying with AWS SDK for pandas (awswrangler)](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/pandas/)
 
 
 ## Data ingestion and query tools
 To understand the performance and scale capabilities of Amazon Timestream, you can run the following workload:
-* [Running large scale workloads with Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/tree/master/tools/perf-scale-workload/)
+* [Running large scale workloads with Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/perf-scale-workload/)
 
 You can use the following tools to continuously send data to Amazon Timestream:
-* [Publishing data with Amazon Kinesis to send to Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/master/tools/kinesis_ingestor/)
-* [Multi-threaded continuous data generator for writing DevOps metrics into Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/master/tools/continuous-ingestor/)
-
-
+* [Publishing data with Amazon Kinesis to send to Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/tools/kinesis_ingestor/)
+* [Multi-threaded continuous data generator for writing DevOps metrics into Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/tools/continuous-ingestor/)

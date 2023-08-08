@@ -7,7 +7,7 @@ import {
 } from "@aws-sdk/client-timestream-write";
 
 export async function createDatabase(writeClient) {
-    console.log("Creating Database");
+    console.log("Creating Database: " + constants.DATABASE_NAME);
     const params = new CreateDatabaseCommand({
         DatabaseName: constants.DATABASE_NAME
     });
@@ -18,7 +18,7 @@ export async function createDatabase(writeClient) {
         },
         (err) => {
             if (err.name === 'ConflictException') {
-                console.log(`Database ${params.DatabaseName} already exists. Skipping creation.`);
+                console.log(`Database ${constants.DATABASE_NAME} already exists. Skipping creation.`);
             } else {
                 console.log("Error creating database", err);
             }
@@ -121,7 +121,7 @@ export async function createTable(writeClient) {
         },
         (err) => {
             if (err.name === 'ConflictException') {
-                console.log(`Table ${params.TableName} already exists on db ${params.DatabaseName}. Skipping creation.`);
+                console.log(`Table ${constants.TABLE_NAME} already exists on db ${constants.DATABASE_NAME}. Skipping creation.`);
             } else {
                 console.log("Error creating table. ", err);
                 throw err;
@@ -411,7 +411,7 @@ export async function writeRecordsWithUpsert(writeClient) {
             }
         }
     );
-    
+
     // upsert with higher version as new data in generated
     version = Date.now();
 
@@ -484,6 +484,7 @@ export async function deleteTable(writeClient, databaseName, tableName) {
             }
         }
     );
+    await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
 export function printRejectedRecordsException(err) {
