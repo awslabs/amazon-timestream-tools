@@ -63,11 +63,22 @@
      * records that has Dimensions and Time and Measure information.
      */
     function writeRecords($client, $dbName, $dbTableName, $records) {
-        return $client->writeRecords([
+        $response = $client->writeRecords([
                    'DatabaseName' => $dbName,
                    'Records' => $records,
                    'TableName' => $dbTableName,
                 ]);
+        if (isset($response['RejectedRecords']) && !empty($response['RejectedRecords'])) {
+            echo "Some records were rejected:\n";
+            foreach ($response['RejectedRecords'] as $rejectedRecord) {
+                echo "Reason: " . $rejectedRecord['Reason'] . "\n";
+                echo "ExistingRecord: " . json_encode($rejectedRecord['ExistingRecord']) . "\n";
+            }
+        } else {
+            echo "Data inserted successfully!\n";
+        }
+
+        return $response;
     }
 
     /*
