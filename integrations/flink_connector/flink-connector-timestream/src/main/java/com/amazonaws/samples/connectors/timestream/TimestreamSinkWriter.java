@@ -20,6 +20,7 @@ import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsPro
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
@@ -34,11 +35,12 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 
-import static com.amazonaws.samples.connectors.timestream.TimestreamSink.MAX_BATCH_SIZE_IN_BYTES;
-import static com.amazonaws.samples.connectors.timestream.TimestreamSink.MAX_RECORD_SIZE_IN_BYTES;
+import static com.amazonaws.samples.connectors.timestream.TimestreamSink.*;
+import static com.amazonaws.samples.connectors.timestream.TimestreamSinkConfig.getApplicationName;
 
 public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record> {
     private static final Logger LOG = LoggerFactory.getLogger(TimestreamSinkWriter.class);
@@ -93,6 +95,7 @@ public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record
         TimestreamWriteAsyncClientBuilder asyncClientBuilder = TimestreamWriteAsyncClient.builder()
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
                         .apiCallAttemptTimeout(timestreamSinkConfig.getWriteClientConfig().getRequestTimeout())
+                        .advancedOptions(Map.of(SdkAdvancedClientOption.USER_AGENT_PREFIX, getApplicationName()))
                         .retryPolicy(RetryPolicy.builder()
                                 .numRetries(timestreamSinkConfig.getWriteClientConfig().getMaxErrorRetry())
                                 .build())

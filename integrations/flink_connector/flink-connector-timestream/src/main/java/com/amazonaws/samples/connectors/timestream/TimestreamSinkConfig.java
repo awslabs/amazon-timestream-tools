@@ -15,6 +15,7 @@ import java.time.Duration;
 public class TimestreamSinkConfig implements Serializable {
     @NonNull
     private final WriteClientConfig writeClientConfig;
+    private static final String APP_NAME = "ts-flink.";
 
     @Builder.Default
     private final int maxBatchSize = 100;
@@ -116,5 +117,13 @@ public class TimestreamSinkConfig implements Serializable {
         ENV_VAR,
         SYS_PROP,
         PROFILE
+    }
+
+    public static String getApplicationName() {
+        return APP_NAME + getVersion();
+    }
+
+    private static String getVersion() {
+        return TimestreamSinkConfig.class.getPackage().getImplementationVersion();
     }
 }
