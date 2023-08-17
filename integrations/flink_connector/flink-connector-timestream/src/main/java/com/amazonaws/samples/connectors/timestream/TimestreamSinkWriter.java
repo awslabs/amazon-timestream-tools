@@ -39,7 +39,8 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 
-import static com.amazonaws.samples.connectors.timestream.TimestreamSink.*;
+import static com.amazonaws.samples.connectors.timestream.TimestreamSink.MAX_BATCH_SIZE_IN_BYTES;
+import static com.amazonaws.samples.connectors.timestream.TimestreamSink.MAX_RECORD_SIZE_IN_BYTES;
 import static com.amazonaws.samples.connectors.timestream.TimestreamSinkConfig.getApplicationName;
 
 public class TimestreamSinkWriter<InputT> extends AsyncSinkWriter<InputT, Record> {
