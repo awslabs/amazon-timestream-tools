@@ -6,7 +6,9 @@ This sample application shows how you can create a database and table, populate 
 ## How to use it
 
 1. Install and configure Boto3 set up following the instructions at https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
-
+   ```
+   pip install boto3
+   ```
 2. Install Pandas and its associated dependencies for reading parquet files from S3
    ```
    pip install pandas pyarrow s3fs
