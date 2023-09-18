@@ -7,24 +7,10 @@ Parameters:
     Description: >
       Prefix to save scheduled query errors.
       Timestream will append a slash
-  SQEnabledSelector:
-    Description: Select the lab to be created
-    AllowedValues:
-      - 'true'
-      - 'false'
-    Default: 'true'
-    Type: String
-  Params:
+  Params: #Params currently not used, in Custom resource, but can be modified for specefic use cases
     Description: Params send to custom resource
     Type: String
-    Default: "arg1,arg2,arg3"
-
-
-Conditions:
-  EnableSQ: !Equals
-    - !Ref SQEnabledSelector
-    - 'true'
-
+    Default: "arg1,arg2,arg3"   # Example paramenter, being passed to custom resource
 
 Resources:
   MyDatabase:
@@ -123,7 +109,6 @@ Resources:
 
   MyScheduledQuery:
     Type: AWS::Timestream::ScheduledQuery
-    Condition: EnableSQ
     DependsOn: CustomResource
     Properties:
       ErrorReportConfiguration:
@@ -134,6 +119,7 @@ Resources:
         SnsConfiguration:
           TopicArn: !Ref ScheduledQuerySNS
       QueryString: !Sub |
+        -- Sample aggregation query using scheduled_runtime variable
         SELECT
           bin(time, 5m) as time,
           sum(x) as x,
@@ -142,10 +128,7 @@ Resources:
           dim_value_b as dim
         FROM "${MyDatabase}"."${MyTable.Name}"
         WHERE time BETWEEN bin(@scheduled_runtime, 5m) - 1h AND @scheduled_runtime
-        -- WHERE time BETWEEN bin(now(), 5m) - 1h AND now()
-        GROUP BY bin(time, 5m), dim_value_b 
-
-        -- select 'dim_value' as dim, 'metric' as measure_name, now() as time, 101.1 as my_measure"
+        GROUP BY bin(time, 5m), dim_value_b
       ScheduleConfiguration:
         ScheduleExpression: "rate(1 minutes)"
       ScheduledQueryExecutionRoleArn: !GetAtt ScheduledQueryExecutionRole.Arn
