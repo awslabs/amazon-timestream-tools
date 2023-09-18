@@ -23,7 +23,7 @@ Resources:
       RetentionProperties:
         MemoryStoreRetentionPeriodInHours: "24"
         MagneticStoreRetentionPeriodInDays: "7"
-      Schema:
+      Schema: #This is optional, not required for the scheduled query example
         CompositePartitionKey:
           - EnforcementInRecord: "REQUIRED"
             Name: "dim_value_b"
