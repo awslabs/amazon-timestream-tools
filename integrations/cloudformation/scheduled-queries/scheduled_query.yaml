@@ -1,0 +1,331 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a Timestream database and a tables and scheduled query
+Parameters:
+  S3Prefix:
+    Type: String
+    Default: myquery
+    Description: >
+      Prefix to save scheduled query errors.
+      Timestream will append a slash
+  Params: #Params currently not used, in Custom resource, but can be modified for specefic use cases
+    Description: Params send to custom resource
+    Type: String
+    Default: "arg1,arg2,arg3"   # Example paramenter, being passed to custom resource
+
+Resources:
+  MyDatabase:
+    Type: AWS::Timestream::Database
+  MyTable:
+    DependsOn: MyDatabase
+    Type: AWS::Timestream::Table
+    Properties:
+      DatabaseName: !Ref MyDatabase
+      RetentionProperties:
+        MemoryStoreRetentionPeriodInHours: "24"
+        MagneticStoreRetentionPeriodInDays: "7"
+      Schema: #This is optional, not required for the scheduled query example
+        CompositePartitionKey:
+          - EnforcementInRecord: "REQUIRED"
+            Name: "dim_value_b"
+            Type: "DIMENSION"
+
+  CustomResource:
+    Type: "Custom::CustomResource"
+    DependsOn: MyTable
+    Properties:
+      ServiceToken: !GetAtt
+        - Lambda
+        - Arn
+      Region: !Ref "AWS::Region"
+      ParamSendToLambda: !Ref Params
+
+  MyAggregatedTable:
+    Type: AWS::Timestream::Table
+    DependsOn: MyDatabase
+    Properties:
+      DatabaseName: !Ref MyDatabase
+      RetentionProperties:
+        MemoryStoreRetentionPeriodInHours: "24"
+        MagneticStoreRetentionPeriodInDays: "7"
+
+  ScheduledQueryExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "timestream.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+      - !Ref SQPolicy
+
+  SQPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: "Allow timestream scheduled query"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource:
+            - !Ref ScheduledQuerySNS
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource:
+            - !GetAtt S3Bucket.Arn
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:GetObjectVersion
+          Resource:
+            - !Sub "${S3Bucket.Arn}/${S3Prefix}/*"
+        - Effect: Allow
+          Action:
+            - timestream:DescribeEndpoints
+            - timestream:SelectValues
+          Resource:
+            - "*" # cannot be restricted
+        - Effect: Allow
+          Action:
+            - timestream:Select
+          Resource:
+            - !GetAtt MyTable.Arn
+        - Effect: Allow
+          Action:
+            - timestream:Select # is this required?
+            - timestream:WriteRecords
+          Resource:
+            - !GetAtt MyAggregatedTable.Arn
+
+  MyScheduledQuery:
+    Type: AWS::Timestream::ScheduledQuery
+    DependsOn: CustomResource
+    Properties:
+      ErrorReportConfiguration:
+        S3Configuration:
+          BucketName: !Ref S3Bucket
+          ObjectKeyPrefix: !Ref S3Prefix
+      NotificationConfiguration:
+        SnsConfiguration:
+          TopicArn: !Ref ScheduledQuerySNS
+      QueryString: !Sub |
+        -- Sample aggregation query using scheduled_runtime variable
+        SELECT
+          bin(time, 5m) as time,
+          sum(x) as x,
+          avg(y) as y,
+          'sq_metrics' as measure_name,
+          dim_value_b as dim
+        FROM "${MyDatabase}"."${MyTable.Name}"
+        WHERE time BETWEEN bin(@scheduled_runtime, 5m) - 1h AND @scheduled_runtime
+        GROUP BY bin(time, 5m), dim_value_b
+      ScheduleConfiguration:
+        ScheduleExpression: "rate(1 minutes)"
+      ScheduledQueryExecutionRoleArn: !GetAtt ScheduledQueryExecutionRole.Arn
+      TargetConfiguration:
+        TimestreamConfiguration:
+          DatabaseName: !Ref MyDatabase
+          DimensionMappings:
+           - DimensionValueType: "VARCHAR"
+             Name: "dim"
+          MeasureNameColumn: "measure_name"
+          MultiMeasureMappings:
+            MultiMeasureAttributeMappings:
+             - MeasureValueType: "DOUBLE"
+               SourceColumn: "x"
+               TargetMultiMeasureAttributeName: "a"
+             - MeasureValueType: "DOUBLE"
+               SourceColumn: "y"
+               TargetMultiMeasureAttributeName: "b"
+          TableName: !GetAtt MyAggregatedTable.Name
+          TimeColumn: "time"
+
+  ScheduledQuerySNS:
+    Type: AWS::SNS::Topic
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Description: Test for timestream scheduled query
+    Properties:
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        # S3 API allows unencrypted traffic by default
+        - Sid: Require TLS
+          Effect: Deny
+          Principal: "*"
+          Action:
+          - "s3:*"
+          Resource:
+          - !Sub "${S3Bucket.Arn}/*"
+          Condition:
+            Bool:
+              "aws:SecureTransport": "false"
+
+  Lambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import os
+          import datetime as dt
+          import logging
+          from random import uniform
+          import json
+          import cfnresponse
+
+          import awswrangler as wr
+          import pandas as pd
+
+          logger = logging.getLogger(__name__)
+
+          def create_response():
+            result = {
+              "Status" : "SUCCESS",
+              "PhysicalResourceId" : "TestResource1",
+              "StackId" : "arn:aws:cloudformation:us-west-2:123456789012:stack/stack-name/guid",
+              "RequestId" : "unique id for this create request",
+              "LogicalResourceId" : "MyTestResource",
+              "Data" : {
+                "OutputName1" : "Value1",
+                "OutputName2" : "Value2",
+                }
+              }
+            return result
+
+          def write_record():
+            t = dt.datetime.now(dt.timezone.utc)
+            df = pd.DataFrame([
+                {
+                    't': t,
+                    'dim_value_b': 'A',
+                    'x': uniform(1,10),
+                    'y': uniform(1,10)
+                },
+                {
+                    't': t,
+                    'dim_value_b': 'B',
+                    'x': uniform(1,10),
+                    'y': uniform(1,10)
+                }
+            ])
+
+            rejected_records = wr.timestream.write(
+                df,
+                database=os.environ['database'],
+                table=os.environ['table'],
+                time_col='t',
+                measure_col=['x', 'y'], 
+                dimensions_cols=['dim_value_b'],
+                measure_name='my_measure',
+                #common_attributes={"Dimensions": [{"Name": "z", "Value": "Z"}], "MeasureValueType": "VARCHAR"}
+            )
+            result = len(rejected_records)
+            return result
+            
+          def handler(event, context):
+            print('----event---')
+            print(event)
+            print('----context---')
+            print(context)
+            if event.get('RequestType') == 'Create':
+              rejected = write_record()
+              message = f"rejected {rejected}"
+              responseData = {}
+              responseData['message'] = message
+              logging.info('Sending %s to cloudformation', responseData['message'])
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+            elif event.get('RequestType') == 'Delete':
+              responseData = {}
+              responseData['message'] = "Goodbye from lambda"
+              logging.info('Sending %s to cloudformation', responseData['message'])
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+            else:
+              logging.error('Unknown operation: %s', event.get('RequestType'))
+
+      Description: write data to test timestream table
+      Environment:
+        Variables:
+          database: !Ref MyDatabase
+          table: !GetAtt MyTable.Name
+      Handler: index.handler
+      Layers:
+        - !Sub "arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python39:5"
+      MemorySize: 200
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.9
+      Timeout: 10
+
+
+  LambdaRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+      - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      - !Ref LambdaPolicy
+
+  LambdaPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Description: "Allow timestream scheduled query"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Action: timestream:DescribeEndpoints
+          Resource:
+          - "*" # can't be restricted
+        - Sid: VisualEditor1
+          Effect: Allow
+          Action: timestream:WriteRecords
+          Resource:
+          - !Sub "arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${MyDatabase}/table/${MyTable.Name}"
+
+
+
+Outputs:
+  DatabaseName:
+    Description: Timestream Database Name
+    Value: !Ref MyDatabase
+  TableName:
+    Description: Timestream Table Name
+    Value: !GetAtt MyTable.Name
+
