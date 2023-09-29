@@ -20,16 +20,23 @@ def unix_time_millis(dt):
     # epoch = datetime.datetime.utcfromtimestamp(0)
     return int((dt - pd.Timestamp("1970-01-01")).total_seconds() * 1000.0)
 
-def load_parquet(folder_name):
-    rows = []
+def load_parquet(max_threads, folder_name):
+
+    # create buffer for each thread
+    buffer = []
+
+    for i in range(0, max_threads):
+        buffer.append([])
+
+    record_count = 0
 
     for file_name in glob.glob(folder_name + '/value.parquet'):
-
         df = pd.read_parquet(file_name)
         print(df)
         df_records = df.to_records()
 
         for df_record in df_records:
+            buffer_index = record_count % max_threads
             time = unix_time_millis(df_record['time'])
             signal = df_record['signal']
             value = df_record['value']
@@ -41,9 +48,10 @@ def load_parquet(folder_name):
                 'value': value,
                 'source': source
             }
-            rows.append(row)
+            buffer[buffer_index].append(row)
+            record_count += 1
 
-    return rows
+    return buffer
 
 class Generator:
     INTERVAL = 0.001 # Seconds
@@ -110,19 +118,6 @@ class Generator:
         epoch = datetime.datetime.utcfromtimestamp(0)
         return (dt - epoch).total_seconds() * 1000.0
 
-    def write_buffer(self, buffer, common_attributes):
-        start_time = time.time()
-        total_records = 0
-        for records in buffer:
-            elapsed_time = time.time() - start_time
-            self.write_records(records, common_attributes)
-            total_records += len(records)
-            if elapsed_time == 0.0:
-                elapsed_time = 0.00001
-            rps = total_records/elapsed_time
-        print(f'{total_records} written rps = {rps}')
-
-
     # User can change this based on there record dimension/measure value
     def create_record(self, item):
         current_time = str(item['time'])
@@ -141,8 +136,8 @@ class Generator:
 
         return record
 
-    def generate_data(self, pid, region, database_name, table_name, data):
-        self.data = data
+    def generate_data(self, pid, region, database_name, table_name, buffer):
+        self.data = buffer[pid]
 
         self.database_name = database_name
         self.table_name = table_name
@@ -161,8 +156,8 @@ class Generator:
 
         launch_time = time.time()
 
-        for item in data:
-            print(item)
+        for item in self.data:
+            # print(item)
             record = self.create_record(item)
 
             records.append(record)
@@ -194,14 +189,14 @@ class Generator:
 
 def lambda_handler(event, context):
 
+    max_threads = event['threads']
     folder_name = event['folder']
-    records = load_parquet(folder_name)
+    records = load_parquet(max_threads, folder_name)
 
     lambda_time = time.time()
 
     pid = 1
 
-    max_threads = event['threads']
 
     processes = []
     record_counts = []
@@ -239,10 +234,10 @@ def thread_handler(pid, event, context, records):
 
 if __name__ == '__main__':
     event = {
-        'threads': 1,
+        'threads': 4,
         'region': 'us-east-1',
-        'database': 'sandbox-w-642',
-        'table': 'ingestion-parquet2',
+        'database': 'tools-sandbox',
+        'table': 'ingestion-parquet',
         'folder': './'
     }
     context = {}
