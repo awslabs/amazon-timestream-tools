@@ -11,7 +11,7 @@ The result set shows both original value containing NULL and the filled value in
 
 ```shell
 cd <github-clone-root>/amazon-timestream-tools/sample_apps/sql/utils
-python ../create_batch_load_task.py \
+python3 ./create_batch_load_task.py \
      region=<your_region> \
      mapping=../last_value_fill_forward/datamodel.json \
      input_bucket=<s3-bucket-name> \

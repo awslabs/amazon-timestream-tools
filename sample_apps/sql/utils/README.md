@@ -12,7 +12,7 @@ Usage:
 
 ```shell
 cd <github-clone-root>/amazon-timestream-tools/sample_apps/sql/utils
-python ../create_batch_load_task.py \
+python3 ./create_batch_load_task.py \
      region=<your_region> \
      mapping=../<example_folder>/datamodel.json \
      input_bucket=<s3-bucket-name> \
