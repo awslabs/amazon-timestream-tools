@@ -10,8 +10,8 @@ raw_pos as (
 SELECT bin(time, 1m) as p_time,
    avg(temperature) as temperature,
    gpio
-FROM "amazon-timestream-tools"."sensordata"
-   where time between '2023-09-20 17:12:22.958000000' and now()
+FROM "amazon-timestream-tools"."sensordata" -- adjust if data is loaded to different table
+   where time between '2023-09-20 17:12:22.958000000' and now() -- sample data set contains data from 09/20/2023
    and gpio = '22'
 GROUP BY gpio, bin(time, 1m)
 ),
@@ -23,10 +23,10 @@ on time_seq.time = raw_pos.p_time
 ),
 filled_set as (
   SELECT
-    dataset.gpio,
-    time,
-    temperature as origin_temperature,  -- original value
-    LAST_VALUE(temperature) IGNORE NULLS OVER (PARTITION BY gpio ORDER BY time RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS filled_temperature
+    dataset.gpio
+    ,time
+    ,temperature as origin_temperature, LAST_VALUE(temperature) IGNORE NULLS OVER (PARTITION BY gpio ORDER BY time RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS filled_temperature
+    -- Repeat line above fore each columns that should be filled
   FROM
     dataset
   ORDER BY
@@ -34,5 +34,5 @@ filled_set as (
     time DESC
 )
 select * from filled_set
--- select * from dataset -- use this line for original data with NULL
+-- select * from dataset -- use this line to review original data with containing gaps
 order by time
