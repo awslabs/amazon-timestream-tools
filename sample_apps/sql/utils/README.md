@@ -22,11 +22,9 @@ python3 ./create_batch_load_task.py \
      table=<example_table>
 ```
 
-| **⚠ Note**: |
-|-------------|
-|It is recommended to use the database name `amazon-timestream-tools` and table name as described in each example.
-The SQL statement uses `"amazon-timestream-tools"."<example_table>"` in WHERE clause and would not need to be modified.
-If you use a different database name and table combination, please adjust the SQL query as needed.|
+| **⚠ Note**:                                                                                                                                                                                                                                                                                                                                  |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| It is recommended to use the database name `amazon-timestream-tools` and table name as described in each example. The SQL statement uses `"amazon-timestream-tools"."<example_table>"` in WHERE clause and would not need to be modified. If you use a different database name and table combination, please adjust the SQL query as needed. |
 
 Parameters used:
 

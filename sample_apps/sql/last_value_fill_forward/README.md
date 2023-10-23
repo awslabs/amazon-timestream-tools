@@ -21,11 +21,9 @@ python3 ./create_batch_load_task.py \
      table=sensordata
 ```
 
-| **⚠ Note**: |
-|-------------|
-|It is recommended to use the database name `amazon-timestream-tools` and table name `sensordata` as described below.
-The SQL statement uses `"amazon-timestream-tools"."sensorddata"` in WHERE clause and would not need to be modified.
-If you use a different database name and table combination, please adjust the SQL query as needed.|
+| **⚠ Note**:                                                                                                                                                                                                                                                                                                                                 |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| It is recommended to use the database name `amazon-timestream-tools` and table name `sensordata` as described below. The SQL statement uses `"amazon-timestream-tools"."sensorddata"` in WHERE clause and would not need to be modified. If you use a different database name and table combination, please adjust the SQL query as needed. |
 
 Parameters used:
 
