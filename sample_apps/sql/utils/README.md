@@ -35,5 +35,5 @@ Parameter        | Description                                                  
 **input_bucket** | S3 bucket used to upload data file and report Batch Load Status                                                                                         | existing S3 bucket
 **object_key**   | Folder where data file will be uploaded                                                                                                                 | any string, should not be root folder
 **data_file**    | CSV file for this example                                                                                                                               | csv file as specified in example folder
-**database**     | Existing database in region. All examples are designed to use the same database. **⚠ Note** A database will not be created, it has to be created first. | `amazon-timestream-tools`
+**database**     | Database in region. Database will be created if not exists.  | `amazon-timestream-tools`
 **table**        | Table where data is loaded. If this table does not exist, the table will be created                                                                     | Table name as specified in example folder

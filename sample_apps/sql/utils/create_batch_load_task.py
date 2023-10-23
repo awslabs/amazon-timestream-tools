@@ -83,6 +83,17 @@ def create_resources(client, region, database_name, table_name, input_bucket_nam
     key = input_object_key_prefix.rstrip('/') + '/' + file_name
     bucket.upload_file(data_file, key)
 
+    #create database if not exists
+    print("Creating Database")
+    try:
+        client.create_database(DatabaseName=database_name)
+        print("Database [%s] created successfully." % database_name)
+    except client.exceptions.ConflictException:
+        print("Database [%s] exists. Skipping database creation" % database_name)
+    except Exception as err:
+        print("Create database failed:", err)
+        return False
+
     #create table
     print("Creating table")
     retention_properties = {

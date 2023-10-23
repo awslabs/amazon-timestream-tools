@@ -27,12 +27,12 @@ python3 ./create_batch_load_task.py \
 
 Parameters used:
 
-Parameter        | Description                                                                                                                                             | Recommended Value
------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------
-**region**       | Region where database is deployed                                                                                                                       | any region where Timestream is available
-**mapping**      | File used to map CSV data columns to Timestream attributes                                                                                              | `../last_value_fill_forward/datamodel.json`
-**input_bucket** | S3 bucket used to upload data file and report Batch Load Status                                                                                         | existing S3 bucket
-**object_key**   | Folder where data file will be uploaded                                                                                                                 | any string, should not be root folder
-**data_file**    | CSV file for this example                                                                                                                               | `sensor_with_gaps.csv`
-**database**     | Existing database in region. All examples are designed to use the same database. **⚠ Note** A database will not be created, it has to be created first. | `amazon-timestream-tools`
-**table**        | Table where data is loaded. If this table does not exist, the table will be created                                                                     | `sensordata`
+Parameter        | Description                                                                                                                            | Recommended Value
+-----------------|----------------------------------------------------------------------------------------------------------------------------------------|-------------------
+**region**       | Region where database is deployed                                                                                                      | any region where Timestream is available
+**mapping**      | File used to map CSV data columns to Timestream attributes                                                                             | `../last_value_fill_forward/datamodel.json`
+**input_bucket** | S3 bucket used to upload data file and report Batch Load Status                                                                        | existing S3 bucket
+**object_key**   | Folder where data file will be uploaded                                                                                                | any string, should not be root folder
+**data_file**    | CSV file for this example                                                                                                              | `sensor_with_gaps.csv`
+**database**     | Database in region. Database will be created if not exists. | `amazon-timestream-tools`
+**table**        | Table where data is loaded. If this table does not exist, the table will be created                                                    | `sensordata`
