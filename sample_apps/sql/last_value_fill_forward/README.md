@@ -20,7 +20,8 @@ python3 ./create_batch_load_task.py \
      object_key_prefix=<upload_folder> \
      data_file=../last_value_fill_forward/sensor_with_gaps.csv \
      database=amazon-timestream-tools \
-     table=sensordata
+     table=sensordata \
+     partition_key=gpio
 ```
 
 | **⚠ Note**:                                                                                                                                                                                                                                                                                                                                 |
@@ -38,3 +39,4 @@ Parameter        | Description                                                  
 **data_file**    | CSV file for this example                                                                                                              | `sensor_with_gaps.csv`
 **database**     | Database in region. Database will be created if not exists. | `amazon-timestream-tools`
 **table**        | Table where data is loaded. If this table does not exist, the table will be created                                                    | `sensordata`
+**partition_key**| Custome defined partition key (CDPK) used for this data example | `gpio`
