@@ -71,7 +71,7 @@ def load_mapping(file_name):
         return None
     return data
 
-def create_resources(client, region, database_name, table_name, input_bucket_name, input_object_key_prefix, data_file):
+def create_resources(client, region, database_name, table_name, input_bucket_name, input_object_key_prefix, data_file, partition_key):
 
     # Upload data file
     s3 = boto3.resource('s3')
@@ -103,10 +103,23 @@ def create_resources(client, region, database_name, table_name, input_bucket_nam
     magnetic_store_write_properties = {
         'EnableMagneticStoreWrites': True
     }
+
+    schema = {
+        "CompositePartitionKey": [
+            {
+                "EnforcementInRecord": "REQUIRED",
+                "Name": partition_key,
+                "Type": "DIMENSION"
+            }
+        ]
+    }
+
     try:
         client.create_table(DatabaseName=database_name, TableName=table_name,
                                 RetentionProperties=retention_properties,
-                                MagneticStoreWriteProperties=magnetic_store_write_properties)
+                                MagneticStoreWriteProperties=magnetic_store_write_properties,
+                                Schema=schema
+                            )
         print("Table [%s] successfully created." % table_name)
     except client.exceptions.ConflictException:
         print("Table [%s] exists on database [%s]. Skipping table creation" % (
@@ -165,7 +178,15 @@ if __name__ == '__main__':
         print(write_client.meta.config.user_agent)
         print(write_client._service_model.operation_names)
 
-        success = create_resources(write_client, parameters['region'], parameters['database'], parameters['table'], parameters['input_bucket'], parameters['object_key_prefix'], parameters['data_file'])
+        success = create_resources(write_client,
+                                   parameters['region'],
+                                   parameters['database'],
+                                   parameters['table'],
+                                   parameters['input_bucket'],
+                                   parameters['object_key_prefix'],
+                                   parameters['data_file'],
+                                   parameters['partition_key']
+                                   )
 
 
 
