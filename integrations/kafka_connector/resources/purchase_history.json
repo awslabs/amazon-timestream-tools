@@ -1,0 +1,54 @@
+{
+  "TimeColumn": "current_time",
+  "TimeUnit": "MILLISECONDS",
+  "DimensionMappings": [
+    {
+      "SourceColumn": "user_id",
+      "DestinationColumn": "user_id"
+    },
+    {
+      "SourceColumn": "product",
+      "DestinationColumn": "product"
+    }
+  ],
+  "MultiMeasureMappings": {
+    "MultiMeasureAttributeMappings": [
+      {
+        "SourceColumn": "ip_address",
+        "TargetMultiMeasureAttributeName": "ip_address",
+        "MeasureValueType": "VARCHAR"
+      },
+      {
+        "SourceColumn": "session_id",
+        "TargetMultiMeasureAttributeName": "session_id",
+        "MeasureValueType": "VARCHAR"
+      },
+      {
+        "SourceColumn": "event",
+        "TargetMultiMeasureAttributeName": "event",
+        "MeasureValueType": "VARCHAR"
+      },
+      {
+        "SourceColumn": "user_group",
+        "TargetMultiMeasureAttributeName": "user_group",
+        "MeasureValueType": "VARCHAR"
+      },
+      {
+        "SourceColumn": "query",
+        "TargetMultiMeasureAttributeName": "query",
+        "MeasureValueType": "VARCHAR"
+      },
+      {
+        "SourceColumn": "product_id",
+        "TargetMultiMeasureAttributeName": "product_id",
+        "MeasureValueType": "VARCHAR"
+      },
+      {
+        "SourceColumn": "quantity",
+        "TargetMultiMeasureAttributeName": "quantity",
+        "MeasureValueType": "BIGINT"
+      }
+    ]
+  },
+  "MeasureNameColumn": "channel"
+}
