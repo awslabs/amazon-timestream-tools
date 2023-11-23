@@ -11,38 +11,24 @@ You can securely scale your streaming data platform with hundreds and thousands 
 a fully managed service to build and run applications to process streaming data, which simplifies the setup, scaling, 
 and management of clusters running Kafka. And [Amazon MSK Connect](https://aws.amazon.com/msk/features/msk-connect/) enables you to deploy, monitor, and automatically scale connectors that move data between your MSK or Kafka clusters and external systems.
 
-### Schema Definition and Mapping
+### Solution Overview
+Here is the overview of how the connector can be deployed in an Amazon MSK connect that can be configured to receive messages from a Kafka topic from an Amazon MSK cluster.
 
-While creating a table in Timestream, you do not need to define the schema up front as Timestream automatically detects the schema based on the data points being sent. 
-At the same time, the connector needs an upfront schema definition which is used for validating the incoming messages from the source Kafka topic and then, to ingest to the target Timestream table as records.
-The connector supports loading the definition from a configured [Amazon Simple Storage Service (Amazon S3)](http://aws.amazon.com/s3) bucket.
+![Data Flow - Timestream Sink Connector.png](resources%2FData%20Flow%20-%20Timestream%20Sink%20Connector.png)
 
-#### Sample Schema Definition
+At startup, the connector loads the target Timestream table's schema definition that is used for validating the incoming messages from the source Kafka topic before inserting to the Timestream table.
+It supports loading the definition as JSON file from a configured [Amazon Simple Storage Service (Amazon S3)](http://aws.amazon.com/s3) bucket. See [sample schema definition ](#sample-schema-definition) section for schema definition file format.
 
-The connector supports [multi-measure](https://docs.aws.amazon.com/timestream/latest/developerguide/writes.html#writes.writing-data-multi-measure) schema mapping - the preferred approach, which store each measure value in a dedicated column.
-The example here demonstrates mapping to multi-measure records, You can refer the sample CSV [purchase_history.csv](resources%2Fpurchase_history.csv) file, that has the following headings to map to a target column in a Timestream table.
+_Note:_ While creating a table in Timestream, you do not need to define the schema up front as Timestream automatically detects the schema based on the data points being sent. But the connector needs an upfront schema definition for validation purpose. 
 
-| #  | Source Column | Target Column Name | Timestream Attribute Type | Data Type |
-|----|---------------|--------------------|---------------------------|-----------|
-| 1  | current_time  | current_time       | TIMESTAMP                 | TIMESTAMP |
-| 2  | user_id       | user_id            | DIMENSION                 | VARCHAR   |
-| 3  | product       | product            | DIMENSION                 | VARCHAR   |
-| 4  | ip_address    | ip_address         | MULTI                     | VARCHAR   |
-| 5  | session_id    | session_id         | MULTI                     | VARCHAR   |
-| 6  | event         | event              | MULTI                     | VARCHAR   |
-| 7  | user_group    | user_group         | MULTI                     | VARCHAR   |
-| 8  | query         | query              | MULTI                     | VARCHAR   |
-| 9  | product_id    | product_id         | MULTI                     | VARCHAR   |
-| 10 | quantity      | quantity           | MULTI                     | BIGINT    |
-| 11 | channel       | channel            | MEASURE_NAME              | -         |
-
-Refer [purchase_history.json](resources%2Fpurchase_history.json) file on how to represent the schema model in JSON format; see [Data model mappings](https://docs.aws.amazon.com/timestream/latest/developerguide/batch-load-data-model-mappings.html#batch-load-data-model-mappings-example-multi) for additional details.
+Once the connector is deployed, the data flow starts with a Kafka producer client that publishes messages to the source Kafka topic. 
+As data arrives, an instance of the Timestream Sink Connector for Apache Kafka validates the incoming messages basis the schema definition and writes them as records in the target Timestream table, as shown in the above diagram.
 
 ### Connector Configuration parameters
 
 The following table lists the complete set of the Timestream Kafka Sink Connector configuration properties
 
-| #  | Key                                    | Description                                                                                                                   | Remarks                                                                                                                                                                                                          | Required | Default |
+| #  | Key                                    | <div style="width:350px">Description</div>                                                                                    | <div style="width:350px">Remarks</div>                                                                                                                                                                           | Required | Default |
 |----|----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|---------|
 | 1  | connector.class                        | Specifies the name of the connector class                                                                                     | Must be mentioned as "software.amazon.timestream.TimestreamSinkConnector"                                                                                                                                        | Yes      | NONE    |
 | 2  | tasks.max                              | The maximum number of active tasks for a sink connector                                                                       | Non negative number                                                                                                                                                                                              | Yes      | NONE    |
@@ -61,106 +47,66 @@ The following table lists the complete set of the Timestream Kafka Sink Connecto
 | 15 | timestream.record.dimension.skip.empty | When a dimension value is not present/ empty, only that dimension would be skipped by default.                                | If disabled, it would be logged as error and the whole record would be skipped. See [Amazon Timestream concepts](https://docs.aws.amazon.com/timestream/latest/developerguide/concepts.html) for further details | No       | true    |
 | 16 | timestream.record.measure.skip.empty   | When a measure value is not present/ empty, only that measure would be skipped by default.                                    | If disabled, it would be logged as error and the whole record would be skipped. See [Amazon Timestream concepts](https://docs.aws.amazon.com/timestream/latest/developerguide/concepts.html) for further details | No       | true    |
 
-## Solution Overview
-In this section, we discuss a solution architecture of an end-to-end data pipeline using the connector. 
-As data arrives to the configured source Kafka topic, an instance of the connector ingests the data to a Timestream table, as shown in the following diagram.
+#### Sample: Connector Configuration
 
-![Data Flow - Timestream Sink Connector.png](resources%2FData%20Flow%20-%20Timestream%20Sink%20Connector.png)
+```properties
+aws.region=ap-southeast-2
+connector.class=software.amazon.timestream.TimestreamSinkConnector
+tasks.max=2
+topics=purchase-history
+timestream.schema.s3.bucket.name=msk-timestream-ap-southeast-2-plugins-bucket
+timestream.schema.s3.key=purchase_history.json
+timestream.database.name=kafkastream
+timestream.ingestion.endpoint=https://ingest-cell1.timestream.ap-southeast-2.amazonaws.com
+timestream.table.name=purchase-history
+```
 
-The connector uses VPC endpoints (powered by [AWS PrivateLink](https://aws.amazon.com/privatelink/)) to securely connect to Timestream and S3 so that the traffic between your VPC and the connected services doesn’t leave the Amazon network, as shown in the following solution architecture diagram.
+### Worker Configuration parameters
 
-![Solution Architecture - Timestream Sink Connector.png](resources%2FSolution%20Architecture%20-%20Timestream%20Sink%20Connector.png)
+A worker is a Java virtual machine (JVM) process that runs the connector logic. See [Workers](https://docs.aws.amazon.com/msk/latest/developerguide/msk-connect-workers.html) for additional details.
+The connector supports [JsonConverter](https://github.com/a0x8o/kafka/blob/master/connect/json/src/main/java/org/apache/kafka/connect/json/JsonConverter.java) for both key and values which is to be configured in the worker configuration as shown below.
 
-Now, let us discuss the steps to deploy the Timestream Sink Kafka connector per the solution.
-_Note:_ You can deploy it in a self-managed Apache Kafka Connect cluster as well.
-
-### Prerequisites
-Before deploying the connector, make sure you have the below steps completed.
-1. A Timestream database and a table are created. Follow the steps - [Create a database](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.db.using-console) and [Create a table](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.table.using-console), if you do not have them created before.
-2. A Timestream ingestion vpc endpoint is created. Follow the steps - [Creating an interface VPC endpoint for Timestream](#vpc-endpoint-from-msk-connect-vpc-to-timestream), if you do not have it created before.
-3. A Kafka/ Amazon MSK Cluster is created in private subnets, and it has IAM authentication enabled. Make sure you have teh cluster in the same region as that of Timestream database/table. Follow the steps - [Create an Amazon MSK cluster](https://docs.aws.amazon.com/msk/latest/developerguide/create-cluster.html), if you do not have it created before.
-4. An Amazon EC2 machine to connect with the MSK cluster - to create a Kafka topic and more. Follow the steps - [Create an IAM role for the client machine](https://docs.aws.amazon.com/msk/latest/developerguide/create-client-iam-role.html) for accessing the MSK cluster created in teh previous step and [Create a client machine](https://docs.aws.amazon.com/msk/latest/developerguide/create-client-machine.html), if you do not have them created before 
-5. A Kafka topic is created. Follow the steps - [Create a topic](https://docs.aws.amazon.com/msk/latest/developerguide/create-topic.html) if you do not have it before. 
-6. An S3 bucket in the same region as that of MSK Cluster and the Timestream database/table. Follow the steps - [Create your first S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/creating-bucket.html), if you do not have it created before. 
-7. An Amazon S3 Gateway endpoint is created. Follow the steps - [Creating a gateway VPC endpoint for S3](#vpc-endpoint-from-msk-connect-vpc-to-amazon-s3), if you do not have it created before. 
-8. Timestream schema json is uploaded to an S3 bucket. Follow the steps - [Uploading objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/upload-objects.html), if you do not have it uploaded before. 
-9. An [Amazon CloudWatch](https://aws.amazon.com/cloudwatch/) log group. Follow the steps detailed in [create a log group in CloudWatch Logs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/Working-with-log-groups-and-streams.html#Create-Log-Group), if you do not have it created before.
-10. An IAM service role is created with the required permissions. Follow the steps detailed in [Security: Identity and Access Management](#identity-and-access-management) section to create a role and attach required permissions, if you do not have an IAM role created/ do not have the required permissions attached to it.
-
-### I. Upload the Connector plugin to an S3 bucket
-1. Download the plugin jar: [kafka-connector-timestream-1.0-SNAPSHOT-jar-with-dependencies.jar](resources%2Fkafka-connector-timestream-1.0-SNAPSHOT-jar-with-dependencies.jar)
-2. On the Amazon S3 console, choose **Buckets** from the left navigation pane,
-3. In the Buckets list, choose the name of the bucket that you want to upload the jar file. 
-4. Choose **Upload**. 
-5. In the Upload window, Choose **Add file**, and then choose the downloaded plugin jar file, and choose **Open**. 
-6. At the bottom of the page, choose **Upload** and When the upload is finished, you see a success message on the **Upload: status** page 
-7. Click on the name of the jar file under **Files and folders** section, that opens the S3 object details page 
-8. Choose **Copy S3 URI**, preserve it as it would be used in the following step.
-
-### II. Configure the Amazon MSK Custom Plugin
-
-1. On the Amazon MSK console, choose **Custom plugins** (_Note:_ It is an AWS resource that contains the code that defines the connector logic)  in the navigation pane. 
-2. Choose **Create custom plugin**. 
-3. For **S3 URI**, enter the connector file’s S3 URI that is copied in the previous section. 
-4. Give it a name and choose **Create custom plugin**.
-
-### III. Configure the Amazon MSK worker configuration
-_Note:_ A worker is a Java virtual machine (JVM) process that runs the connector logic. Next, create a custom worker configuration, to use JSON based convertor instead of String based convertor that is supported in default configuration.
-1. On the Amazon MSK console, choose **Worker configurations** in the navigation pane. 
-2. Choose **Create worker configuration**. 
-3. In the **Worker configuration**, paste the below provided configuration.
 ```properties
 key.converter=org.apache.kafka.connect.json.JsonConverter
 value.converter=org.apache.kafka.connect.json.JsonConverter
 key.converter.schemas.enable=false
 value.converter.schemas.enable=false
 ```
-4. Give it a name and choose **Create worker configuration**.
 
-### IV. Configure the Timestream Sink Connector
-Now it’s time to configure the connector using the custom plugin.
-1. On the Amazon MSK console, choose **Connectors** in the navigation pane. 
-2. Choose **Create connector**. 
-3. Choose the plugin you created before and choose **Next**. 
-4. Choose the MSK cluster where the connector has to poll from a source topic 
-5. Enter your connector configuration after replacing the values with your respective configuration as follows.
+#### Sample Schema Definition
 
-```properties
-#Kafka connect configurations
-connector.class=software.amazon.timestream.TimestreamSinkConnector
-tasks.max=2
-topics=<Kafka Topic from which the messages need to be polled>
-aws.region=<AWS Region>
-timestream.ingestion.endpoint=<Timestream Ingestion Vpc Endpoint in UR format>
-timestream.schema.s3.bucket.name=<S3 Bucket Name where the Timestream table schema definition is uploaded>
-timestream.schema.s3.key=<S3 object key of the Timestream table schema definition in JSON format>
-timestream.database.name=<Timestream Database Name>
-timestream.table.name= <Timestream Table Name>
+The connector supports [multi-measure](https://docs.aws.amazon.com/timestream/latest/developerguide/writes.html#writes.writing-data-multi-measure) schema mapping - the preferred approach, which stores each measure value in a dedicated column.
+The table below shows mapping of multi-measure records for the sample dataset [purchase_history.csv](resources%2Fpurchase_history.csv), 
+that has the following headings to map to a target column in a Timestream table.
+
+| #  | Source Column | Target Column Name | Timestream Attribute Type | Data Type |
+|----|---------------|--------------------|---------------------------|-----------|
+| 1  | current_time  | current_time       | TIMESTAMP                 | TIMESTAMP |
+| 2  | user_id       | user_id            | DIMENSION                 | VARCHAR   |
+| 3  | product       | product            | DIMENSION                 | VARCHAR   |
+| 4  | ip_address    | ip_address         | MULTI                     | VARCHAR   |
+| 5  | session_id    | session_id         | MULTI                     | VARCHAR   |
+| 6  | event         | event              | MULTI                     | VARCHAR   |
+| 7  | user_group    | user_group         | MULTI                     | VARCHAR   |
+| 8  | query         | query              | MULTI                     | VARCHAR   |
+| 9  | product_id    | product_id         | MULTI                     | VARCHAR   |
+| 10 | quantity      | quantity           | MULTI                     | BIGINT    |
+| 11 | channel       | channel            | MEASURE_NAME              | -         |
+
+Refer [purchase_history.json](resources%2Fpurchase_history.json) for representing the schema model in JSON file format; see [Data model mappings](https://docs.aws.amazon.com/timestream/latest/developerguide/batch-load-data-model-mappings.html#batch-load-data-model-mappings-example-multi) for additional details.
+
+## Connector - Build from source
+**Prerequisite**
+* JDK >= 1.8
+* Maven
+  Execute the below script to get the github repo cloned, and to build the Timestream Kafka Sink connector
+
+```shell
+git clone https://github.com/awslabs/amazon-timestream-tools.git
+cd ./amazon-timestream-tools/integrations/kafka_connector
+mvn clean package
 ```
-For complete set of supported configuration properties, see [Connector Configuration parameters](#connector-configuration-parameters)
-
-6. Under **Worker configuration**, select **Use a custom configuration**, select the custom worker configuration that you have created in the previous step.
-7. Under **Access permissions**, choose the IAM role you created as part of the [prerequisites steps](#prerequisites) 
-8. Choose **Next**. 
-9. In the **Logs** section, select **Deliver to Amazon CloudWatch Logs** and update **Log Group Arn** with the arn of teh CloudWatch log group that you have created as part of the [prerequisites steps](#prerequisites).
-10. Choose **Create connector**.
-
-The connector creation takes 5–10 minutes to complete. When its status changes to Active, the pipeline is ready.
-
-### Testing
-Now it's time to test the end-to-end pipeline by publishing messages to the Kafka topic and checking if Timestream table gets ingested with the records.
-1. SSH into your Kafka client machine that you have launched as part of the [prerequisites](#prerequisites) steps.
-2. Follow the steps detailed in [Produce and consume data ](https://docs.aws.amazon.com/msk/latest/developerguide/produce-consume.html) to publish messages to the source Kafka topic.
-3. Follow the steps detailed in [Run a query](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) to check if the records have been ingested to the target Timestream table.
-
-### Troubleshooting
-1. Check CloudWatch Logs that you have associated to deliver the logs while creating the connector, for any configuration validation errors or any runtime exceptions thrown. 
-    For example, you might receive error message(s) with details as mentioned below:
-    * **Unable to convert the sink record, check if you have configured the JsonConvertor in the worker configuration**: You get this error when the connector uses the default worker configuration with StringConverter. Create a custom worker configuration with JsonConverter as mentioned in the previous section.
-    * **invalid.timestream.ingestion.endpoint: Supplied Timestream ingestion endpoint is not a valid URI**: You get this error when the ingestion endpoint is not a valid URI and more
-2. Checkout the below troubleshooting guides for further details.
-    * [How do I troubleshoot errors when I'm trying to create a connector using Amazon MSK Connect?](https://repost.aws/knowledge-center/msk-connector-connect-errors)
-    * [Troubleshooting Amazon MSK Connect](https://docs.aws.amazon.com/msk/latest/developerguide/msk-connect-troubleshooting.html)
+Check out for the built jar within target folder from the current directory
 
 ## Security: 
 ### Identity and Access Management
@@ -292,19 +238,3 @@ In this section, we create create the VPC endpoints that are required for the co
 
 #### VPC endpoint from MSK Connect VPC to Timestream
 Follow the steps described in [Creating an interface VPC endpoint for Timestream](https://docs.aws.amazon.com/timestream/latest/developerguide/VPCEndpoints.vpc-endpoint-create.html) to create a private connection between MSK Connect and Timestream.
-
-## Connector download or build from source
-#### Download uber jar
-You can download the ready-to-use uber jar from [resources](resources%2Fkafka-connector-timestream-1.0-SNAPSHOT-jar-with-dependencies.jar)
-#### Build uber jar
-**Prerequisite**
-    * JDK >= 1.11
-    * Maven
-Execute the below script to get the github repo cloned, and to build the Timestream Kafka Sink connector
-
-```shell
-git clone https://github.com/awslabs/amazon-timestream-tools.git
-cd ./amazon-timestream-tools/integrations/kafka_connector
-mvn clean package
-```
-Check out for the built jar within target folder from the current directory
