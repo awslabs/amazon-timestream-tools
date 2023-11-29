@@ -76,7 +76,7 @@ value.converter.schemas.enable=false
 #### Sample Schema Definition
 
 The connector supports [multi-measure](https://docs.aws.amazon.com/timestream/latest/developerguide/writes.html#writes.writing-data-multi-measure) schema mapping - the preferred approach, which stores each measure value in a dedicated column.
-The table below shows mapping of multi-measure records for the sample dataset [purchase_history.csv](resources%2Fpurchase_history.csv), 
+The table below shows mapping of multi-measure records for the sample dataset [purchase_history.csv](https://aws-blogs-artifacts-public.s3.amazonaws.com/DBBLOG-3618/purchase_history.csv), 
 that has the following headings to map to a target column in a Timestream table.
 
 | #  | Source Column | Target Column Name | Timestream Attribute Type | Data Type |
@@ -93,7 +93,7 @@ that has the following headings to map to a target column in a Timestream table.
 | 10 | quantity      | quantity           | MULTI                     | BIGINT    |
 | 11 | channel       | channel            | MEASURE_NAME              | -         |
 
-Refer [purchase_history.json](resources%2Fpurchase_history.json) for representing the schema model in JSON file format; see [Data model mappings](https://docs.aws.amazon.com/timestream/latest/developerguide/batch-load-data-model-mappings.html#batch-load-data-model-mappings-example-multi) for additional details.
+Refer [purchase_history.json](https://aws-blogs-artifacts-public.s3.amazonaws.com/DBBLOG-3618/purchase_history.json) for representing the schema model in JSON file format; see [Data model mappings](https://docs.aws.amazon.com/timestream/latest/developerguide/batch-load-data-model-mappings.html#batch-load-data-model-mappings-example-multi) for additional details.
 
 ## Connector - Build from source
 **Prerequisite**
