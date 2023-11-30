@@ -8,10 +8,7 @@ import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.timestreamwrite.TimestreamWriteClient;
-import software.amazon.awssdk.services.timestreamwrite.model.DescribeDatabaseRequest;
-import software.amazon.awssdk.services.timestreamwrite.model.DescribeDatabaseResponse;
-import software.amazon.awssdk.services.timestreamwrite.model.DescribeTableRequest;
-import software.amazon.awssdk.services.timestreamwrite.model.DescribeTableResponse;
+import software.amazon.awssdk.services.timestreamwrite.model.*;
 import software.amazon.timestream.exception.TimestreamSinkConnectorError;
 import software.amazon.timestream.exception.TimestreamSinkErrorCodes;
 
@@ -127,7 +124,8 @@ final class AWSServiceClientObjectsValidator {
                 .databaseName(databaseName).tableName(tableName).build();
         try {
             final DescribeTableResponse response = timestreamClient.describeTable(describeTableReq);
-            LOGGER.info("AWSServiceClientObjectsValidator::validateTimestreamTable:: tableName: {} , tableId: {}", tableName, response.table().arn());
+            LOGGER.info("AWSServiceClientObjectsValidator::validateTimestreamTable:: tableName: [{}] , tableId: [{}], partitionKeys: [{}]",
+                    tableName, response.table().arn(), response.table().schema().compositePartitionKey());
         } catch (SdkException e) {
             LOGGER.error("ERROR::AWSServiceClientObjectsValidator::validateTimestreamTable", e);
             validationErrors.add(new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.INVALID_TABLE, tableName, databaseName));

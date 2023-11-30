@@ -49,22 +49,13 @@ public final class AWSServiceClientFactory {
     }
 
     /**
-     * Instantiates {@link TimestreamWriteClient} object
-     * @param config: configuration values
-     */
-    private TimestreamWriteClient instantiateTimeStreamWriterClient(final TimestreamSinkConnectorConfig config) {
-        LOGGER.info("Begin::AWSServiceClientFactory::instantiateTimeStreamWriterClient");
-        return buildTimeStreamWriterClient(config);
-    }
-
-    /**
      * Method that instantiates an object of {@link TimestreamWriteClient}
      * for the given configuration set in {@link TimestreamSinkConnectorConfig}
      * @param config: configuration values
      * @return timestreamWriteClient
      */
-    private TimestreamWriteClient buildTimeStreamWriterClient(final TimestreamSinkConnectorConfig config) {
-        LOGGER.info("Begin::AWSServiceClientFactory::buildTimeStreamWriterClient");
+    private TimestreamWriteClient instantiateTimeStreamWriterClient(final TimestreamSinkConnectorConfig config) {
+        LOGGER.info("Begin::AWSServiceClientFactory::instantiateTimeStreamWriterClient");
         try {
             final ApacheHttpClient.Builder httpClientBuilder =ApacheHttpClient.builder();
 
@@ -83,11 +74,11 @@ public final class AWSServiceClientFactory {
                     .region(config.getAWSRegion()).endpointOverride(new URI(config.getTimestreamIngestionEndPoint()))
                     .build();
         } catch (URISyntaxException e) {
-            LOGGER.error("ERROR::AWSServiceClientFactory::buildTimeStreamWriterClient::", e);
+            LOGGER.error("ERROR::AWSServiceClientFactory::instantiateTimeStreamWriterClient::", e);
             final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.INVALID_ENDPOINT, config.getTimestreamIngestionEndPoint());
             throw new TimestreamSinkConnectorException(error, e);
         } catch (SdkException e) {
-            LOGGER.error("ERROR::AWSServiceClientFactory::buildTimeStreamWriterClient: while building Timestream client::", e);
+            LOGGER.error("ERROR::AWSServiceClientFactory::instantiateTimeStreamWriterClient: while building Timestream client::", e);
             throw new TimestreamSinkConnectorException(e);
         }
     }
