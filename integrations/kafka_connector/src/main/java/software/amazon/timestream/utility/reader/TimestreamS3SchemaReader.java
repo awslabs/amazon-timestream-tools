@@ -1,6 +1,8 @@
 package software.amazon.timestream.utility.reader;
 
+import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,7 +10,7 @@ import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.timestream.table.schema.SchemaDefinition;
+import software.amazon.awssdk.services.timestreamwrite.model.DataModel;
 import software.amazon.timestream.TimestreamSinkConnectorConfig;
 import software.amazon.timestream.exception.*;
 import software.amazon.timestream.utility.AWSServiceClientFactory;
@@ -26,7 +28,7 @@ public class TimestreamS3SchemaReader implements TimestreamSchemaReader{
     /**
      * GSON object for JSON marshaling/unmarshalling
      */
-    private static final Gson GSON = new Gson();
+    private static final Gson GSON = new GsonBuilder().setFieldNamingPolicy(FieldNamingPolicy.UPPER_CAMEL_CASE).create();
     /**
      * Connector configuration values
      */
@@ -53,12 +55,12 @@ public class TimestreamS3SchemaReader implements TimestreamSchemaReader{
      * @see TimestreamSinkConnectorConfig
      */
     @Override
-    public SchemaDefinition getSchemaDefinition() {
+    public DataModel getSchemaDefinition() {
         LOGGER.info("Begin::TimestreamSchemaReader::getSchemaDefinition");
-        SchemaDefinition schemaDef;
+        DataModel schemaDef;
         try {
             final String jsonString = getS3ObjectAsString();
-            schemaDef = GSON.fromJson(jsonString, SchemaDefinition.class);
+            schemaDef = GSON.fromJson(jsonString, DataModel.class);
             return schemaDef;
         } catch (JsonSyntaxException je) {
             LOGGER.error("ERROR::TimestreamSchemaReader::getSchemaDefinition", je);
@@ -84,8 +86,7 @@ public class TimestreamS3SchemaReader implements TimestreamSchemaReader{
         final ResponseBytes<GetObjectResponse> objectBytes = clientFactory.getS3Client().getObjectAsBytes(objectRequest);
         try {
             final String definition =  new String(objectBytes.asByteArray(), StandardCharsets.UTF_8);
-            LOGGER.info("TimestreamSchemaReader::getSchemaDefinition: Successfully read the schema config from s3: {} {}", //NOPMD - suppressed GuardLogStatement - TODO explain reason for suppression
-                    this.connectorConfig.getSchemaS3BucketName(), this.connectorConfig.getSchmeaS3ObjectPath());
+            LOGGER.info("TimestreamSchemaReader::getS3ObjectAsString: Successfully read the schema config from s3: {} {}", this.connectorConfig.getSchemaS3BucketName(), this.connectorConfig.getSchmeaS3ObjectPath());
             return definition;
         } catch (S3Exception e) {
             LOGGER.error("ERROR::TimestreamSchemaReader::getS3ObjectAsString", e);

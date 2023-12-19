@@ -49,6 +49,16 @@ public final class AWSServiceClientFactory {
     }
 
     /**
+     *
+     * @param config Timestream SinkConnector Config values
+     * @param s3Client - instantiated S3Client object
+     */
+    public AWSServiceClientFactory(final TimestreamSinkConnectorConfig config, S3Client s3Client ) {
+        this.s3Client = s3Client;
+        this.timestreamClient = instantiateTimeStreamWriterClient(config);
+    }
+
+    /**
      * Method that instantiates an object of {@link TimestreamWriteClient}
      * for the given configuration set in {@link TimestreamSinkConnectorConfig}
      * @param config: configuration values
@@ -57,7 +67,7 @@ public final class AWSServiceClientFactory {
     private TimestreamWriteClient instantiateTimeStreamWriterClient(final TimestreamSinkConnectorConfig config) {
         LOGGER.info("Begin::AWSServiceClientFactory::instantiateTimeStreamWriterClient");
         try {
-            final ApacheHttpClient.Builder httpClientBuilder =ApacheHttpClient.builder();
+            final ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
             httpClientBuilder.maxConnections(config.getMaxConnections());
 
