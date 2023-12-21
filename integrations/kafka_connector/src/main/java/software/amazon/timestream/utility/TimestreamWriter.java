@@ -6,9 +6,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.timestreamwrite.model.Record;
 import software.amazon.awssdk.services.timestreamwrite.model.*;
-import software.amazon.timestream.table.schema.DimensionMapping;
-import software.amazon.timestream.table.schema.MultiMeasureAttributeMapping;
-import software.amazon.timestream.table.schema.SchemaDefinition;
 import software.amazon.timestream.TimestreamSinkConnectorConfig;
 import software.amazon.timestream.TimestreamSinkConstants;
 
@@ -57,14 +54,14 @@ public class TimestreamWriter {
     /**
      * Timestream table schema definition
      */
-    private final SchemaDefinition schemaDefinition;
+    private final DataModel schemaDefinition;
 
     /**
      *
      * @param schemaDefinition table schema
      * @param config connector config
      */
-    public TimestreamWriter(final SchemaDefinition schemaDefinition, final TimestreamSinkConnectorConfig config) {
+    public TimestreamWriter(final DataModel schemaDefinition, final TimestreamSinkConnectorConfig config) {
 
         this.databaseName = config.getDatabaseName();
         this.tableName = config.getTableName();
@@ -147,15 +144,15 @@ public class TimestreamWriter {
         final List<MeasureValue> measureValueList = new ArrayList<>();
         List<MeasureValue> emptyList = null;
         final Map record = (Map) sinkRecord.value();
-        for (final MultiMeasureAttributeMapping mapping : schemaDefinition.getMultiMappings().getAttributeMappings()) {
-            if (isSinkRecordValueEmpty(sinkRecord, mapping.getSourceColumn())) {
+        for (final MultiMeasureAttributeMapping mapping : schemaDefinition.multiMeasureMappings().multiMeasureAttributeMappings()) {
+            if (isSinkRecordValueEmpty(sinkRecord, mapping.sourceColumn())) {
                 if (skipMeasure) {
-                    LOGGER.debug("DEBUG::getDimensionsAsList: Empty value found for the column [{}], for the record [{}]", mapping.getSourceColumn(), sinkRecord);
+                    LOGGER.debug("DEBUG::getMultiMeasureValuesAsList: Empty value found for the column [{}], for the record [{}]", mapping.sourceColumn(), sinkRecord);
                     continue;
                 } else {
                     emptyList = new ArrayList<>();
                     LOGGER.error("ERROR::getMultiMeasureValuesAsList: Empty value found for the column [{}], skipping the whole record from ingesting to Timestream [{}]",
-                            mapping.getSourceColumn(), sinkRecord);
+                            mapping.sourceColumn(), sinkRecord);
                     break;
                 }
             }
@@ -165,9 +162,9 @@ public class TimestreamWriter {
     }
 
     private MeasureValue getMeasureValue(final Map record, final MultiMeasureAttributeMapping mapping){
-        final String sinkRecordValue = String.valueOf(record.get(mapping.getSourceColumn())).replace("\"", "");
-        return MeasureValue.builder().name(mapping.getTargetAttribute())
-                .value(getFormattedValue(mapping.getMeasureValueType(), sinkRecordValue)).type(mapping.getMeasureValueType()).build();
+        final String sinkRecordValue = String.valueOf(record.get(mapping.sourceColumn())).replace("\"", "");
+        return MeasureValue.builder().name(mapping.targetMultiMeasureAttributeName())
+                .value(getFormattedValue(mapping.measureValueTypeAsString(), sinkRecordValue)).type(mapping.measureValueTypeAsString()).build();
     }
 
     /**
@@ -180,21 +177,20 @@ public class TimestreamWriter {
         final List<Dimension> dimensions = new ArrayList<>();
         boolean skipRecord = false;
         final Map record = (Map) sinkRecord.value();
-        for (final DimensionMapping dimensionMapping : schemaDefinition.getDimensionMappings()) {
-            boolean isEmpty = isSinkRecordValueEmpty(sinkRecord, dimensionMapping.getSourceColumn());
-            if (isSinkRecordValueEmpty(sinkRecord, dimensionMapping.getSourceColumn())) {
+        for (final DimensionMapping dimensionMapping : schemaDefinition.dimensionMappings()) {
+            if (isSinkRecordValueEmpty(sinkRecord, dimensionMapping.sourceColumn())) {
                 if (skipDimension) {
-                    LOGGER.debug("DEBUG::getDimensionsAsList: Empty value found for the column [{}], for the record [{}]", dimensionMapping.getSourceColumn(), sinkRecord);
+                    LOGGER.debug("DEBUG::getDimensionsAsList: Empty value found for the column [{}], for the record [{}]", dimensionMapping.sourceColumn(), sinkRecord);
                     continue;
                 } else {
                     skipRecord = true;
                     LOGGER.error("ERROR::getDimensionsAsList: Empty value found for the column [{}], skipping the whole record from ingesting to Timestream [{}]",
-                            dimensionMapping.getSourceColumn(), sinkRecord);
+                            dimensionMapping.sourceColumn(), sinkRecord);
                     break;
                 }
             }
-            final String dimensionValue = String.valueOf(record.get(dimensionMapping.getSourceColumn()));
-            dimensions.add(Dimension.builder().name(dimensionMapping.getDestinationColumn()).value(dimensionValue).build());
+            final String dimensionValue = String.valueOf(record.get(dimensionMapping.sourceColumn()));
+            dimensions.add(Dimension.builder().name(dimensionMapping.destinationColumn()).value(dimensionValue).build());
         }
         return skipRecord ? null : dimensions;
     }
@@ -210,11 +206,11 @@ public class TimestreamWriter {
     private Record getTimestreamRecord(final SinkRecord sinkRecord, final List<Dimension> dimensions, final List<MeasureValue> measureValues) {
 
         final Map record = (Map) sinkRecord.value();
-        final String timeVal = String.valueOf(record.get(schemaDefinition.getTimeColumn()));
+        final String timeVal = String.valueOf(record.get(schemaDefinition.timeColumn()));
 
         // Handle timestamps which are not in EPOCH Format.
-        final String timeUnit = TimestreamSinkConstants.TIMEUNIT_DATETIME.equals(schemaDefinition.getTimeUnit()) ? TimeUnit.MILLISECONDS.name() : schemaDefinition.getTimeUnit();
-        final String timeValue = TimestreamSinkConstants.TIMEUNIT_DATETIME.equals(schemaDefinition.getTimeUnit()) ?
+        final String timeUnit = TimestreamSinkConstants.TIMEUNIT_DATETIME.equals(schemaDefinition.timeUnitAsString()) ? TimeUnit.MILLISECONDS.name() : schemaDefinition.timeUnitAsString();
+        final String timeValue = TimestreamSinkConstants.TIMEUNIT_DATETIME.equals(schemaDefinition.timeUnitAsString()) ?
                 String.valueOf(Date.from(Instant.parse(timeVal.replace("\"", ""))).getTime()) : timeVal;
         final String measureColumnName = getMeasureName(record);
         final Record.Builder recordBuilder = Record
@@ -236,11 +232,11 @@ public class TimestreamWriter {
      * @return the measure name
      */
     private String getMeasureName (final Map record) {
-        final boolean isMeasureGiven = schemaDefinition.getMeasureNameColumn() != null && !schemaDefinition.getMeasureNameColumn().isEmpty();
+        final boolean isMeasureGiven = schemaDefinition.measureNameColumn() != null && !schemaDefinition.measureNameColumn().isEmpty();
         return isMeasureGiven ?
-                schemaDefinition.getMeasureNameColumn().charAt(0) == '$'
-                    ? String.valueOf(record.get(schemaDefinition.getMeasureNameColumn().substring(1)))
-                    : schemaDefinition.getMeasureNameColumn() : TimestreamSinkConstants.DEFAULT_MEASURE;
+                schemaDefinition.measureNameColumn().charAt(0) == '$'
+                    ? String.valueOf(record.get(schemaDefinition.measureNameColumn().substring(1)))
+                    : schemaDefinition.measureNameColumn() : TimestreamSinkConstants.DEFAULT_MEASURE;
     }
 
     /**
@@ -257,7 +253,7 @@ public class TimestreamWriter {
         final List<Record> records = new ArrayList<>();
 
         for (final SinkRecord sinkRecord : sinkRecords) {
-            LOGGER.trace("TimeStreamSimpleWriter::writeRecords {} , {}", sinkRecord.value().getClass().getName(), sinkRecord.value());
+            LOGGER.trace("TimeStreamSimpleWriter::getTimestreamRecordsFromSinkRecords {} , {}", sinkRecord.value().getClass().getName(), sinkRecord.value());
             if (!TimestreamSinkConfigurationValidator.isSinkRecordValidType(sinkRecord)) {
                 continue;
             }
