@@ -238,3 +238,15 @@ In this section, we create create the VPC endpoints that are required for the co
 
 #### VPC endpoint from MSK Connect VPC to Timestream
 Follow the steps described in [Creating an interface VPC endpoint for Timestream](https://docs.aws.amazon.com/timestream/latest/developerguide/VPCEndpoints.vpc-endpoint-create.html) to create a private connection between MSK Connect and Timestream.
+
+## Error Handling and Dead Letter Queue (DLQ)
+The Timestream Kafka Sink Connector can be configured to send messages that it cannot process to a dead letter queue, which is a separate Kafka topic. While the valid messages are ingested to Timestream table, the invalid messages can then be inspected from the dead letter queue for further processing as shown in the following diagram.
+
+![Error Handling - Timestream Sink Connector.png](resources%2FError%20Handling%20-%20Timestream%20Sink%20Connector.png)
+### DLQ Configuration
+The following properties can be configured to send the invalid messages to the DLQ topic. See [Kafka Connect API documentation](https://kafka.apache.org/documentation/#sinkconnectorconfigs_errors.deadletterqueue.topic.name) for details.
+```properties
+errors.deadletterqueue.topic.name=<DLQ Topic Name>
+errors.tolerance=<Error toleration behavior>
+errors.deadletterqueue.context.headers.enable=<Enable to get the error context set in the message header>
+bootstrap.servers=<A list of host/port pairs to use for establishing the initial connection to the Amazon MSK cluster>

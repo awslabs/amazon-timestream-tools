@@ -53,7 +53,7 @@ public final class AWSServiceClientFactory {
      * @param config Timestream SinkConnector Config values
      * @param s3Client - instantiated S3Client object
      */
-    public AWSServiceClientFactory(final TimestreamSinkConnectorConfig config, S3Client s3Client ) {
+    public AWSServiceClientFactory(final TimestreamSinkConnectorConfig config, final S3Client s3Client ) {
         this.s3Client = s3Client;
         this.timestreamClient = instantiateTimeStreamWriterClient(config);
     }
