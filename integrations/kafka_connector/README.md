@@ -99,7 +99,7 @@ Refer [purchase_history.json](https://aws-blogs-artifacts-public.s3.amazonaws.co
 **Prerequisite**
 * JDK >= 1.8
 * Maven
-  Execute the below script to get the github repo cloned, and to build the Timestream Kafka Sink connector
+  Execute the below script to get the GitHub repo cloned, and to build the Timestream Kafka Sink connector
 
 ```shell
 git clone https://github.com/awslabs/amazon-timestream-tools.git
@@ -110,8 +110,12 @@ Check out for the built jar within target folder from the current directory
 
 ## Security: 
 ### Identity and Access Management
-Amazon MSK uses an [AWS Identity and Access Management (IAM) role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) for all permissions that the connector needs like reading te schema definition from the S3 bucket, ingesting to Timestream table and more.
-A service role is an IAM role that a service, in this case the MSK Connect can assume to perform actions on your behalf. 
+
+The connector uses the Simple Authentication and Security Layer (SASL) mechanism called AWS_MSK_IAM to authenticate against Amazon MSK clusters using AWS Identity and Access Management (AWS IAM);
+see [Amazon MSK Library for AWS Identity and Access Management](https://github.com/aws/aws-msk-iam-auth) for additional details.
+
+It uses [AWS IAM service role](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/service-role.html) for accessing other AWS services for operations
+like reading the schema definition from the S3 bucket, ingesting to Timestream table, logging in CloudWatch and more. A service role is an IAM role that a service, in this case the MSK Connect can assume to perform actions on your behalf. 
 In this section, we discuss the steps to create an IAM service role for the connector with the IAM policies attached to it.
 
 #### IAM Policy with Permissions
@@ -217,8 +221,8 @@ In this section, we discuss the steps to create an IAM service role for the conn
     ]
 }
 ```
-5. Choose **Next** 
-6. In the **Permissions policies** section, select the policy that is created in the previous section and choose **Next**
+4. Choose **Next** 
+5. In the **Permissions policies** section, select the policy that is created in the previous section and choose **Next**
 6. Give a role in the **Role Name** and choose **Create role**.
 
 ### VPC Endpoints
@@ -226,7 +230,7 @@ In this section, we discuss the steps to create an IAM service role for the conn
 The connector is recommended to be deployed in private subnet(s), hence it may not have access to internet.
 It means that the connector does not have access to services like S3 and Timestream that are outside your MSK Connect VPC.
 In order to have the connectivity, you can establish a private connection between your MSK Connect VPC and the services like Amazon S3 and Amazon Timestream using VPC Endpoints powered by [AWS PrivateLink](https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html).
-In this section, we create create the VPC endpoints that are required for the connector to have private connectivity to the services.
+In this section, we create the VPC endpoints that are required for the connector to have private connectivity to the services.
 
 #### VPC endpoint from MSK Connect VPC to Amazon S3
 
