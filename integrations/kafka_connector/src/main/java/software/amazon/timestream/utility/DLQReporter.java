@@ -46,7 +46,7 @@ public class DLQReporter {
     /**
      * Error reporter
      */
-    private final ErrantRecordReporter dlqReporter;
+    private final ErrantRecordReporter errantRecordReporter;
 
     /**
      * Kafka client: DLQ Publisher
@@ -59,7 +59,7 @@ public class DLQReporter {
      */
     public DLQReporter(final TimestreamSinkConnectorConfig config, final ErrantRecordReporter reporter) {
         this.dlqTopicName = config.getString(TimestreamSinkConstants.DLQ_TOPIC_NAME);
-        this.dlqReporter = reporter;
+        this.errantRecordReporter = reporter;
         try {
             this.dlqPublisher = new KafkaProducer<>(initiateDLQConfiguration(config));
             LOGGER.info("DLQReporter: bootstrapServer: [{}], dlqTopicName: [{}]", config.getString(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG), dlqTopicName);
@@ -95,22 +95,19 @@ public class DLQReporter {
     public void reportRejectedRecords(final List<RejectedRecord> rejectedRecords) {
         LOGGER.trace("Begin::DLQPublisher::reportRejectedRecords");
         for (final RejectedRecord record : rejectedRecords) {
-            final String rejRecordTxt = GSON.toJson(record.toString());
-            LOGGER.trace("DLQPublisher: reportRejectedRecords: Record: [{}]", rejRecordTxt);
-            if (record.getRejectedRecord() != null  && dlqPublisher != null) {
-                final List <Header> headers = new ArrayList<>();
-                LOGGER.info("rejection-reason {}", record.getReason());
-                headers.add(new RecordHeader("rejection-reason", record.getReason().getBytes()));
-                final ProducerRecord<String,String> producerRecord =
-                        new ProducerRecord<>(this.dlqTopicName,null, record.getRejectedRecord().time(),rejRecordTxt, headers);
-                try {
-                    dlqPublisher.send(producerRecord);
-                } catch (KafkaException e) {
-                    LOGGER.error("DLQPublisher::reportRejectedRecords: Error while publishing the rejected record: [{}] to DLQ: [{}]",
-                            rejRecordTxt, this.dlqTopicName, e);
+            try {
+                final String rejRecordTxt = GSON.toJson(record.toString());
+                LOGGER.trace("DLQPublisher: reportRejectedRecords: Record: [{}]", rejRecordTxt);
+                if (record.getRejectedRecord() != null && dlqPublisher != null) {
+                    final List<Header> headers = new ArrayList<>();
+                    headers.add(new RecordHeader("rejection-reason", record.getReason().getBytes()));
+                    dlqPublisher.send(new ProducerRecord<>(this.dlqTopicName, null, record.getRejectedRecord().time(), rejRecordTxt, headers));
+                } else if (record.getRejectedSinkRecord() != null) {
+                    errantRecordReporter.report(record.getRejectedSinkRecord(), new TimestreamSinkConnectorException(record.getReason()));
                 }
-            } else if (record.getRejectedSinkRecord() != null) {
-                dlqReporter.report(record.getRejectedSinkRecord(), new TimestreamSinkConnectorException(record.getReason()));
+            } catch (RuntimeException re) {
+                LOGGER.error("DLQPublisher::reportRejectedRecords: Error while publishing the rejected record: [{}] to DLQ: [{}]",
+                        record, this.dlqTopicName, re);
             }
         }
     }
