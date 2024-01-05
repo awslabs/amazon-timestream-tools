@@ -89,4 +89,35 @@ public class TimestreamSinkErrorCodes {
      * Error code: if supplied configuration is unknown
      */
     public static final String UNKNOWN_CONFIG = "Unknown configuration '%s'";
+
+    /**
+     * Error code: if the sink record values/ types are invalid
+     */
+    public static final String INVALID_SINK_RECORD ="invalid.sink.record";
+
+    /**
+     * Error code: 'bootstrap.servers' is required when DLQ is enabled
+     */
+    public static final String MISSING_BOOTSTRAP_SERVER ="validation.error.missing.bootstrap.server";
+
+    /**
+     * Error code: 'key.serializer' is required when DLQ is enabled
+     */
+    public static final String MISSING_KEY_DESER ="validation.error.missing.key.serializer";
+
+    /**
+     * Error code: 'value.serializer' is required when DLQ is enabled
+     */
+    public static final String MISSING_VALUE_DESER ="validation.error.missing.value.serializer";
+
+    /**
+     * Error code: if value for a DIMENSION is invalid
+     */
+    public static final String INVALID_DIMENSION_VALUE ="invalid.dimension.value";
+
+    /**
+     * Error code: if value for a MEASURE is invalid
+     */
+    public static final String INVALID_MEASURE_VALUE ="invalid.measure.value";
+
 }

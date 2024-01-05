@@ -8,6 +8,10 @@ import software.amazon.awssdk.services.timestreamwrite.model.Record;
 import software.amazon.awssdk.services.timestreamwrite.model.*;
 import software.amazon.timestream.TimestreamSinkConnectorConfig;
 import software.amazon.timestream.TimestreamSinkConstants;
+import software.amazon.timestream.exception.TimestreamSinkConnectorError;
+import software.amazon.timestream.exception.TimestreamSinkConnectorException;
+import software.amazon.timestream.exception.TimestreamSinkErrorCodes;
+import software.amazon.timestream.schema.RejectedRecord;
 
 import java.time.Instant;
 import java.util.*;
@@ -72,32 +76,43 @@ public class TimestreamWriter {
     }
 
     /**
-     * Writes incoming sinkRecords as Records in Timestream table
-     *
+     * Writes incoming sinkRecords as Records in Timestream table in batches
+     * @link TimestreamSinkConstants.DEFAULT_BATCHSIZE
      * @param sinkRecords List of incoming records from the source Kafka topic
      */
-    public void writeRecords(final AWSServiceClientFactory clientFactory, final Collection<SinkRecord> sinkRecords) {
+    public List<RejectedRecord> writeRecords(final AWSServiceClientFactory clientFactory, final Collection<SinkRecord> sinkRecords) {
 
-        LOGGER.trace("Begin::TimeStreamSimpleWriter::writeRecords");
-        final List<Record> records = getTimestreamRecordsFromSinkRecords(sinkRecords);
-        try {
-            if (!records.isEmpty()) {
-                final WriteRecordsRequest writeRequest = WriteRecordsRequest.builder()
-                        .databaseName(databaseName)
-                        .tableName(tableName)
-                        .records(records)
-                        .build();
-                final WriteRecordsResponse writeResponse = clientFactory.getTimestreamClient().writeRecords(writeRequest);
-                LOGGER.debug("DEBUG::TimeStreamSimpleWriter::writeRecords:size {}, status {} ", records.size(), writeResponse.sdkHttpResponse().statusCode());
+        LOGGER.trace("Begin::TimeStreamWriter::writeRecords");
+        final List<RejectedRecord> rejectedRecords = new ArrayList<>();
+        final List<Record> records = getTimestreamRecordsFromSinkRecords(sinkRecords, rejectedRecords);
+        if (!records.isEmpty()) {
+            final int batchSize = records.size() / TimestreamSinkConstants.DEFAULT_BATCHSIZE + 1;
+            List<Record> batchRecords = null;
+            for (int currentBatch = 0; currentBatch < batchSize; currentBatch ++) {
+                try {
+                    batchRecords = getBatchRecords(records, currentBatch);
+                    if (batchRecords != null && !batchRecords.isEmpty()) {
+                        final WriteRecordsRequest writeRequest = WriteRecordsRequest.builder()
+                                .databaseName(databaseName)
+                                .tableName(tableName)
+                                .records(batchRecords)
+                                .build();
+                        final WriteRecordsResponse writeResponse = clientFactory.getTimestreamClient().writeRecords(writeRequest);
+                        LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: batch size [{}], status [{}] ", batchRecords.size(), writeResponse.sdkHttpResponse().statusCode());
+                    } else {
+                        LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: Batch ingestion is complete for the records of size [{}] ", records.size());
+                    }
+                } catch (RejectedRecordsException e) {
+                    LOGGER.error("ERROR::TimeStreamWriter::writeRecords: Few records have been rejected in the batch [{}] , due to [{}]", currentBatch, e.getLocalizedMessage());
+                    if (e.hasRejectedRecords()) {
+                        rejectedRecords.addAll(getRejectedTimestreamRecords(e.rejectedRecords(), batchRecords));
+                    }
+                } catch (SdkException e) {
+                    LOGGER.error("ERROR::TimeStreamWriter::writeRecords", e);
+                }
             }
-        } catch (RejectedRecordsException e) {
-            LOGGER.error("ERROR::TimestreamSimpleWriter::writeRecords: Few records have been rejected.", e);
-            if (e.hasRejectedRecords()) {
-                logRejectedRecords(e.rejectedRecords(), records);
-            }
-        } catch (SdkException e) {
-            LOGGER.error("ERROR::TimestreamSimpleWriter::writeRecords", e);
         }
+        return rejectedRecords;
     }
 
     /**
@@ -142,25 +157,30 @@ public class TimestreamWriter {
     private List<MeasureValue> getMultiMeasureValuesAsList(final SinkRecord sinkRecord) {
 
         final List<MeasureValue> measureValueList = new ArrayList<>();
-        List<MeasureValue> emptyList = null;
         final Map record = (Map) sinkRecord.value();
         for (final MultiMeasureAttributeMapping mapping : schemaDefinition.multiMeasureMappings().multiMeasureAttributeMappings()) {
             if (isSinkRecordValueEmpty(sinkRecord, mapping.sourceColumn())) {
                 if (skipMeasure) {
-                    LOGGER.debug("DEBUG::getMultiMeasureValuesAsList: Empty value found for the column [{}], for the record [{}]", mapping.sourceColumn(), sinkRecord);
+                    LOGGER.debug("DEBUG::getMultiMeasureValuesAsList: Empty valued multi-measure [{}] is allowed to be skipped for the record [{}] ",
+                            mapping.sourceColumn(),
+                            sinkRecord);
                     continue;
                 } else {
-                    emptyList = new ArrayList<>();
-                    LOGGER.error("ERROR::getMultiMeasureValuesAsList: Empty value found for the column [{}], skipping the whole record from ingesting to Timestream [{}]",
-                            mapping.sourceColumn(), sinkRecord);
-                    break;
+                    final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.INVALID_MEASURE_VALUE, mapping.sourceColumn());
+                    throw new TimestreamSinkConnectorException(error);
                 }
             }
             measureValueList.add(getMeasureValue(record, mapping));
         }
-        return emptyList == null? measureValueList : null;
+        return measureValueList;
     }
 
+    /**
+     * Method to get the measure value from the sink record for the given mapping
+     * @param record - sink record as map
+     * @param mapping - multi-measure mapping definition
+     * @return
+     */
     private MeasureValue getMeasureValue(final Map record, final MultiMeasureAttributeMapping mapping){
         final String sinkRecordValue = String.valueOf(record.get(mapping.sourceColumn())).replace("\"", "");
         return MeasureValue.builder().name(mapping.targetMultiMeasureAttributeName())
@@ -175,24 +195,23 @@ public class TimestreamWriter {
      */
     private List<Dimension> getDimensionsAsList(final SinkRecord sinkRecord) {
         final List<Dimension> dimensions = new ArrayList<>();
-        boolean skipRecord = false;
         final Map record = (Map) sinkRecord.value();
         for (final DimensionMapping dimensionMapping : schemaDefinition.dimensionMappings()) {
             if (isSinkRecordValueEmpty(sinkRecord, dimensionMapping.sourceColumn())) {
                 if (skipDimension) {
-                    LOGGER.debug("DEBUG::getDimensionsAsList: Empty value found for the column [{}], for the record [{}]", dimensionMapping.sourceColumn(), sinkRecord);
+                    LOGGER.debug("DEBUG::getDimensionsAsList: Empty valued dimension [{}] is allowed to be skipped for the record [{}] ",
+                            dimensionMapping.sourceColumn(), sinkRecord);
                     continue;
                 } else {
-                    skipRecord = true;
-                    LOGGER.error("ERROR::getDimensionsAsList: Empty value found for the column [{}], skipping the whole record from ingesting to Timestream [{}]",
-                            dimensionMapping.sourceColumn(), sinkRecord);
-                    break;
+                    final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.INVALID_DIMENSION_VALUE,
+                            dimensionMapping.sourceColumn());
+                    throw new TimestreamSinkConnectorException(error);
                 }
             }
             final String dimensionValue = String.valueOf(record.get(dimensionMapping.sourceColumn()));
             dimensions.add(Dimension.builder().name(dimensionMapping.destinationColumn()).value(dimensionValue).build());
         }
-        return skipRecord ? null : dimensions;
+        return dimensions;
     }
 
     /**
@@ -247,43 +266,60 @@ public class TimestreamWriter {
      * @see SinkRecord
      * @see Record
      */
-    private List<Record> getTimestreamRecordsFromSinkRecords(final Collection<SinkRecord> sinkRecords) {
+    private List<Record> getTimestreamRecordsFromSinkRecords(final Collection<SinkRecord> sinkRecords, final List<RejectedRecord> failedRecords) {
 
-        LOGGER.trace("Begin::TimeStreamSimpleWriter::getTimestreamRecordsFromSinkRecords");
+        LOGGER.trace("Begin::TimeStreamWriter::getTimestreamRecordsFromSinkRecords");
         final List<Record> records = new ArrayList<>();
 
         for (final SinkRecord sinkRecord : sinkRecords) {
-            LOGGER.trace("TimeStreamSimpleWriter::getTimestreamRecordsFromSinkRecords {} , {}", sinkRecord.value().getClass().getName(), sinkRecord.value());
+            LOGGER.trace("TimeStreamWriter::getTimestreamRecordsFromSinkRecords {} , {}", sinkRecord.value().getClass().getName(), sinkRecord.value());
             if (!TimestreamSinkConfigurationValidator.isSinkRecordValidType(sinkRecord)) {
+                final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.INVALID_SINK_RECORD,
+                        sinkRecord);
+                failedRecords.add(new RejectedRecord(sinkRecord,error.getErrorCode()));
                 continue;
             }
             recordOffsetDetails(sinkRecord);
-            final List<Dimension> dimensions = getDimensionsAsList(sinkRecord);
-            if (dimensions == null) {
+            final List<Dimension> dimensions;
+            try {
+                dimensions = getDimensionsAsList(sinkRecord);
+            } catch(TimestreamSinkConnectorException te) {
+                LOGGER.error("ERROR::getDimensionsAsList: {}", te.getMessage());
+                failedRecords.add(new RejectedRecord(sinkRecord,te.getMessage()));
                 continue;
             }
-            final List<MeasureValue> measureValueList = getMultiMeasureValuesAsList(sinkRecord);
-            if (measureValueList == null) {
+
+            final List<MeasureValue> measureValueList;
+            try {
+                measureValueList = getMultiMeasureValuesAsList(sinkRecord);
+            } catch(TimestreamSinkConnectorException te) {
+                LOGGER.error("ERROR::getMultiMeasureValuesAsList: {}", te.getMessage());
+                failedRecords.add(new RejectedRecord(sinkRecord,te.getMessage()));
                 continue;
             }
             records.add(getTimestreamRecord(sinkRecord, dimensions, measureValueList));
         }
-        LOGGER.trace("Complete::TimeStreamSimpleWriter::getTimestreamRecordsFromSinkRecords: Record's size: {}", records.size());
+        LOGGER.trace("Complete::TimeStreamWriter::getTimestreamRecordsFromSinkRecords: BEFORE INGESTION: " +
+                "Record's size: {}, FailedRecords Size: {}", records.size(), failedRecords.size());
         return records;
     }
 
     /**
-     * Method to log if there are any records rejected while ingesting into Timestream
+     * Method to get the rejected records while ingesting into Timestream table
      *
-     * @param rejectedRecords list of records rejected
-     * @param allRecords      all records which were trying to be ingested
+     * @param rejectedRecords records that are rejected while ingestion
+     * @param allRecords all records that are attempted for ingestion
+     * @return List of {@link RejectedRecord}
      */
-    private void logRejectedRecords(final List<RejectedRecord> rejectedRecords, final List<Record> allRecords) {
-        for (final RejectedRecord rejectedRecord : rejectedRecords) {
+    private List<RejectedRecord> getRejectedTimestreamRecords(final List<software.amazon.awssdk.services.timestreamwrite.model.RejectedRecord> rejectedRecords, final List<Record> allRecords) {
+        final List<RejectedRecord> rejectedTSRecords = new ArrayList<>(rejectedRecords.size());
+        for (final software.amazon.awssdk.services.timestreamwrite.model.RejectedRecord rejectedRecord : rejectedRecords) {
             final Record record = allRecords.get(rejectedRecord.recordIndex());
-            LOGGER.error("ERROR::TimestreamSimpleWriter::logRejectedRecords: Rejected record Index: [{}], the reason is [{}] and the record is [{}]",
+            LOGGER.error("ERROR::TimeStreamWriter::getRejectedTimestreamRecords: Rejected record Index: [{}], reason: [{}] and the record is [{}]",
                     rejectedRecord.recordIndex(), rejectedRecord.reason(), record);
+            rejectedTSRecords.add(new RejectedRecord(record, rejectedRecord.reason()));
         }
+        return rejectedTSRecords;
     }
 
 
@@ -305,5 +341,36 @@ public class TimestreamWriter {
             recordOffsetsList.add(offset);
             recordOffsets.put(partition, recordOffsetsList);
         }
+    }
+
+    /**
+     * Method to get records for the given batch number
+     * @see TimestreamSinkConstants
+     *
+     * @param allRecords - all the records to be ingested to Timestream table
+     * @param currentBatch - current batch number
+     * @return batch records
+     */
+    private List<Record> getBatchRecords(final List<Record> allRecords, final int currentBatch) {
+
+        List<Record> batch = null;
+        if (allRecords != null) {
+            final int total = allRecords.size();
+            LOGGER.trace("Begin::TimeStreamWriter::getBatchRecords: allRecords Size [{}]", total);
+            final int fromIndex = currentBatch * TimestreamSinkConstants.DEFAULT_BATCHSIZE;
+            int toIndex = fromIndex + TimestreamSinkConstants.DEFAULT_BATCHSIZE;
+            if (fromIndex <= total) {
+                if (toIndex > total) {
+                    toIndex = total;
+                }
+                try {
+                    batch = allRecords.subList(fromIndex, toIndex);
+                    LOGGER.trace("Complete::TimeStreamWriter::getBatchRecords: batch Size [{}]", batch.size());
+                } catch (IndexOutOfBoundsException ie) {
+                    LOGGER.error("ERROR::TimeStreamWriter::getBatchRecords: all records Size: [{}], from: [{}], to: [{}]", allRecords.size(), fromIndex, toIndex);
+                }
+            }
+        }
+        return batch;
     }
 }

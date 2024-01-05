@@ -1,5 +1,7 @@
 package software.amazon.timestream.utility;
 
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.connect.sink.SinkConnector;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -105,6 +107,32 @@ public final class TimestreamSinkConfigurationValidator {
         validateTimestreamWriteBatchSize(config);
         validateTimestreamMaxConnections(config);
         validateTimestreamConnectionsRetry(config);
+        validateDLQConfigurations(config);
+    }
+
+    /**
+     * Method to validate if the given DLQ configuration values are valid
+     * @param config {@link TimestreamSinkConnectorConfig}
+     */
+    private static void validateDLQConfigurations(final TimestreamSinkConnectorConfig config) {
+        final String dlqTopic = config.getString(TimestreamSinkConstants.DLQ_TOPIC_NAME);
+        if (dlqTopic != null && !dlqTopic.isEmpty()) {
+            String configValue = config.getString(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG);
+            if (configValue == null || configValue.isEmpty()) {
+                validationErrors.add(new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.MISSING_BOOTSTRAP_SERVER,
+                        AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG));
+            }
+            configValue = config.getString(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG);
+            if (configValue == null || configValue.isEmpty()) {
+                validationErrors.add(new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.MISSING_KEY_DESER,
+                        ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG));
+            }
+            configValue = config.getString(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG);
+            if (configValue == null || configValue.isEmpty()) {
+                validationErrors.add(new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.MISSING_VALUE_DESER,
+                        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG));
+            }
+        }
     }
 
     /**

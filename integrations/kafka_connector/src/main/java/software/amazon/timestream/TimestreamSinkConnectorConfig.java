@@ -1,5 +1,7 @@
 package software.amazon.timestream;
 
+
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
@@ -115,7 +117,27 @@ public class TimestreamSinkConnectorConfig extends AbstractConfig {
                         ConfigDef.Type.BOOLEAN,
                         true,
                         ConfigDef.Importance.LOW,
-                        "When a measure value is not present/ empty, only that measure would be skipped by default.");
+                        "When a measure value is not present/ empty, only that measure would be skipped by default.")
+                .define("errors.deadletterqueue.topic.name",
+                        ConfigDef.Type.STRING,
+                        "",
+                        ConfigDef.Importance.LOW,
+                        "DLQ topic name for messages that result in an error when processed by this sink connector")
+                .define(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                        ConfigDef.Type.STRING,
+                        "",
+                        ConfigDef.Importance.LOW,
+                        "A list of host/port pairs to use for establishing the initial connection to the Kafka cluster")
+                .define(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+                        ConfigDef.Type.STRING,
+                        "org.apache.kafka.common.serialization.StringSerializer",
+                        ConfigDef.Importance.LOW,
+                        "Serializer class for key")
+                .define(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                        ConfigDef.Type.STRING,
+                        "org.apache.kafka.common.serialization.StringSerializer",
+                        ConfigDef.Importance.LOW,
+                        "Serializer class for Value");
     }
 
     /**

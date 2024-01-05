@@ -86,6 +86,11 @@ public class TimestreamSinkConstants {
     public static final String CON_TIMEOUT = "timestream.connections.timeoutseconds";
 
     /**
+     * Constant: Dead letter topic name
+     */
+    public static final String DLQ_TOPIC_NAME = "errors.deadletterqueue.topic.name";
+
+    /**
      * Constant: default value for 'timestream.connections.max'
      */
     public static final int DEFAULT_CON_MAX = 5000;
@@ -105,4 +110,22 @@ public class TimestreamSinkConstants {
      * Constant: default value for 'timestream.record.batch.size'
      */
     public static final int DEFAULT_BATCHSIZE = 100;
+
+    /**
+     * Constant: default value for 'SASL_MECHANISM' of DLQ Publisher
+     */
+    public static final String DEFAULT_SASL_MECHANISM = "AWS_MSK_IAM";
+    /**
+     * Constant: default value for 'SASL_JAAS_CONFIG' of DLQ Publisher
+     */
+    public static final String DEFAULT_SASL_JAAS_CONFIG = "software.amazon.msk.auth.iam.IAMLoginModule required;";
+    /**
+     * Constant: default value for 'SASL_CLIENT_CALLBACK_HANDLER_CLASS'
+     */
+    public static final String DEFAULT_SASL_CLIENT_CALLBACK_HANDLER = "software.amazon.msk.auth.iam.IAMClientCallbackHandler";
+    /**
+     * Constant: client d of DLQ Publisher
+     */
+    public static final String CONST_DLQ_CLIENT_ID = "DLQPublisher";
+
 }

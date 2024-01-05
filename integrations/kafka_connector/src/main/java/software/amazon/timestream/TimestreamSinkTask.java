@@ -3,11 +3,14 @@ package software.amazon.timestream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.timestream.exception.TimestreamSinkConnectorException;
+import software.amazon.timestream.schema.RejectedRecord;
+import software.amazon.timestream.utility.DLQReporter;
 import software.amazon.timestream.utility.reader.TimestreamS3SchemaReader;
 import software.amazon.timestream.utility.reader.TimestreamSchemaReader;
 import software.amazon.timestream.utility.AWSServiceClientFactory;
@@ -35,6 +38,11 @@ public class TimestreamSinkTask extends SinkTask {
      */
     private AWSServiceClientFactory clientFactory;
     /**
+     * Kafka Publisher to DLQ topic
+     */
+    private DLQReporter dlqReporter;
+
+    /**
      * Offset tracker per partition
      */
     private final ConcurrentHashMap<String, HashSet<Long>> recordOffsets = new ConcurrentHashMap<>();
@@ -47,13 +55,14 @@ public class TimestreamSinkTask extends SinkTask {
     @Override
     public void start(final Map<String, String> map) {
         try {
-            LOGGER.info("Begin::TimestreamSinkTask::start");
+            LOGGER.info("Begin::TimestreamSinkTask::start: configuration map [{}]", map);
             TimestreamSinkConfigurationValidator.validateInitialConfig(map);
             final TimestreamSinkConnectorConfig sinkConfig = new TimestreamSinkConnectorConfig(map);
             clientFactory = new AWSServiceClientFactory(sinkConfig);
             TimestreamSinkConfigurationValidator.validateTimestreamSinkConnectorConfig(clientFactory, sinkConfig);
             final TimestreamSchemaReader schemaReader = new TimestreamS3SchemaReader(clientFactory, sinkConfig);
             timeStreamWriter = new TimestreamWriter(schemaReader.getSchemaDefinition(), sinkConfig);
+            instantiateDLQReporter(sinkConfig);
             LOGGER.info("Complete::TimestreamSinkTask::start");
         } catch (ConnectException e) {
             LOGGER.error("Error::TimestreamSinkTask::start", e);
@@ -70,7 +79,10 @@ public class TimestreamSinkTask extends SinkTask {
             for (final SinkRecord record : recordList) {
                 LOGGER.trace("Sink Record: {} ", record);
             }
-            timeStreamWriter.writeRecords(clientFactory, collection);
+            final List<RejectedRecord> rejectedRecords = timeStreamWriter.writeRecords(clientFactory, collection);
+            if (rejectedRecords != null && !rejectedRecords.isEmpty() && dlqReporter != null) {
+                dlqReporter.reportRejectedRecords(rejectedRecords);
+            }
         }
     }
 
@@ -82,6 +94,12 @@ public class TimestreamSinkTask extends SinkTask {
     @Override
     public void stop() {
         LOGGER.info("Complete::TimestreamSinkTask::stop");
+        if (dlqReporter != null) {
+            dlqReporter.getDlqPublisher().flush();
+            dlqReporter.getDlqPublisher().close();
+        }
+        clientFactory.getTimestreamClient().close();
+        clientFactory.getS3Client().close();
     }
 
     @Override
@@ -102,5 +120,23 @@ public class TimestreamSinkTask extends SinkTask {
             }
         }
         return offsetsChange;
+    }
+
+    /**
+     * Method to check if DLQ is enabled and instantiate the producer accordingly
+     * @param sinkConfig TimestreamSinkConnectorConfig
+     */
+    private void instantiateDLQReporter(final TimestreamSinkConnectorConfig sinkConfig) {
+        try {
+            final ErrantRecordReporter dlq = context.errantRecordReporter();
+            if (dlq != null) {
+                this.dlqReporter = new DLQReporter(sinkConfig, dlq);
+                LOGGER.info("TimestreamSinkTask::instantiateDLQReporter::Dead-letter queue enabled: [{}]", dlq);
+            } else {
+                LOGGER.info("TimestreamSinkTask::instantiateDLQReporter::Dead-letter queue NOT enabled");
+            }
+        } catch (NoSuchMethodError | NoClassDefFoundError e) {
+            LOGGER.info("TimestreamSinkTask::instantiateDLQReporter::Dead-letter queue NOT enabled");
+        }
     }
 }
