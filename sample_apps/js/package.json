@@ -1,6 +1,6 @@
 {
   "name": "amazon-timestream-sample-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sample NodeJs application to use Timestream",
   "main": "main.js",
   "type": "module",
@@ -19,15 +19,18 @@
   },
   "homepage": "https://github.com/awslabs/amazon-timestream-tools/tree/master/sample_apps/js#readme",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.370.0",
-    "@aws-sdk/client-sts": "^3.370.0",
-    "@aws-sdk/client-timestream-query": "^3.370.0",
-    "@aws-sdk/client-timestream-write": "^3.370.0",
-    "@js-joda/core": "^5.5.3",
-    "aws-sdk": "^2.1374.0",
+    "@aws-sdk/client-s3": "^3.495.0",
+    "@aws-sdk/client-sts": "^3.495.0",
+    "@aws-sdk/client-timestream-query": "^3.495.0",
+    "@aws-sdk/client-timestream-write": "^3.495.0",
+    "@js-joda/core": "^5.6.1",
+    "aws-sdk": "^2.1539.0",
     "csv-parser": "^3.0.0",
     "decompress": "^4.2.1",
     "minimist": "^1.2.8",
     "zlib": "^1.0.5"
+  },
+  "scripts": {
+    "test": "node main.js && node main.js --csvFilePath=../data/sample.csv && node main.js --type unload --csvFilePath=../data/sample_unload.csv && node main.js --type compositePartitionKey && node main.js --type cleanup"
   }
 }
