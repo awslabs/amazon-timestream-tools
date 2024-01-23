@@ -24,7 +24,6 @@
     "@aws-sdk/client-timestream-query": "^3.495.0",
     "@aws-sdk/client-timestream-write": "^3.495.0",
     "@js-joda/core": "^5.6.1",
-    "aws-sdk": "^2.1539.0",
     "csv-parser": "^3.0.0",
     "decompress": "^4.2.1",
     "minimist": "^1.2.8",
