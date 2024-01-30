@@ -3,6 +3,7 @@
 The goal for this join is that there are 2 tables
 1. Sensor events for sensor measurements
 2. Sensor status events and other details
+
 The JOIN examples enriches the sensor events with data from the status event. Common use is to only filter sensor events for sensors that are active. The active/stopped informaiton is here stored in the second table of sensor details.
 
 ### 1. Sensor Event table
