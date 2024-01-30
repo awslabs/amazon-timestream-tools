@@ -9,8 +9,9 @@ Each example contains
 
 ## Folder content
 
-Folder | Description
--------|-------------
-[utils](utils) | Utility python script that performs <br /> 1. Upload example data to S3 <br /> 2. Creates Batch Load task to load example data into Timestream Table
-[last_value_fill_forward](last_value_fill_forward) | Create time series and fill gaps with LAST_VALUE() function |
+Folder | Description                                                                                                                                          
+-------|------------------------------------------------------------------------------------------------------------------------------------------------------
+[utils](utils) | Utility python script that performs <br /> 1. Upload example data to S3 <br /> 2. Creates Batch Load task to load example data into Timestream Table 
+[join_tables](join_tables) | Demostrate how to JOIN tables in SQL                                                                                                                 |
+[last_value_fill_forward](last_value_fill_forward) | Create time series and fill gaps with LAST_VALUE() function                                                                                          |
 

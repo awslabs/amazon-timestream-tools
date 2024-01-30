@@ -1,18 +1,47 @@
-# Gap filling with last value
+# Join tables in Amazon Timestream SQL query
 
-## Query uses multiple steps
+## This example joins 2 tables:
 
-1. create time sequence `time_seq_only` (not limited to just 10,000 data points)
-2. get all distinct device ids (in this data example as gpio) as `distinct_gpio`
-2. duplicate time sequence for device id's to `time_seq_with_gpio` (in this example gpio channels) to allow for each channel to be filled individually
-2. select raw data binned at same intervals as `raw_pos`
-3. join time sequence `time_seq_with_gpio` with raw data `raw_pos` as data set that contains NULL values now
-4. use LAST_VALUE in filled dataset, this query lists justs 2 measures: orignal temperature that can contain NULL and the filled column
+### 1. Sensor Event table
+Contains measure events (temperature, humidity)
 
-The result set shows both original value containing NULL and the filled value in a separate column
+| Column | Type | Description |
+|--------|------|-------------|
+|gpio|Dimension| Sensor channel identifier |
+|time|Timestamp| Time measure event was taken|
+|measure_name|measure_name|Measure type|
+|temperature|DOUBLE|Temperature in F|
+|humidity|DOUBLE|Humidity in % |
+
+### 2. Sensor Details table
+Additional details about the sensor. These are time based change events
+
+| Column | Type | Description                             |
+|--------|------|-----------------------------------------|
+|gpio|Dimension| Sensor channel identifier               |
+|time|Timestamp| Time details were created/changed       |
+|measure_name|measure_name| event type (initial_event/change_event) |
+|name|VARCHAR|readable name of sensor|
+|status|VARCHAR|active/stopped status of sensor|
+
+## SQL query
+
+Two SQL example statements are included in the file ```query_example_join_tables.sql```
+1. Standard SQL JOIN to illustrate SQL compatibility
+2. Performance optimized CTE JOIN
+
+## Loading example data
+
+The following commands is using the ```create_batch_load_task.py``` utility to load the example csv files used in this
+query example. Please adjust as needed
+
+###  1. Load sensor events data
 
 ```shell
 cd <github-clone-root>/amazon-timestream-tools/sample_apps/sql/utils
+```
+
+```shell
 python3 ./create_batch_load_task.py \
      region=<your_region> \
      mapping=../join_tables/datamodel_events.json \
@@ -22,7 +51,11 @@ python3 ./create_batch_load_task.py \
      database=amazon-timestream-tools \
      table=sensor_events \
      partition_key=gpio
+```
 
+###  2. Load sensor details data
+
+```shell
 python3 ./create_batch_load_task.py \
      region=<your_region> \
      mapping=../join_tables/datamodel_details.json \
@@ -35,19 +68,19 @@ python3 ./create_batch_load_task.py \
 
 ```
 
-| **⚠ Note**:                                                                                                                                                                                                                                                                                                                                 |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| It is recommended to use the database name `amazon-timestream-tools` and table name `sensordata` as described below. The SQL statement uses `"amazon-timestream-tools"."sensorddata"` in WHERE clause and would not need to be modified. If you use a different database name and table combination, please adjust the SQL query as needed. |
+| **⚠ Note**:                                                                                                                                                                                                                                                                                                                                          |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| It is recommended to use the database name `amazon-timestream-tools` and table names `sensor_events` and `sensor_details` as described below. The SQL statement uses `"amazon-timestream-tools"."sensorddata"` in WHERE clause and would not need to be modified. If you use a different database name and table combination, please adjust the SQL query as needed. |
 
 Parameters used:
 
 Parameter        | Description                                                                                                                            | Recommended Value
 -----------------|----------------------------------------------------------------------------------------------------------------------------------------|-------------------
 **region**       | Region where database is deployed                                                                                                      | any region where Timestream is available
-**mapping**      | File used to map CSV data columns to Timestream attributes                                                                             | `../last_value_fill_forward/datamodel.json`
+**mapping**      | File used to map CSV data columns to Timestream attributes                                                                             | `../join_tables/datamodel_events.json` <br/> `../join_tables/datamodel_details.json`
 **input_bucket** | S3 bucket used to upload data file and report Batch Load Status                                                                        | existing S3 bucket
 **object_key**   | Folder where data file will be uploaded                                                                                                | any string, should not be root folder
-**data_file**    | CSV file for this example                                                                                                              | `sensor_with_gaps.csv`
+**data_file**    | CSV file for this example                                                                                                              | `../join_tables/sensor_events.csv ` <br/> `../join_tables/sensor_details.csv`
 **database**     | Database in region. Database will be created if not exists. | `amazon-timestream-tools`
-**table**        | Table where data is loaded. If this table does not exist, the table will be created                                                    | `sensordata`
+**table**        | Table where data is loaded. If this table does not exist, the table will be created                                                    | `sensor_events` <br/>`sensor_details`
 **partition_key**| Custome defined partition key (CDPK) used for this data example | `gpio`
