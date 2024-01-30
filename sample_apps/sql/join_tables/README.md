@@ -1,6 +1,5 @@
 # Join tables in Amazon Timestream SQL query
 
-## This example joins 2 tables
 The goal for this join is that there are 2 tables
 1. Sensor events for sensor measurements
 2. Sensor status events and other details
