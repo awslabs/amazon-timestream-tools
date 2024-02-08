@@ -1,6 +1,6 @@
 # Upload utility
 
-This utility allows to upload the sample data set using Batch Load
+This utility allows to upload the sample data set using Batch Load. It is using the boto3 module. Pleae install if not available already.
 
 For each of the SQL examples this utility will
 
@@ -10,5 +10,6 @@ For each of the SQL examples this utility will
 3. Create **Batch Load** task for upload
 
 This utility is used in the examples below and each invocation is listed in the examples with parameters:
+* [Join tables in Amazon Timestream SQL query](../join_tables)
 * [Gap filling with last value](../last_value_fill_forward)
 

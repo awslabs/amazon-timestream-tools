@@ -1,0 +1,25 @@
+{
+  "TimeUnit": "MILLISECONDS",
+  "TimeColumn": "time",
+  "DimensionMappings": [
+    {
+      "SourceColumn": "gpio",
+      "DestinationColumn": "gpio"
+    }
+  ],
+  "MultiMeasureMappings": {
+    "MultiMeasureAttributeMappings": [
+      {
+        "SourceColumn": "temperature",
+        "TargetMultiMeasureAttributeName": "temperature",
+        "MeasureValueType": "DOUBLE"
+      },
+      {
+        "SourceColumn": "humidity",
+        "TargetMultiMeasureAttributeName": "humidity",
+        "MeasureValueType": "DOUBLE"
+      }
+    ]
+  },
+  "MeasureNameColumn": "measure_name"
+}

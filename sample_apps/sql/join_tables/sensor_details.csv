@@ -1,0 +1,4 @@
+gpio,time,name,status,measure_name
+17,1695335950657,office,active,initial_event
+22,1695335950657,outside,active,change_event
+27,1695335950657,window,stopped,change_event

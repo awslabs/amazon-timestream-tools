@@ -1,0 +1,25 @@
+{
+  "TimeUnit": "MILLISECONDS",
+  "TimeColumn": "time",
+  "DimensionMappings": [
+    {
+      "SourceColumn": "gpio",
+      "DestinationColumn": "gpio"
+    }
+  ],
+  "MultiMeasureMappings": {
+    "MultiMeasureAttributeMappings": [
+      {
+        "SourceColumn": "name",
+        "TargetMultiMeasureAttributeName": "name",
+        "MeasureValueType": "VARCHAR"
+      },
+      {
+        "SourceColumn": "status",
+        "TargetMultiMeasureAttributeName": "status",
+        "MeasureValueType": "VARCHAR"
+      }
+    ]
+  },
+  "MeasureNameColumn": "measure_name"
+}
