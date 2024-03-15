@@ -1,4 +1,4 @@
-.DS_Store
+**/.DS_Store
 
 # Ignore common dotnet files
 bin/
@@ -14,9 +14,20 @@ go.sum
 target/
 
 # Ignore common Python files
-venv
-__pycache__
+**/venv
+**/.DS_Store
+**/__pycache__/**
+**/.env
+**/.venv
+**/env/
+**/venv/
+**/ENV/
+**/env.bak/
+**/venv.bak/
 
 # Ignore common JS files
 node_modules
 
+# Ignore AWS Influx migration script backup and performance files and directories
+tools/python/influx-migration/**/performance.txt
+tools/python/influx-migration/**/*influxdb-backup-*

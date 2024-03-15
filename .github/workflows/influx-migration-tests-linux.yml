@@ -1,0 +1,75 @@
+name: Influx migration script tests on Linux
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'tools/python/influx-migration/**'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'tools/python/influx-migration/**'
+
+env:
+  INFLUX_SRC_TOKEN: "test-token"
+  INFLUX_DEST_TOKEN: $INFLUX_SRC_TOKEN
+  INFLUX_CLI_VERSION: 2.7.3
+
+defaults:
+  run:
+    shell: bash
+    working-directory: 'tools/python/influx-migration'
+
+jobs:
+  linux64:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python 3.7
+      id: setup-python
+      uses: actions/setup-python@v5
+      with:
+        # Minimum supported Python version for the Influx migration script
+        python-version: '3.7'
+
+    - name: Install dependencies
+      id: install-dependencies
+      if: ${{ success() }}
+      run: |
+        sudo apt update
+        sudo apt upgrade
+        sudo apt install wget
+        python3 -m venv env
+        source env/bin/activate
+        python3 -m pip install --upgrade pip
+        python3 -m pip install boto3 influxdb_client pandas parameterized
+
+    - name: Install Influx CLI
+      run: |
+        mkdir influxdb2-client
+        wget https://dl.influxdata.com/influxdb/releases/influxdb2-client-$INFLUX_CLI_VERSION-linux-amd64.tar.gz
+        tar -xvzf influxdb2-client-$INFLUX_CLI_VERSION-linux-amd64.tar.gz -C influxdb2-client/
+        sudo cp influxdb2-client/influx /usr/local/bin
+        rm -rf influxdb2-client
+        rm influxdb2-client-$INFLUX_CLI_VERSION-linux-amd64.tar.gz
+
+    - name: Setup InfluxDB Docker container
+      id: setup-influxdb-docker-container
+      if: ${{ success() }}
+      run: |
+        bash scripts/influxdb-restart.sh
+
+    - name: Run unit tests
+      id: run-unit-tests
+      run: |
+        source env/bin/activate
+        python3 unit_test.py
+
+    - name: Run integration tests
+      id: run-integration-tests
+      run: |
+        source env/bin/activate
+        python3 integration_test.py
