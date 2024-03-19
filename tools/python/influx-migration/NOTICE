@@ -1,0 +1,42 @@
+Influx Migration Script
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+1) License Notice for rclone
+----------------------------
+
+Copyright (C) 2012 by Nick Craig-Wood http://www.craig-wood.com/nick/.
+
+Distributed under the MIT License.
+See https://github.com/rclone/rclone/blob/master/COPYING
+
+2) License Notice for mountpoint-s3
+-----------------------------------
+
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Distributed under the Apache License, version 2.0.
+See https://github.com/awslabs/mountpoint-s3/blob/main/LICENSE
+
+3) License Notice for influx-cli
+--------------------------------
+
+Copyright (c) 2021 InfluxData.
+
+Distributed under the MIT License.
+See https://github.com/influxdata/influx-cli/blob/main/LICENSE
+
+4) License Notice for influxdb-client-python
+--------------------------------------------
+
+Copyright (c) 2019 InfluxData, Inc.
+
+Distributed under the MIT License.
+See https://github.com/influxdata/influxdb-client-python/blob/master/LICENSE
+
+5) License Notice for boto3
+---------------------------
+
+Copyright 2013-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Distributed under the Apache License, version 2.0.
+See https://github.com/boto/boto3/blob/develop/LICENSE
