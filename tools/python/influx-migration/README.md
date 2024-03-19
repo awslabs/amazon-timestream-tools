@@ -160,11 +160,11 @@ After meeting the prerequisites:
 
 1. Open up a terminal app of choice and make sure the required pre-requisites are properly installed.
 
-    ![script-pre-reqs](./img/script-pre-reqs.png)
+    <img src="./img/script-pre-reqs.png" width="500"/>
 
 2. Navigate to where the migration script is located.
 
-    ![script-navigate](./img/script-navigate.png)
+    <img src="./img/script-navigate.png" width="500"/>
 
 3. Prepare the following information:
 
@@ -195,7 +195,7 @@ After meeting the prerequisites:
 
 5. Execute the script:
 
-    ![script-execution](./img/script-execution.png)
+    <img src="./img/script-execution.png" width="1000"/>
 
 6. Wait for the script to finish executing.
 
