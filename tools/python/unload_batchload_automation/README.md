@@ -35,9 +35,9 @@ Check the following guide to learn more: [Limits for UNLOAD from Timestream for 
 ### Examples
 
 Example to unload the Timestream table *myTable* in the database *sourcedb* to the folder *unload* in the *timestream-unload-sourcedb-mytable* S3 bucket.
-Also, it applies an S3 bucket policy to allow the IAM Role *BatchLoadRole* of account *123456789123* to allow the copy.  
+Also, it applies an S3 bucket policy to allow the IAM Role *BatchLoadRole* of account *123456789123* to allow the copy.  Does day level partitions.
  ```bash
-python3 unload.py -region eu-west-1 -s3_uri s3://timestream-unload-sourcedb-mytable/unload -database sourcedb -table myTable -iam_role_bucket_policy arn:aws:iam::123456789123:role/BatchLoadRole
+python3 unload.py -region eu-west-1 -s3_uri s3://timestream-unload-sourcedb-mytable/unload -database sourcedb -table myTable -iam_role_bucket_policy arn:aws:iam::123456789123:role/BatchLoadRole -p day
 ```
 
 ## Getting started with BATCH LOAD
