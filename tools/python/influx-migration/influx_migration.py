@@ -275,17 +275,19 @@ def health_check(host, token, skip_verify):
     :returns: Whether the health check succeeded.
     :rtype: bool
     """
-    # Ensure hosts can be connected to
+    # Ensure hosts can be connected to using the /ping InfluxDB API endpoint
+    client = None
     try:
         client = InfluxDBClient(url=host,
             token=token, timeout=MILLISECOND_TIMEOUT, verify_ssl=not skip_verify)
         if not client.ping():
-            raise InfluxDBError(message=f"{host} ping failed")
+            raise InfluxDBError(message=f"InfluxDB API call to {host}/ping failed")
     except InfluxDBError as error:
         logging.error(str(error))
         return False
     finally:
-        client.close()
+        if client is not None:
+            client.close()
     return True
 
 def log_performance_metrics(func_name, start_time, duration):
