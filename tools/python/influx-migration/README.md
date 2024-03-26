@@ -114,7 +114,7 @@ The following is a formatted version of the output:
 
 **`--dest-bucket DEST_BUCKET`**: Optional. The name of the InfluxDB bucket in the destination server, must not be an already existing bucket. Defaults to value of `--src-bucket` or `None` if `--src-bucket` not provided.
 
-**`--dest-host DEST_HOST`**: The host for the destination server. Example: http://localhost:8086.
+**`--dest-host DEST_HOST`**: The host for the destination server. Must have a scheme, domain or IP address, and port, e.g., http://localhost:8086 or https://some-domain:8086.
 
 **`--dest-org DEST_ORG`**: Optional. The name of the organization to restore buckets to in the destination server. If this is omitted, then all migrated buckets from the source server will retain their original organization and migrated buckets may not be visible in the destination server without creating and switching organizations. This value will be used in all forms of restoration whether a single bucket, a full migration, or any migration using csv files for backup and restoration.
 
@@ -134,7 +134,7 @@ The following is a formatted version of the output:
 
 **`--src-bucket SRC_BUCKET`**: Optional. The name of the InfluxDB bucket in the source server. If not provided, then `--full` must be provided.
 
-**`--src-host SRC_HOST`**: Optional. The host for the source server. Defaults to http://localhost:8086.
+**`--src-host SRC_HOST`**: Optional. The host for the source server.Must have a scheme, domain or IP address, and port, e.g., http://localhost:8086 or https://some-domain:8086. Defaults to http://localhost:8086.
 
 > As mentioned previously, `mountpoint-s3` and `rclone` are needed if `--s3-bucket` is to be used, but can be ignored if the user doesn't provide a value for `--s3-bucket`, in which case backup files will be stored in a unique directory locally.
 
