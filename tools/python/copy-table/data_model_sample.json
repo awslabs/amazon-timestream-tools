@@ -1,0 +1,29 @@
+{
+  "TimeUnit": "NANOSECONDS",
+  "TimeColumn": "nanoseconds",
+  "DimensionMappings": [
+    {
+      "SourceColumn": "city",
+      "DestinationColumn": "city"
+    },
+    {
+      "SourceColumn": "text",
+      "DestinationColumn": "text"
+    }
+  ],
+  "MultiMeasureMappings": {
+    "MultiMeasureAttributeMappings": [
+      {
+        "SourceColumn": "cpu_utilization",
+        "TargetMultiMeasureAttributeName": "cpu_utilization",
+        "MeasureValueType": "DOUBLE"
+      },
+      {
+        "SourceColumn": "memory",
+        "TargetMultiMeasureAttributeName": "memory",
+        "MeasureValueType": "DOUBLE"
+      }
+    ]
+  },
+  "MeasureNameColumn": "measure_name"
+}
