@@ -373,14 +373,16 @@ def parse_args(args):
         "source server. If not provided, then --full must be provided.",
         required=False)
     parser.add_argument("--dest-bucket", help="Optional. The name of the InfluxDB bucket in the "
-        "destination server, must not be an already existing bucket. Defaults to value of"
+        "destination server, must not be an already existing bucket. Defaults to value of "
         "--src-bucket or None if --src-bucket not provided.",
         required=False)
-    parser.add_argument("--src-host", help="Optional. The host for the source server. Defaults to "
-        "http://localhost:8086.",
+    parser.add_argument("--src-host", help="Optional. The host for the source server."
+        "Must have a scheme, domain or IP address, and port, e.g., http://localhost:8086 or "
+        "https://some-domain:8086. Defaults to http://localhost:8086.",
         default="http://localhost:8086", required=False)
-    parser.add_argument("--dest-host", help="The host for the destination server. Example: "
-        "http://localhost:8086.",
+    parser.add_argument("--dest-host", help="The host for the destination server. "
+        "Must have a scheme, domain or IP address, and port, e.g., http://localhost:8086 or "
+        "https://some-domain:8086.",
         required=True)
     parser.add_argument("--full", help="Optional. Whether to perform a full restore, replacing all "
         "data on destination server with all data from source server from all organizations, "
