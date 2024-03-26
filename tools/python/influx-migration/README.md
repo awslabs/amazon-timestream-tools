@@ -152,7 +152,7 @@ After meeting the prerequisites:
 
     b. Listing buckets with `influx bucket list -t <destination token> --host <destination host address> --skip-verify`.
 
-    c. Using `influx v1 shell -t <destination token> --host <destination host address> --skip-verify` and running `SELECT * FROM <migrated bucket>.<retention period>.<measurement name> LIMIT 100` to view contents of a bucket or `SELECT COUNT(*) FROM <migrated bucket>.<retention period>.<measurment name>` to verify the correct number of records have been migrated.
+    c. Using `influx v1 shell -t <destination token> --host <destination host address> --skip-verify` and running `SELECT * FROM <migrated bucket>.<retention period>.<measurement name> LIMIT 100` to view contents of a bucket or `SELECT COUNT(*) FROM <migrated bucket>.<retention period>.<measurement name>` to verify the correct number of records have been migrated.
 
     d. By running a query using `influx query -t <destination token> --host <destination host address> --skip-verify 'from(bucket: "<migrated bucket>") |> range(start: <desired start>, stop: <desired stop>)'`. Adding `|> count()` to the query is also a way to verify the correct number of records have been migrated.
 
@@ -178,7 +178,7 @@ After meeting the prerequisites:
 
     - (optional) S3 bucket name and credentials, AWS CLI credentials should be set in the OS environment variables.
       ```
-      # AWS credentials (for timestream testing)
+      # AWS credentials
       export AWS_ACCESS_KEY_ID="xxx"
       export AWS_SECRET_ACCESS_KEY="xxx"
       ```
