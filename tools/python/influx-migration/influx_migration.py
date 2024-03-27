@@ -265,7 +265,7 @@ def create_backup_directory(backup_directory, mount_point=None, bucket_name=None
         raise RuntimeError("Backup directory could not be created within S3 bucket")
     return backup_directory
 
-def health_check(host, token, skip_verify):
+def health_check(host, token, skip_verify, debug=False):
     """
     Pings the InfluxDB instance to determine health.
     
@@ -278,9 +278,17 @@ def health_check(host, token, skip_verify):
     # Ensure hosts can be connected to
     try:
         client = InfluxDBClient(url=host,
-            token=token, timeout=MILLISECOND_TIMEOUT, verify_ssl=not skip_verify)
+            token=token, timeout=MILLISECOND_TIMEOUT, verify_ssl=not skip_verify, debug=debug)
         if not client.ping():
-            raise InfluxDBError(message=f"{host} ping failed")
+            url_parse = urllib.parse.urlparse(host)
+            if url_parse.scheme == "":
+                logging.error("Host is missing scheme")
+            if url_parse.port is None:
+                logging.error("Host is missing port")
+            if url_parse.scheme == "" or url_parse.port is None:
+                logging.error("The expected format for host urls is <scheme>:<domain>:<port>. "
+                    "For example, http://127.0.0.1:8086")
+            raise InfluxDBError(message=f"InfluxDB API call to {host}/ping failed")
     except InfluxDBError as error:
         logging.error(str(error))
         return False
@@ -373,14 +381,16 @@ def parse_args(args):
         "source server. If not provided, then --full must be provided.",
         required=False)
     parser.add_argument("--dest-bucket", help="Optional. The name of the InfluxDB bucket in the "
-        "destination server, must not be an already existing bucket. Defaults to value of"
+        "destination server, must not be an already existing bucket. Defaults to value of "
         "--src-bucket or None if --src-bucket not provided.",
         required=False)
-    parser.add_argument("--src-host", help="Optional. The host for the source server. Defaults to "
-        "http://localhost:8086.",
+    parser.add_argument("--src-host", help="Optional. The host for the source server. "
+        "Must have a scheme, domain or IP address, and port, e.g., http://127.0.0.1:8086 or "
+        "https://<domain>:<port>. Defaults to http://localhost:8086 if no value is specified.",
         default="http://localhost:8086", required=False)
-    parser.add_argument("--dest-host", help="The host for the destination server. Example: "
-        "http://localhost:8086.",
+    parser.add_argument("--dest-host", help="The host for the destination server. "
+        "Must have a scheme, domain or IP address, and port, e.g., http://127.0.0.1:8086 or "
+        "https://<domain:<port>.",
         required=True)
     parser.add_argument("--full", help="Optional. Whether to perform a full restore, replacing all "
         "data on destination server with all data from source server from all organizations, "
@@ -765,9 +775,10 @@ def verify_instances(args, src_token, dest_token):
     :returns: None
     :raises InfluxDBError: If any check fails.
     """
+    debug = args.log_level.lower() == "debug"
     # Source checks
     if src_token is not None:
-        if not health_check(args.src_host, src_token, args.skip_verify):
+        if not health_check(args.src_host, src_token, args.skip_verify, debug):
             raise InfluxDBError(message="Health check for source host failed")
         if not verify_token(args.src_host, src_token, args.skip_verify):
             raise InfluxDBError(message="Could not verify source token")
@@ -780,7 +791,7 @@ def verify_instances(args, src_token, dest_token):
             raise InfluxDBError(message="TLS certificate could not be verified for source host")
 
     # Destination checks
-    if not health_check(args.dest_host, dest_token, args.skip_verify):
+    if not health_check(args.dest_host, dest_token, args.skip_verify, debug):
         raise InfluxDBError(message="Health check for destination host failed")
     if not args.skip_verify and not verify_tls(args.dest_host):
         raise InfluxDBError(message="TLS certificate could not be verified for destination host")
