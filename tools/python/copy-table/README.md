@@ -37,7 +37,7 @@ Check the following guide to learn more: [Limits for UNLOAD from Timestream for 
 Example to unload the Timestream table *myTable* in the database *sourcedb* to the folder *unload* in the *timestream-unload-sourcedb-mytable* S3 bucket.
 Also, it applies an S3 bucket policy to allow the IAM Role *BatchLoadRole* of account *123456789123* to allow the copy.  Does day level partitions.
  ```bash
-python3 unload.py -region eu-west-1 -s3_uri s3://timestream-unload-sourcedb-mytable/unload -database sourcedb -table myTable -iam_role_bucket_policy arn:aws:iam::123456789123:role/BatchLoadRole -p day
+python3.10 unload.py --region eu-west-1 --s3_uri s3://timestream-unload-sourcedb-mytable/unload --database sourcedb --table myTable --iam_role_bucket_policy arn:aws:iam::123456789123:role/BatchLoadRole --partition day
 ```
 
 ## Getting started with BATCH LOAD
@@ -85,7 +85,7 @@ Target bucket and error bucket names are given by *s3_target_bucket* and *s3_tar
 Destination prefix will be created with prefix dest/ given by *destination_s3_prefix*. Desired data model file is chosen as *data_model_sample.json* in the current location of the script. 
 
  ```bash
-python3 batch_load.py --region us-west-2 --create_timestream_resource --database=targetdb --table=myTable --partition_key city --copy_s3_bucket --s3_source_bucket_location  timestream-unload-sourcedb-mytable --source_s3_prefix unload/results/ --create_destination_bucket --s3_target_bucket timestream-batchload-targetdb-mytable --destination_s3_prefix dest/ --create_error_logging_bucket --s3_target_error_bucket timestream-batchload-error-logs --data_model_file "data_model_sample.json"      
+python3.10 batch_load.py --region us-west-2 --create_timestream_resource --database=targetdb --table=myTable --partition_key city --copy_s3_bucket --s3_source_bucket_location  timestream-unload-sourcedb-mytable --source_s3_prefix unload/results/ --create_destination_bucket --s3_target_bucket timestream-batchload-targetdb-mytable --destination_s3_prefix dest/ --create_error_logging_bucket --s3_target_error_bucket timestream-batchload-error-logs --data_model_file "data_model_sample.json"      
 ```
  
 **Without S3 Copy** 
@@ -93,7 +93,7 @@ Example to execute a batch load to the target Timestream table *myTable* with pa
 Timestream objects are created by this script as per *create_timestream_resource* parameter. Source data are located in the S3 bucket *timestream-unload-sourcedb-mytable* with prefix *unload/results/*.
 Error logs are stored into S3 bucket *timestream-batchload-error-logs*. If you need error log buckets to be created specify --create_error_logging_bucket.
  ```bash
-python3 batch_load.py --region eu-west-1 --database=targetdb --table=myTable  --s3_target_bucket timestream-unload-sourcedb-mytable --destination_s3_prefix unload/results/  --data_model_file "data_model_sample.json" --create_timestream_resource --partition_key city   --s3_target_error_bucket timestream-batchload-error-logs
+python3.10 batch_load.py --region eu-west-1 --database=targetdb --table=myTable  --s3_target_bucket timestream-unload-sourcedb-mytable --destination_s3_prefix unload/results/  --data_model_file "data_model_sample.json" --create_timestream_resource --partition_key city   --s3_target_error_bucket timestream-batchload-error-logs
 ```
 
 ## Usage and Requirements
