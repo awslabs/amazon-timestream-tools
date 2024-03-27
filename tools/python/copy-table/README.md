@@ -102,7 +102,7 @@ These are the full steps to execute the script in your AWS Account.
 
 1. Log into your AWS account and select the AWS Region in which your Timestream table is stored
 
-2. Launch [AWS CloudShell](https://console.aws.amazon.com/cloudshell/home) or your local shell (Python 3.10 or newer is required)
+2. Launch [AWS CloudShell](https://console.aws.amazon.com/cloudshell/home) or your local shell (Python 3.10 or newer is **required**)
 
 3. Clone this source code project using [git](https://git-scm.com/) or download it manually
 
