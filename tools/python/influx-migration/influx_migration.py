@@ -275,7 +275,7 @@ def health_check(host, token, skip_verify, debug=False):
     :returns: Whether the health check succeeded.
     :rtype: bool
     """
-    # Ensure hosts can be connected to
+    # Ensure host can be connected to
     try:
         client = InfluxDBClient(url=host,
             token=token, timeout=MILLISECOND_TIMEOUT, verify_ssl=not skip_verify, debug=debug)
