@@ -1,6 +1,10 @@
 # Publishing data to a Kafka topic
 A script to generate a continuous stream of records and publish to a Kafka topic. 
-We use [Apache JMeter](https://jmeter.apache.org/) test plan to publish thousands of messages read from the sample CSV file [purchase_history.csv](purchase_history.csv) to the Kafka topic configured.
+We use [Apache JMeter](https://jmeter.apache.org/) test plan to publish thousands of messages read from the sample CSV file [purchase_history.csv](purchase_history.csv) to the Kafka topic configured as shown in the following diagram.
+
+![DataFlow-jMeterToKafka.png](images%2FDataFlow-jMeterToKafka.png)
+
+Additionally, you can check out the blog: [Real-time serverless data ingestion from your Kafka clusters into Amazon Timestream using Kafka Connect](https://aws.amazon.com/blogs/database/real-time-serverless-data-ingestion-from-your-kafka-clusters-into-amazon-timestream-using-kafka-connect/) to know more about setting up an end-to-end pipeline starting from a Kafka producer client machine that uses the jMeter test plan to publish messages to a Kafka topic to verifying the ingested records in an Amazon Timestream for LiveAnalytics table.  
 
 --- 
 ## Dependencies
@@ -128,8 +132,11 @@ Tidying up ... @ 2023 Dec 29 06:59:34 UTC (1703833174620)
 ```
 4. Verify if the messages are published to the topic with the following command:
 ```shell
-<path-to-your-kafka-installation>/bin/kafka-console-consumer.sh --bootstrap-server $BOOTSTRAP_SERVER --consumer.config client.properties --topic purchase-history --from-beginning
+cd <path-to-your-kafka-installation>/bin
+./kafka-console-consumer.sh --bootstrap-server $BOOTSTRAP_SERVER --consumer.config client.properties --topic purchase-history --from-beginning
 ```
-You start seeing the messages you published using the jMeter test plan; see [Produce and consume data](https://docs.aws.amazon.com/msk/latest/developerguide/produce-consume.html) for more details.
+Note:
+* Refer  [Produce and consume data](https://docs.aws.amazon.com/msk/latest/developerguide/produce-consume.html) to publish messages to a Kafka Topic / consume messages from a Kafka topic.
+* Refer the steps described in [Create a topic](https://docs.aws.amazon.com/msk/latest/developerguide/create-topic.html) to know more about the _client.properties_ file  
 
-Check out the blog: [Real-time serverless data ingestion from your Kafka clusters into Amazon Timestream using Kafka Connect](https://aws.amazon.com/blogs/database/real-time-serverless-data-ingestion-from-your-kafka-clusters-into-amazon-timestream-using-kafka-connect/) for troubleshooting and further details. 
+And you start seeing the messages you published using the jMeter test plan. 
