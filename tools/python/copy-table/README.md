@@ -53,14 +53,14 @@ Check the following guide to learn more: [Limits for UNLOAD from Timestream for 
 - **from_time** [OPTIONAL]: Timestamp (extreme included) from which you want to select data to unload (e.g.: *2024-02-26 17:24:38.270000000*)
 - **end_time** [OPTIONAL]: Timestamp (extreme excluded) to which you want to select data to unload (e.g.: *2024-03-15 19:26:31.304000000*)
 - **partition** [OPTIONAL]: Time partition you want to use (possible values: *day, month, year*)
-- **iam_role_arn_bucket_policy** [OPTIONAL]: {Applies for cross account migrations} Grants destination IAM Role access to S3 Bucket (e.g.: *arn:aws:iam::123456789123:role/BatchLoadRole*)
+- **iam_role_arn** [OPTIONAL]: {Applies for cross account migrations} Grants destination IAM Role access to S3 Bucket (e.g.: *arn:aws:iam::123456789123:role/BatchLoadRole*)
 
 ### Examples
 
 Example to unload the Timestream table *myTable* in the database *sourcedb* to the folder *unload* in the *timestream-unload-sourcedb-mytable* S3 bucket.
 Also, it applies an S3 bucket policy to allow the IAM Role *BatchLoadRole* of account *123456789123* to allow the copy. It does day level partitions.
  ```bash
-python3 unload.py --region eu-west-1 --s3_uri s3://timestream-unload-sourcedb-mytable/unload --database sourcedb --table myTable --iam_role_arn_bucket_policy arn:aws:iam::123456789123:role/BatchLoadRole --partition day
+python3 unload.py --region eu-west-1 --s3_uri s3://timestream-unload-sourcedb-mytable/unload --database sourcedb --table myTable --iam_role_arn arn:aws:iam::123456789123:role/BatchLoadRole --partition day
 ```
 
 ## Getting started with BATCH LOAD

@@ -7,7 +7,7 @@ from botocore.config import Config
 from utils.logger_utils import create_logger
 from utils.s3_utils import s3Utility
 
-def main(logger, region, database, table, bucket_s3_uri, from_time, end_time, partition, iam_role_arn_bucket_policy):
+def main(logger, region, database, table, bucket_s3_uri, from_time, end_time, partition, iam_role_arn):
 
     session = boto3.Session()
     if (region is None or len(region) == 0):
@@ -29,7 +29,7 @@ def main(logger, region, database, table, bucket_s3_uri, from_time, end_time, pa
         bucket_s3_uri = s3_utility.create_s3_bucket(bucket_name)
 
     # Create bucket policy for accessing data if IAM Role is provided 
-    if (iam_role_arn_bucket_policy):
+    if (iam_role_arn):
         bucket_name = bucket_s3_uri.split('s3://')[1]
         bucket_name = bucket_name.split('/')[0]
         
@@ -38,13 +38,13 @@ def main(logger, region, database, table, bucket_s3_uri, from_time, end_time, pa
             'Statement': [{
                 'Sid': 'PermissionS3CopyGetObj',
                 'Effect': 'Allow',
-                'Principal': {'AWS': f'{iam_role_arn_bucket_policy}'},
+                'Principal': {'AWS': f'{iam_role_arn}'},
                 'Action': ['s3:GetObject'],
                 'Resource': f'arn:aws:s3:::{bucket_name}/*'
             },{
                 'Sid': 'PermissionS3CopyListBucket',
                 'Effect': 'Allow',
-                'Principal': {'AWS': f'{iam_role_arn_bucket_policy}'},
+                'Principal': {'AWS': f'{iam_role_arn}'},
                 'Action': ['s3:ListBucket'],
                 'Resource': f'arn:aws:s3:::{bucket_name}'
             }
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--from_time", help="Timestamp from which you want to unload data (included)", required=False)
     parser.add_argument("-e", "--end_time", help="Timestamp to which you want to unload data (not included)", required=False)
     parser.add_argument("-p", "--partition", help="Partition data by 'day', 'month' or 'year'", required=False, choices=['day', 'month', 'year'])
-    parser.add_argument("-i", "--iam_role_arn_bucket_policy", help="IAM Role ARN used in the S3 Bucket policy that is applied to the S3 Bucket where unload data is stored", required=False)
+    parser.add_argument("-i", "--iam_role_arn", help="IAM Role ARN used in the S3 Bucket policy that is applied to the S3 Bucket where unload data is stored", required=False)
    
     #assign arguments to args variable
     args = parser.parse_args()
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     #create logger
     logger = create_logger("Unload Logger")
 
-    main(logger, args.region, args.database, args.table, args.s3_uri, args.from_time, args.end_time, args.partition, args.iam_role_arn_bucket_policy)
+    main(logger, args.region, args.database, args.table, args.s3_uri, args.from_time, args.end_time, args.partition, args.iam_role_arn)
 
     logger.info("COMPLETED SUCCESSFULLY")
 
