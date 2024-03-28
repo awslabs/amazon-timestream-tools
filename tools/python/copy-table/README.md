@@ -6,9 +6,9 @@ This automation can be used for migrating **Timestream for LiveAnalytics** table
 1. unloading the data from Timestream using different partitioning choices 
 2. batchloading the data into Timestream, it also covers S3 copy functionality if unload was run on different account or same account with different region. Data modelling changes can be applied as part of batchload. 
 
-You can use this automation in following use-cases. 
+You can use this automation in following use-cases:
 -  Migrating Timestream for LiveAnalytics table to different AWS Organization. 
--  Migrating Timestream for LiveAnalytics table to different region or different account and need data model changes in destination account/region. If data model changes are not required (and accounts belong to same AWS Organization) try to make use of AWS Backups for Timestream (ref. [Amazon Timestream backups](https://docs.aws.amazon.com/aws-backup/latest/devguide/timestream-backup.html) and [Restore an Amazon Timestream table](https://docs.aws.amazon.com/aws-backup/latest/devguide/timestream-restore.html). 
+-  Migrating Timestream for LiveAnalytics table to different region or different account and need data model changes in destination account/region. If data model changes are not required (and accounts belong to same AWS Organization) try to make use of AWS Backups for Timestream (ref. [Amazon Timestream backups](https://docs.aws.amazon.com/aws-backup/latest/devguide/timestream-backup.html) and [Restore an Amazon Timestream table](https://docs.aws.amazon.com/aws-backup/latest/devguide/timestream-restore.html)).
 - Migrating Timestream for LiveAnalytics table to new table with [customer defined partition key](https://docs.aws.amazon.com/timestream/latest/developerguide/customer-defined-partition-keys.html)
 
 
