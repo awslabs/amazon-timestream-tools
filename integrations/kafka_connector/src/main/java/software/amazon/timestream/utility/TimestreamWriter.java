@@ -1,5 +1,6 @@
 package software.amazon.timestream.utility;
 
+import com.influxdb.client.WriteApiBlocking;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,16 @@ import software.amazon.timestream.schema.RejectedRecord;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
+// Influx:
+import com.influxdb.annotations.Column;
+import com.influxdb.annotations.Measurement;
+import com.influxdb.client.InfluxDBClient;
+import com.influxdb.client.InfluxDBClientFactory;
+import com.influxdb.client.WriteApi;
+import com.influxdb.client.domain.WritePrecision;
+import com.influxdb.client.write.Point;
+import com.influxdb.query.FluxTable;
 
 /**
  * Class that receives the non-empty Kafka messages as {@link SinkRecord}
@@ -60,6 +71,18 @@ public class TimestreamWriter {
      */
     private final DataModel schemaDefinition;
 
+    //// INFLUXDB
+    private final Boolean liveAnalyticsEnabled;
+    private final Boolean influxDBEnabled;
+    private final String influxDBBucket;
+    private final String influxDBUrl;
+    private final String influxDBToken;
+    private final String influxDBOrg;
+    private static InfluxDBClient influxDBClient = null;
+    private static WriteApiBlocking influxWriteApi = null;
+
+    ////////////////////////
+
     /**
      *
      * @param schemaDefinition table schema
@@ -73,6 +96,36 @@ public class TimestreamWriter {
         this.skipDimension = config.isSkipEmptyDimensions();
         this.skipMeasure = config.isSkipEmptyMeasures();
         this.schemaDefinition = schemaDefinition;
+
+        // InfluxDB
+        this.liveAnalyticsEnabled = config.isLiveAnalyticsEnabled();
+        this.influxDBEnabled = config.isInfluxDBEnabled();
+        this.influxDBBucket = config.getInfluxDBBucket();
+        this.influxDBUrl = config.getInfluxDBUrl();
+        this.influxDBToken = config.getInfluxDBToken();
+        this.influxDBOrg = config.getInfluxDBOrg();
+
+        if (this.influxDBEnabled) {
+            this.influxDBClient = getInfluxDBClient(
+                    this.influxDBUrl, this.influxDBToken, this.influxDBBucket, this.influxDBOrg
+            );
+            if (this.influxDBClient != null) {
+                LOGGER.error("INFO::TimeStreamWriter:: influxDB client successfull connected: [{}] [{}] [{}]",
+                        this.influxDBUrl, this.influxDBBucket, influxDBOrg
+                );
+                this.influxWriteApi = getInfluxDBWriteApi(this.influxDBClient);
+                if (this.influxWriteApi != null) {
+                    LOGGER.error("INFO::TimeStreamWriter:: influxDB writer API successfull connected: [{}] [{}] [{}]",
+                            this.influxDBUrl, this.influxDBBucket, influxDBOrg
+                    );
+                }
+            }
+            else {
+                LOGGER.error("ERROR::TimeStreamWriter:: getInfluxDBClient failed on : [{}]", this.influxDBUrl);
+            }
+        }
+
+        /////////////////////////
     }
 
     /**
@@ -81,6 +134,8 @@ public class TimestreamWriter {
      * @param sinkRecords List of incoming records from the source Kafka topic
      */
     public List<RejectedRecord> writeRecords(final AWSServiceClientFactory clientFactory, final Collection<SinkRecord> sinkRecords) {
+        Boolean writeToLiveAnalytics = true;
+        Boolean writeToInfluxDB = true;
 
         LOGGER.trace("Begin::TimeStreamWriter::writeRecords");
         final List<RejectedRecord> rejectedRecords = new ArrayList<>();
@@ -92,14 +147,35 @@ public class TimestreamWriter {
                 try {
                     batchRecords = getBatchRecords(records, currentBatch);
                     if (batchRecords != null && !batchRecords.isEmpty()) {
-                        final WriteRecordsRequest writeRequest = WriteRecordsRequest.builder()
-                                .databaseName(databaseName)
-                                .tableName(tableName)
-                                .records(batchRecords)
-                                .build();
-                        final WriteRecordsResponse writeResponse = clientFactory.getTimestreamClient().writeRecords(writeRequest);
-                        LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: batch size [{}], status [{}] ", batchRecords.size(), writeResponse.sdkHttpResponse().statusCode());
-                    } else {
+                        if (writeToLiveAnalytics) {
+
+                            final WriteRecordsRequest writeRequest = WriteRecordsRequest.builder()
+                                    .databaseName(databaseName)
+                                    .tableName(tableName)
+                                    .records(batchRecords)
+                                    .build();
+                            final WriteRecordsResponse writeResponse = clientFactory.getTimestreamClient().writeRecords(writeRequest);
+                            LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: batch size [{}], status [{}] ", batchRecords.size(), writeResponse.sdkHttpResponse().statusCode());
+                        }
+                        else {
+                            LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: LiveAnalytics disabled");
+                        }
+                        if (writeToInfluxDB && influxWriteApi != null) {
+                            LOGGER.info("INFO::TimeStreamWriter::writeRecords: InfluxDB writing {} records", batchRecords.size());
+
+                            final ArrayList<Point> pointList = convertLiveAnalyticsRecord(batchRecords);
+                            // enhance here
+                            influxWriteApi.writePoints(pointList);
+
+                            /* // writing one record at time only
+                            convertAndWriteLiveAnalyticsRecord(batchRecords);
+                            */
+                        }
+                        else {
+                            LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: InfluxDB disabled");
+                        }
+                    }
+                    else {
                         LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: Batch ingestion is complete for the records of size [{}] ", records.size());
                     }
                 } catch (RejectedRecordsException e) {
@@ -373,4 +449,58 @@ public class TimestreamWriter {
         }
         return batch;
     }
+
+    // InfluxDB enhancements
+
+    public static InfluxDBClient getInfluxDBClient(String url, String token, String bucket, String org) {
+        if (influxDBClient != null) return influxDBClient;
+
+        InfluxDBClient client = InfluxDBClientFactory.create(
+                url,
+                token.toCharArray(), org, bucket);
+
+        influxDBClient = client;
+
+        return influxDBClient;
+    }
+
+    public static WriteApiBlocking getInfluxDBWriteApi(InfluxDBClient client) {
+        if (influxWriteApi==null) {
+            WriteApiBlocking writeApi = influxDBClient.getWriteApiBlocking();
+            influxWriteApi = writeApi;
+        }
+        return influxWriteApi;
+    }
+
+    private ArrayList<Point> convertLiveAnalyticsRecord(List<Record> recordList){
+        ArrayList<Point> pointList = new ArrayList<Point>();
+        for (final Record record : recordList) {
+            // LOGGER.trace("Sink Record: {} ", record);
+            Point point = Point
+                    .measurement("mem")
+                    .addTag("host", "host1")
+                    .addField("used_percent", 23.43234543)
+                    .time(1714180752000L, WritePrecision.MS);
+            // replace above with data from SinkRecord
+            pointList.add(point);
+        }
+        return pointList;
+    }
+
+    private void convertAndWriteLiveAnalyticsRecord(List<Record> recordList){
+        for (final Record record : recordList) {
+            // LOGGER.trace("Sink Record: {} ", record);
+            Point point = Point
+                    .measurement("mem")
+                    .addTag("host", "host1")
+                    .addField("used_percent", 23.43234543)
+                    .time(1714180752000L, WritePrecision.MS);
+            // replace above with data from SinkRecord
+            WriteApiBlocking writeApi = influxDBClient.getWriteApiBlocking();
+            writeApi.writePoint(influxDBBucket, influxDBOrg, point);
+        }
+    }
+
+    //////////////////
+
 }

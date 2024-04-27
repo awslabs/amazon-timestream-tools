@@ -120,4 +120,6 @@ public class TimestreamSinkErrorCodes {
      */
     public static final String INVALID_MEASURE_VALUE ="invalid.measure.value";
 
+    //// INFLUX DB
+    // #TODO fix later to add detailed errors
 }

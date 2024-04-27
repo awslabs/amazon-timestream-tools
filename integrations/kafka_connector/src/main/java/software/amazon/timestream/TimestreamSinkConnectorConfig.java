@@ -137,7 +137,40 @@ public class TimestreamSinkConnectorConfig extends AbstractConfig {
                         ConfigDef.Type.STRING,
                         "org.apache.kafka.common.serialization.StringSerializer",
                         ConfigDef.Importance.LOW,
-                        "Serializer class for Value");
+                        "Serializer class for Value")
+                /// INFLUXDB
+                .define(TimestreamSinkConstants.LIVE_ANALYTICS_ENABLE,
+                        ConfigDef.Type.BOOLEAN,
+                        true,
+                        ConfigDef.Importance.HIGH,
+                        "LiveAnalytics Ingestion Enabled")
+                .define(TimestreamSinkConstants.INFLUXDB_ENABLE,
+                        ConfigDef.Type.BOOLEAN,
+                        false,
+                        ConfigDef.Importance.HIGH,
+                        "InfluxDB Ingestion Enabled")
+                .define(TimestreamSinkConstants.INFLUXDB_BUCKET,
+                        ConfigDef.Type.STRING,
+                        "",
+                        ConfigDef.Importance.HIGH,
+                        "InfluxDB Target Bucket")
+                .define(TimestreamSinkConstants.INFLUXDB_URL,
+                        ConfigDef.Type.STRING,
+                        "",
+                        ConfigDef.Importance.HIGH,
+                        "InfluxDB API URL")
+                .define(TimestreamSinkConstants.INFLUXDB_TOKEN,
+                        ConfigDef.Type.STRING,
+                        "",
+                        ConfigDef.Importance.HIGH,
+                        "InfluxDB API Token")
+                .define(TimestreamSinkConstants.INFLUXDB_ORG,
+                        ConfigDef.Type.STRING,
+                        "",
+                        ConfigDef.Importance.HIGH,
+                        "InfluxDB Organization")
+                ////////////////////////////////
+                ;
     }
 
     /**
@@ -165,6 +198,69 @@ public class TimestreamSinkConnectorConfig extends AbstractConfig {
             throw new TimestreamSinkConnectorException(error, ex);
         }
     }
+
+    ////// INFLUXDB Configs
+    public boolean isLiveAnalyticsEnabled() {
+        try {
+            return getBoolean(TimestreamSinkConstants.LIVE_ANALYTICS_ENABLE);
+        } catch (final ConfigException ex) {
+            final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.UNKNOWN_CONFIG,
+                    TimestreamSinkConstants.LIVE_ANALYTICS_ENABLE, ex);
+            throw new TimestreamSinkConnectorException(error, ex);
+        }
+    }
+
+    public boolean isInfluxDBEnabled() {
+        try {
+            return getBoolean(TimestreamSinkConstants.INFLUXDB_ENABLE);
+        } catch (final ConfigException ex) {
+            final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.UNKNOWN_CONFIG,
+                    TimestreamSinkConstants.INFLUXDB_ENABLE, ex);
+            throw new TimestreamSinkConnectorException(error, ex);
+        }
+    }
+
+    public String getInfluxDBBucket() {
+        try {
+            return getString(TimestreamSinkConstants.INFLUXDB_BUCKET);
+        } catch (final ConfigException ex) {
+            final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.UNKNOWN_CONFIG,
+                    TimestreamSinkConstants.INFLUXDB_BUCKET, ex);
+            throw new TimestreamSinkConnectorException(error, ex);
+        }
+    }
+
+    public String getInfluxDBUrl() {
+        try {
+            return getString(TimestreamSinkConstants.INFLUXDB_URL);
+        } catch (final ConfigException ex) {
+            final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.UNKNOWN_CONFIG,
+                    TimestreamSinkConstants.INFLUXDB_URL, ex);
+            throw new TimestreamSinkConnectorException(error, ex);
+        }
+    }
+
+    public String getInfluxDBToken() {
+        try {
+            return getString(TimestreamSinkConstants.INFLUXDB_TOKEN);
+        } catch (final ConfigException ex) {
+            final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.UNKNOWN_CONFIG,
+                    TimestreamSinkConstants.INFLUXDB_TOKEN, ex);
+            throw new TimestreamSinkConnectorException(error, ex);
+        }
+    }
+    public String getInfluxDBOrg() {
+        try {
+            return getString(TimestreamSinkConstants.INFLUXDB_ORG);
+        } catch (final ConfigException ex) {
+            final TimestreamSinkConnectorError error = new TimestreamSinkConnectorError(TimestreamSinkErrorCodes.UNKNOWN_CONFIG,
+                    TimestreamSinkConstants.INFLUXDB_ORG, ex);
+            throw new TimestreamSinkConnectorException(error, ex);
+        }
+    }
+
+
+    ////////////////////////////////////////////////////////
 
     /**
      *
