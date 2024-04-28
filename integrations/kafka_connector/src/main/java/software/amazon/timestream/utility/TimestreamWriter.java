@@ -476,12 +476,57 @@ public class TimestreamWriter {
         ArrayList<Point> pointList = new ArrayList<Point>();
         for (final Record record : recordList) {
             // LOGGER.trace("Sink Record: {} ", record);
+
+            List<Dimension> dimensions = record.dimensions();
+            List<MeasureValue> measureValues = record.measureValues();
+            String measureName = record.measureName();
+            Long time = Long.parseLong(record.time());
+
+            Point point = Point
+                    .measurement(measureName)
+                            .time(time, WritePrecision.MS);
+
+            for (Dimension dimension : dimensions) {
+                String key = dimension.name();
+                String value = dimension.value();
+                point = point.addTag(key, value);
+            }
+
+            for (MeasureValue measureValue : measureValues) {
+                String key = measureValue.name();
+                String value = measureValue.value();
+                MeasureValueType type = measureValue.type();
+
+                switch (type) {
+                    case TIMESTAMP: // not existent in InfluxDB, use Long for now
+                    case BIGINT:
+                        Long value_l = Long.parseLong(value);
+                        point = point.addField(key, value_l);
+                        break;
+                    case DOUBLE:
+                        Double value_d = Double.parseDouble(value);
+                        point = point.addField(key,value_d);
+                        break;
+                    case BOOLEAN:
+                        Boolean valued_b = Boolean.parseBoolean(value);
+                        point = point.addField(key, valued_b);
+                    case VARCHAR:
+                        point = point.addField(key, value);
+                        break;
+                }
+            }
+
+            /* // STATIC from InfluxDB example code
             Point point = Point
                     .measurement("mem")
                     .addTag("host", "host1")
                     .addField("used_percent", 23.43234543)
                     .time(1714180752000L, WritePrecision.MS);
             // replace above with data from SinkRecord
+            */
+
+            LOGGER.info("Complete::TimeStreamWriter::convertLiveAnalyticsRecord: line protocol [{}]", point.toLineProtocol());
+
             pointList.add(point);
         }
         return pointList;
