@@ -109,8 +109,8 @@ def backup(backup_path, root_token, src_host, bucket_name=None, full=False, skip
     duration = time.time() - start_time
     log_performance_metrics("backup", start_time, duration)
 
-def report_all_bucket_series_count(host, token, org_name=None):
-    with InfluxDBClient(url=host, token=token) as client:
+def report_all_bucket_series_count(host, token, org_name=None, skip_verify=False):
+    with InfluxDBClient(url=host, token=token, verify_ssl=not skip_verify) as client:
         # CSV migration may use an all access token, meaning buckets will be scoped to an organization
         if org_name is not None:
             client.org = org_name
@@ -119,14 +119,15 @@ def report_all_bucket_series_count(host, token, org_name=None):
         while len(buckets.buckets) > 0:
             for bucket in buckets.buckets:
                 if not bucket.name.startswith("_"):
-                    report_bucket_series_count(bucket_name=bucket.name, host=host, token=token, org_name=org_name)
+                    report_bucket_series_count(bucket_name=bucket.name, host=host, token=token,
+                        org_name=org_name, skip_verify=skip_verify)
             offset += BUCKET_PAGINATION_LIMIT
             buckets = client.buckets_api().find_buckets(limit=BUCKET_PAGINATION_LIMIT,
                 offset=offset)
 
-def report_bucket_series_count(bucket_name, host, token, org_name=None):
+def report_bucket_series_count(bucket_name, host, token, org_name=None, skip_verify=False):
     try:
-        with InfluxDBClient(url=host, token=token) as client:
+        with InfluxDBClient(url=host, token=token, verify_ssl=not skip_verify) as client:
             if org_name is not None:
                 client.org = org_name
             buckets = client.buckets_api().find_buckets(name=bucket_name) \
