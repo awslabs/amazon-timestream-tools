@@ -89,9 +89,10 @@ def backup(backup_path, root_token, src_host, bucket_name=None, full=False, skip
     if logging.root.level >= logging.DEBUG:
         time.sleep(METRICS_SCRAPE_INTERVAL_SECONDS)
         if full:
-            report_all_bucket_series_count(host=src_host, token=root_token)
+            report_all_bucket_series_count(host=src_host, token=root_token, skip_verify=skip_verify)
         else:
-            report_bucket_series_count(bucket_name=bucket_name, host=src_host, token=root_token, org_name=src_org)
+            report_bucket_series_count(bucket_name=bucket_name, host=src_host, token=root_token,
+                org_name=src_org, skip_verify=skip_verify)
     start_time = time.time()
 
     bucket_backup_command = ['influx', 'backup', backup_path, '-t', root_token,
@@ -174,9 +175,10 @@ def backup_csv(backup_path, root_token, src_host, bucket_name=None, full=False, 
     if logging.root.level >= logging.DEBUG:
         time.sleep(METRICS_SCRAPE_INTERVAL_SECONDS)
         if full:
-            report_all_bucket_series_count(host=src_host, token=root_token, org_name=src_org)
+            report_all_bucket_series_count(host=src_host, token=root_token, org_name=src_org, skip_verify=skip_verify)
         else:
-            report_bucket_series_count(bucket_name=bucket_name, host=src_host, token=root_token, org_name=src_org)
+            report_bucket_series_count(bucket_name=bucket_name, host=src_host, token=root_token,
+                org_name=src_org, skip_verify=skip_verify)
     start_time = time.time()
 
     try:
@@ -1158,12 +1160,15 @@ def main(args):
         if logging.root.level >= logging.DEBUG:
             time.sleep(METRICS_SCRAPE_INTERVAL_SECONDS)
             if args.full:
-                # For a full migration, destination instance will contain
-                # the source token after migration
-                report_all_bucket_series_count(host=args.dest_host, token=src_token)
+                if args.csv:
+                    report_all_bucket_series_count(host=args.dest_host, token=dest_token, skip_verify=args.skip_verify)
+                else:
+                    # For a full migration without csv, destination instance will contain
+                    # the source token after migration
+                    report_all_bucket_series_count(host=args.dest_host, token=src_token, skip_verify=args.skip_verify)
             else:
                 report_bucket_series_count(bucket_name=args.dest_bucket, host=args.dest_host,
-                    token=dest_token, org_name=args.dest_org)
+                    token=dest_token, org_name=args.dest_org, skip_verify=args.skip_verify)
 
         logging.info("Migration complete")
         log_performance_metrics("influx_migration.py", script_start_time, script_duration)
