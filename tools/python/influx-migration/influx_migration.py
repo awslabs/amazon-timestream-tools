@@ -53,7 +53,7 @@ MOUNT_POINT_NAME = "influxdb-backups"
 # The number of seconds to wait before scraping from the /metrics endpoint
 METRICS_SCRAPE_INTERVAL_SECONDS=10
 
-BUCKET_PAGINATION_LIMIT=100
+MAX_BUCKET_PAGINATION_LIMIT=100
 
 script_duration = 0
 
@@ -115,15 +115,15 @@ def report_all_bucket_series_count(host, token, org_name=None, skip_verify=False
         # CSV migration may use an all access token, meaning buckets will be scoped to an organization
         if org_name is not None:
             client.org = org_name
-        buckets = client.buckets_api().find_buckets(limit=BUCKET_PAGINATION_LIMIT)
+        buckets = client.buckets_api().find_buckets(limit=MAX_BUCKET_PAGINATION_LIMIT)
         offset = 0
         while len(buckets.buckets) > 0:
             for bucket in buckets.buckets:
                 if not bucket.name.startswith("_"):
                     report_bucket_series_count(bucket_name=bucket.name, host=host, token=token,
                         org_name=org_name, skip_verify=skip_verify)
-            offset += BUCKET_PAGINATION_LIMIT
-            buckets = client.buckets_api().find_buckets(limit=BUCKET_PAGINATION_LIMIT,
+            offset += MAX_BUCKET_PAGINATION_LIMIT
+            buckets = client.buckets_api().find_buckets(limit=MAX_BUCKET_PAGINATION_LIMIT,
                 offset=offset)
 
 def report_bucket_series_count(bucket_name, host, token, org_name=None, skip_verify=False):
