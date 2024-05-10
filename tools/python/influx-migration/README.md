@@ -146,15 +146,35 @@ After meeting the prerequisites:
 
 2. **Provide Credentials**: Provide host addresses and ports as CLI options.
 
-3. **Verify Data**: Ensure the data is correctly transferred by:
+3. **Verify Data**: To manually verify data migration run the following commands before, on the source instance, and after migrating, on the destination instance:
 
-    a. Using the InfluxDB UI and inspecting buckets.
+    - **i**. List all buckets using the Influx CLI, where `<token>` is an operator token and `<host>` is the host of the source or destination instance, e.g., `https://<hostname>:8086` or `http://localhost:8086`.
 
-    b. Listing buckets with `influx bucket list -t <destination token> --host <destination host address> --skip-verify`.
+      ```shell
+      influx bucket list -t <token> --host <host>
+      ```
+    
+      This will help get an idea of the buckets in the source instance, whether you are doing a full migration or migrating just one bucket.
 
-    c. Using `influx v1 shell -t <destination token> --host <destination host address> --skip-verify` and running `SELECT * FROM <migrated bucket>.<retention period>.<measurement name> LIMIT 100` to view contents of a bucket or `SELECT COUNT(*) FROM <migrated bucket>.<retention period>.<measurement name>` to verify the correct number of records have been migrated.
+    - **ii**. Start the Influx CLI v1 shell.
 
-    d. By running a query using `influx query -t <destination token> --host <destination host address> --skip-verify 'from(bucket: "<migrated bucket>") |> range(start: <desired start>, stop: <desired stop>)'`. Adding `|> count()` to the query is also a way to verify the correct number of records have been migrated.
+      ```shell
+      influx v1 shell -t <token> --host <host> --org <org name>
+      ```
+
+    - **iii**. Query the number of records in a bucket with the Influx CLI v1 shell.
+
+      ```sql
+      SELECT COUNT(*) FROM "<bucket name>"."<retention period>"."<measurement name>"
+      ```
+
+      For reference, if a bucket has an infinite retention period then the value of `<retention period>` will be `autogen`.
+    
+    - **iv**. Exit the Influx v1 shell and use the Influx CLI to query the number of records in each table within a bucket using [`count()`](https://docs.influxdata.com/flux/v0/stdlib/universe/count/) and the largest possible range. Note that this will show **different** results compared to the previous step, as the total number of records are not being queried.
+
+      ```shell
+      influx query 'from(bucket: "<bucket name>") |> range(start: 1680-01-01T00:00:00Z, stop: 2800-01-01T00:00:00Z) |> count()' -t <token> --org <org name> --host <host>
+      ```
 
 ## Example Run
 
