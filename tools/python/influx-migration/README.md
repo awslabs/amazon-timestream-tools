@@ -651,3 +651,17 @@ Possible reasons for a restore failing include:
 - Invalid InfluxDB destination token.
 - A bucket existing in the destination instance with the same name as in the source instance. For individual bucket migrations use the `--dest-bucket` option to set a unique name for the migrated bucket.
 - Connectivity failure, either with the source or destination hosts or with an optional S3 bucket.
+
+### Determining Amount of Data Migrated
+
+By default, the number of shards migrated, as reported by the Influx CLI, and the
+number of rows migrated when `--csv` is used, are logged.
+When the log level is set to `debug`, with the option `--log-level debug`, the
+number of [series](https://docs.influxdata.com/influxdb/v2/reference/key-concepts/data-elements/#series) as reported by
+the [InfluxDB `/metrics` endpoint](https://docs.influxdata.com/influxdb/v2/api/#operation/GetMetrics), under [bucket series number](https://docs.influxdata.com/influxdb/v2/reference/internals/metrics/#bucket-series-number),
+will be logged.
+
+If a bucket is empty or has not been migrated, it will not be listed under bucket series number and an error indicating as such will be logged.
+This can help determine whether data is successfully being migrated.
+
+To manually verify migrated records, see the recommended queries listed in the [Migration Overview](#migration-overview) section, step 3.
