@@ -141,7 +141,7 @@ public class TimestreamSinkConnectorConfig extends AbstractConfig {
                 /// INFLUXDB
                 .define(TimestreamSinkConstants.LIVE_ANALYTICS_ENABLE,
                         ConfigDef.Type.BOOLEAN,
-                        true,
+                        false,
                         ConfigDef.Importance.HIGH,
                         "LiveAnalytics Ingestion Enabled")
                 .define(TimestreamSinkConstants.INFLUXDB_ENABLE,

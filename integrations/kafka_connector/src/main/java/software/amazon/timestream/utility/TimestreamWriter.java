@@ -125,6 +125,11 @@ public class TimestreamWriter {
             }
         }
 
+        if (!this.influxDBEnabled && !this.liveAnalyticsEnabled) {
+            LOGGER.error("ERROR::TimeStreamWriter:: initialization failed on : [{}]", TimestreamSinkErrorCodes.NO_INGESTION_TARGET);
+
+        }
+
         /////////////////////////
     }
 
@@ -144,47 +149,55 @@ public class TimestreamWriter {
             final int batchSize = records.size() / TimestreamSinkConstants.DEFAULT_BATCHSIZE + 1;
             List<Record> batchRecords = null;
             for (int currentBatch = 0; currentBatch < batchSize; currentBatch ++) {
-                try {
+                if (!writeToInfluxDB && !writeToLiveAnalytics) {
+                    // no target specified, cannot write, send records to DLQ
                     batchRecords = getBatchRecords(records, currentBatch);
-                    if (batchRecords != null && !batchRecords.isEmpty()) {
-                        if (writeToLiveAnalytics) {
-
-                            final WriteRecordsRequest writeRequest = WriteRecordsRequest.builder()
-                                    .databaseName(databaseName)
-                                    .tableName(tableName)
-                                    .records(batchRecords)
-                                    .build();
-                            final WriteRecordsResponse writeResponse = clientFactory.getTimestreamClient().writeRecords(writeRequest);
-                            LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: batch size [{}], status [{}] ", batchRecords.size(), writeResponse.sdkHttpResponse().statusCode());
-                        }
-                        else {
-                            LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: LiveAnalytics disabled");
-                        }
-                        if (writeToInfluxDB && influxWriteApi != null) {
-                            LOGGER.info("INFO::TimeStreamWriter::writeRecords: InfluxDB writing {} records", batchRecords.size());
-
-                            final ArrayList<Point> pointList = convertLiveAnalyticsRecord(batchRecords);
-                            // enhance here
-                            influxWriteApi.writePoints(pointList);
-
-                            /* // writing one record at time only
-                            convertAndWriteLiveAnalyticsRecord(batchRecords);
-                            */
-                        }
-                        else {
-                            LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: InfluxDB disabled");
-                        }
+                    for (Record record : batchRecords) {
+                        RejectedRecord rejectedRecord = new RejectedRecord(record,TimestreamSinkErrorCodes.NO_INGESTION_TARGET);
+                        rejectedRecords.add(rejectedRecord);
                     }
-                    else {
-                        LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: Batch ingestion is complete for the records of size [{}] ", records.size());
+                    LOGGER.error("ERROR::TimeStreamWriter::writeRecords: Records have been rejected in the batch [{}] , due to [{}]", currentBatch, TimestreamSinkErrorCodes.NO_INGESTION_TARGET);
+                }
+                else {
+                    try {
+                        batchRecords = getBatchRecords(records, currentBatch);
+                        if (batchRecords != null && !batchRecords.isEmpty()) {
+                            if (writeToLiveAnalytics) {
+
+                                final WriteRecordsRequest writeRequest = WriteRecordsRequest.builder()
+                                        .databaseName(databaseName)
+                                        .tableName(tableName)
+                                        .records(batchRecords)
+                                        .build();
+                                final WriteRecordsResponse writeResponse = clientFactory.getTimestreamClient().writeRecords(writeRequest);
+                                LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: batch size [{}], status [{}] ", batchRecords.size(), writeResponse.sdkHttpResponse().statusCode());
+                            } else {
+                                LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: LiveAnalytics disabled");
+                            }
+                            if (writeToInfluxDB && influxWriteApi != null) {
+                                LOGGER.info("INFO::TimeStreamWriter::writeRecords: InfluxDB writing {} records", batchRecords.size());
+
+                                final ArrayList<Point> pointList = convertLiveAnalyticsRecord(batchRecords);
+                                // enhance here
+                                influxWriteApi.writePoints(pointList);
+
+                                /* // writing one record at time only
+                                convertAndWriteLiveAnalyticsRecord(batchRecords);
+                                */
+                            } else {
+                                LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: InfluxDB disabled");
+                            }
+                        } else {
+                            LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: Batch ingestion is complete for the records of size [{}] ", records.size());
+                        }
+                    } catch (RejectedRecordsException e) {
+                        LOGGER.error("ERROR::TimeStreamWriter::writeRecords: Few records have been rejected in the batch [{}] , due to [{}]", currentBatch, e.getLocalizedMessage());
+                        if (e.hasRejectedRecords()) {
+                            rejectedRecords.addAll(getRejectedTimestreamRecords(e.rejectedRecords(), batchRecords));
+                        }
+                    } catch (SdkException e) {
+                        LOGGER.error("ERROR::TimeStreamWriter::writeRecords", e);
                     }
-                } catch (RejectedRecordsException e) {
-                    LOGGER.error("ERROR::TimeStreamWriter::writeRecords: Few records have been rejected in the batch [{}] , due to [{}]", currentBatch, e.getLocalizedMessage());
-                    if (e.hasRejectedRecords()) {
-                        rejectedRecords.addAll(getRejectedTimestreamRecords(e.rejectedRecords(), batchRecords));
-                    }
-                } catch (SdkException e) {
-                    LOGGER.error("ERROR::TimeStreamWriter::writeRecords", e);
                 }
             }
         }
