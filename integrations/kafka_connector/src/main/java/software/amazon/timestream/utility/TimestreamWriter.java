@@ -105,17 +105,27 @@ public class TimestreamWriter {
         this.influxDBToken = config.getInfluxDBToken();
         this.influxDBOrg = config.getInfluxDBOrg();
 
+        if (!this.influxDBEnabled && !this.liveAnalyticsEnabled) {
+            LOGGER.error("ERROR::TimeStreamWriter:: initialization failed on : [{}]", TimestreamSinkErrorCodes.NO_INGESTION_TARGET);
+
+        }
+
         if (this.influxDBEnabled) {
             this.influxDBClient = getInfluxDBClient(
                     this.influxDBUrl, this.influxDBToken, this.influxDBBucket, this.influxDBOrg
             );
             if (this.influxDBClient != null) {
-                LOGGER.error("INFO::TimeStreamWriter:: influxDB client successfull connected: [{}] [{}] [{}]",
+                LOGGER.info("INFO::TimeStreamWriter:: influxDB client successfull connected: [{}] [{}] [{}]",
                         this.influxDBUrl, this.influxDBBucket, influxDBOrg
                 );
                 this.influxWriteApi = getInfluxDBWriteApi(this.influxDBClient);
-                if (this.influxWriteApi != null) {
-                    LOGGER.error("INFO::TimeStreamWriter:: influxDB writer API successfull connected: [{}] [{}] [{}]",
+                if (this.influxWriteApi == null) {
+                    LOGGER.error("ERROR::TimeStreamWriter:: influxDB writer API successfull connected: [{}] [{}] [{}]",
+                            this.influxDBUrl, this.influxDBBucket, influxDBOrg
+                    );
+                }
+                else {
+                    LOGGER.info("INFO::TimeStreamWriter:: influxDB writer API successfull connected: [{}] [{}] [{}]",
                             this.influxDBUrl, this.influxDBBucket, influxDBOrg
                     );
                 }
@@ -123,11 +133,6 @@ public class TimestreamWriter {
             else {
                 LOGGER.error("ERROR::TimeStreamWriter:: getInfluxDBClient failed on : [{}]", this.influxDBUrl);
             }
-        }
-
-        if (!this.influxDBEnabled && !this.liveAnalyticsEnabled) {
-            LOGGER.error("ERROR::TimeStreamWriter:: initialization failed on : [{}]", TimestreamSinkErrorCodes.NO_INGESTION_TARGET);
-
         }
 
         /////////////////////////
