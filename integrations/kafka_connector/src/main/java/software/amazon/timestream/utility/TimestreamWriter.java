@@ -144,9 +144,6 @@ public class TimestreamWriter {
      * @param sinkRecords List of incoming records from the source Kafka topic
      */
     public List<RejectedRecord> writeRecords(final AWSServiceClientFactory clientFactory, final Collection<SinkRecord> sinkRecords) {
-        Boolean writeToLiveAnalytics = true;
-        Boolean writeToInfluxDB = true;
-
         LOGGER.trace("Begin::TimeStreamWriter::writeRecords");
         final List<RejectedRecord> rejectedRecords = new ArrayList<>();
         final List<Record> records = getTimestreamRecordsFromSinkRecords(sinkRecords, rejectedRecords);
@@ -154,7 +151,7 @@ public class TimestreamWriter {
             final int batchSize = records.size() / TimestreamSinkConstants.DEFAULT_BATCHSIZE + 1;
             List<Record> batchRecords = null;
             for (int currentBatch = 0; currentBatch < batchSize; currentBatch ++) {
-                if (!writeToInfluxDB && !writeToLiveAnalytics) {
+                if (!this.influxDBEnabled && !this.liveAnalyticsEnabled) {
                     // no target specified, cannot write, send records to DLQ
                     batchRecords = getBatchRecords(records, currentBatch);
                     for (Record record : batchRecords) {
@@ -167,7 +164,7 @@ public class TimestreamWriter {
                     try {
                         batchRecords = getBatchRecords(records, currentBatch);
                         if (batchRecords != null && !batchRecords.isEmpty()) {
-                            if (writeToLiveAnalytics) {
+                            if (this.liveAnalyticsEnabled) {
 
                                 final WriteRecordsRequest writeRequest = WriteRecordsRequest.builder()
                                         .databaseName(databaseName)
@@ -179,7 +176,7 @@ public class TimestreamWriter {
                             } else {
                                 LOGGER.debug("DEBUG::TimeStreamWriter::writeRecords: LiveAnalytics disabled");
                             }
-                            if (writeToInfluxDB && influxWriteApi != null) {
+                            if (this.influxDBEnabled && influxWriteApi != null) {
                                 LOGGER.info("INFO::TimeStreamWriter::writeRecords: InfluxDB writing {} records", batchRecords.size());
 
                                 final ArrayList<Point> pointList = convertLiveAnalyticsRecord(batchRecords);
