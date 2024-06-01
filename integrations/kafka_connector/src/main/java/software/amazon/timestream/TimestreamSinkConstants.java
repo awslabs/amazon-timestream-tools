@@ -128,4 +128,15 @@ public class TimestreamSinkConstants {
      */
     public static final String CONST_DLQ_CLIENT_ID = "DLQPublisher";
 
+    public static final String LIVE_ANALYTICS_ENABLE = "timestream.target.liveanalytics";
+
+    public static final String INFLUXDB_ENABLE = "timestream.target.influxdb";
+
+    public static final String INFLUXDB_BUCKET = "timestream.influxdb.bucket";
+
+    public static final String INFLUXDB_URL = "timestream.influxdb.url";
+
+    public static final String INFLUXDB_TOKEN = "timestream.influxdb.token";
+
+    public static final String INFLUXDB_ORG = "timestream.influxdb.org";
 }
