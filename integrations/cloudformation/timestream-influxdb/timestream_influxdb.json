@@ -1,0 +1,532 @@
+{
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Network Configuration"
+                    },
+                    "Parameters": [
+                        "VPCCIDR"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Amazon Timestream for InfluxDB Configuration"
+                    },
+                    "Parameters": [
+                        "DbInstanceName",
+                        "InfluxDBUsername",
+                        "InfluxDBPassword",
+                        "InfluxDBOrganization",
+                        "InfluxDBBucket",
+                        "DbInstanceType",
+                        "DbStorageType",
+                        "AllocatedStorage",
+                        "PubliclyAccessible",
+                        "DeploymentType"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "VPCCIDR": {
+                    "default": "VPC CIDR"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "VPCCIDR": {
+            "Description": "Please enter the IP range (CIDR notation) for the new VPC",
+            "Type": "String",
+            "Default": "10.0.0.0/16"
+        },
+        "DbInstanceName": {
+            "Description": "The name that uniquely identifies the DB instance when interacting with the Amazon Timestream for InfluxDB API and CLI commands. This name will also be a prefix included in the endpoint. DB instance names must be unique per customer and per region.",
+            "Type": "String",
+            "Default": "mydbinstance",
+            "MinLength": 3,
+            "MaxLength": 40,
+            "AllowedPattern": "^[a-zA-z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*$"
+        },
+        "InfluxDBUsername": {
+            "Description": "The username of the initial admin user created in InfluxDB. Must start with a letter and can't end with a hyphen or contain two consecutive hyphens. For example, my-user1. This username will allow you to access the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an operator token. These attributes will be stored in a Secret created in Amazon Secrets Manager in your account.",
+            "Type": "String",
+            "Default": "admin",
+            "MinLength": 1,
+            "MaxLength": 64
+        },
+        "InfluxDBPassword": {
+            "Description": "The password of the initial admin user created in InfluxDB. This password will allow you to access the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an operator token. These attributes will be stored in a Secret created in AWS SecretManager in your account.",
+            "Type": "String",
+            "NoEcho": true,
+            "MinLength": 8,
+            "MaxLength": 64,
+            "AllowedPattern": "^[a-zA-Z0-9]+$"
+        },
+        "InfluxDBOrganization": {
+            "Description": "The name of the initial organization for the initial admin user in InfluxDB. An InfluxDB organization is a workspace for a group of users.",
+            "Type": "String",
+            "Default": "org",
+            "MinLength": 1,
+            "MaxLength": 64
+        },
+        "InfluxDBBucket": {
+            "Description": "The name of the initial InfluxDB bucket. All InfluxDB data is stored in a bucket. A bucket combines the concept of a database and a retention period (the duration of time that each data point persists). A bucket belongs to an organization.",
+            "Type": "String",
+            "Default": "bucket",
+            "MinLength": 2,
+            "MaxLength": 64,
+            "AllowedPattern": "^[^_\\\"][^\\\"]*$"
+        },
+        "DeploymentType": {
+            "Description": "Specifies whether the Timestream for InfluxDB is deployed as Single-AZ or with a MultiAZ Standby for High availability",
+            "Type": "String",
+            "Default": "WITH_MULTIAZ_STANDBY",
+            "AllowedValues": [
+                "SINGLE_AZ",
+                "WITH_MULTIAZ_STANDBY"
+            ]
+        },
+        "AllocatedStorage": {
+            "Description": "The amount of storage to allocate for your DB storage type in GiB (gibibytes).",
+            "Type": "Number",
+            "Default": 400,
+            "MinValue": 20,
+            "MaxValue": 16384
+        },
+        "DbInstanceType": {
+            "Description": "The Timestream for InfluxDB DB instance type to run InfluxDB on.",
+            "Type": "String",
+            "Default": "db.influx.medium",
+            "AllowedValues": [
+                "db.influx.medium",
+                "db.influx.large",
+                "db.influx.xlarge",
+                "db.influx.2xlarge",
+                "db.influx.4xlarge",
+                "db.influx.8xlarge",
+                "db.influx.12xlarge",
+                "db.influx.16xlarge"
+            ]
+        },
+        "DbStorageType": {
+            "Description": "The Timestream for InfluxDB DB storage type to read and write InfluxDB data.",
+            "Type": "String",
+            "Default": "InfluxIOIncludedT1",
+            "AllowedValues": [
+                "InfluxIOIncludedT1",
+                "InfluxIOIncludedT2",
+                "InfluxIOIncludedT3"
+            ]
+        },
+        "PubliclyAccessible": {
+            "Description": "Configures the DB instance with a public IP to facilitate access.",
+            "Type": "String",
+            "Default": true,
+            "AllowedValues": [
+                true,
+                false
+            ]
+        }
+    },
+    "Conditions": {
+        "IsMultiAZ": {
+            "Fn::Equals": [
+                {
+                    "Ref": "DeploymentType"
+                },
+                "WITH_MULTIAZ_STANDBY"
+            ]
+        },
+        "IsPublic": {
+            "Fn::Equals": [
+                {
+                    "Ref": "PubliclyAccessible"
+                },
+                true
+            ]
+        }
+    },
+    "Resources": {
+        "VPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Ref": "VPCCIDR"
+                }
+            }
+        },
+        "InternetGateway": {
+            "Type": "AWS::EC2::InternetGateway",
+            "Condition": "IsPublic"
+        },
+        "InternetGatewayAttachment": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Condition": "IsPublic",
+            "Properties": {
+                "InternetGatewayId": {
+                    "Ref": "InternetGateway"
+                },
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            }
+        },
+        "Subnet1": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Fn::Cidr": [
+                                {
+                                    "Fn::GetAtt": [
+                                        "VPC",
+                                        "CidrBlock"
+                                    ]
+                                },
+                                2,
+                                12
+                            ]
+                        }
+                    ]
+                },
+                "MapPublicIpOnLaunch": {
+                    "Fn::If": [
+                        "IsPublic",
+                        true,
+                        false
+                    ]
+                }
+            }
+        },
+        "Subnet2": {
+            "Type": "AWS::EC2::Subnet",
+            "Condition": "IsMultiAZ",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        1,
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": {
+                    "Fn::Select": [
+                        1,
+                        {
+                            "Fn::Cidr": [
+                                {
+                                    "Fn::GetAtt": [
+                                        "VPC",
+                                        "CidrBlock"
+                                    ]
+                                },
+                                2,
+                                12
+                            ]
+                        }
+                    ]
+                },
+                "MapPublicIpOnLaunch": {
+                    "Fn::If": [
+                        "IsPublic",
+                        true,
+                        false
+                    ]
+                }
+            }
+        },
+        "RouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            }
+        },
+        "DefaultRoute": {
+            "Type": "AWS::EC2::Route",
+            "Condition": "IsPublic",
+            "DependsOn": "InternetGatewayAttachment",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "Subnet1RouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable"
+                },
+                "SubnetId": {
+                    "Ref": "Subnet1"
+                }
+            }
+        },
+        "Subnet2RouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Condition": "IsMultiAZ",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable"
+                },
+                "SubnetId": {
+                    "Ref": "Subnet2"
+                }
+            }
+        },
+        "InfluxDBSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupName": "influxdb-sg",
+                "GroupDescription": "Security group allowing port 8086 ingress for InfluxDB",
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            }
+        },
+        "InfluxDBSecurityGroupIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "InfluxDBSecurityGroup"
+                },
+                "IpProtocol": "tcp",
+                "CidrIp": "0.0.0.0/0",
+                "FromPort": 8086,
+                "ToPort": 8086
+            }
+        },
+        "InfluxDBLogsS3Bucket": {
+            "Type": "AWS::S3::Bucket",
+            "DeletionPolicy": "Retain"
+        },
+        "InfluxDBLogsS3BucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+                "Bucket": {
+                    "Ref": "InfluxDBLogsS3Bucket"
+                },
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": "s3:PutObject",
+                            "Effect": "Allow",
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:s3:::${InfluxDBLogsS3Bucket}/InfluxLogs/*"
+                            },
+                            "Principal": {
+                                "Service": "timestream-influxdb.amazonaws.com"
+                            }
+                        },
+                        {
+                            "Action": "s3:*",
+                            "Effect": "Deny",
+                            "Resource": [
+                                {
+                                    "Fn::Sub": "arn:aws:s3:::${InfluxDBLogsS3Bucket}/*"
+                                },
+                                {
+                                    "Fn::Sub": "arn:aws:s3:::${InfluxDBLogsS3Bucket}"
+                                }
+                            ],
+                            "Principal": "*",
+                            "Condition": {
+                                "Bool": {
+                                    "aws:SecureTransport": false
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "DbInstance": {
+            "Type": "AWS::Timestream::InfluxDBInstance",
+            "DependsOn": "InfluxDBLogsS3BucketPolicy",
+            "Properties": {
+                "DbStorageType": {
+                    "Ref": "DbStorageType"
+                },
+                "AllocatedStorage": {
+                    "Ref": "AllocatedStorage"
+                },
+                "DbInstanceType": {
+                    "Ref": "DbInstanceType"
+                },
+                "Name": {
+                    "Ref": "DbInstanceName"
+                },
+                "Username": {
+                    "Ref": "InfluxDBUsername"
+                },
+                "Password": {
+                    "Ref": "InfluxDBPassword"
+                },
+                "Organization": {
+                    "Ref": "InfluxDBOrganization"
+                },
+                "Bucket": {
+                    "Ref": "InfluxDBBucket"
+                },
+                "PubliclyAccessible": {
+                    "Fn::If": [
+                        "IsPublic",
+                        true,
+                        false
+                    ]
+                },
+                "DeploymentType": {
+                    "Ref": "DeploymentType"
+                },
+                "VpcSecurityGroupIds": [
+                    {
+                        "Ref": "InfluxDBSecurityGroup"
+                    }
+                ],
+                "VpcSubnetIds": {
+                    "Fn::If": [
+                        "IsMultiAZ",
+                        [
+                            {
+                                "Ref": "Subnet1"
+                            },
+                            {
+                                "Ref": "Subnet2"
+                            }
+                        ],
+                        [
+                            {
+                                "Ref": "Subnet1"
+                            }
+                        ]
+                    ]
+                },
+                "LogDeliveryConfiguration": {
+                    "S3Configuration": {
+                        "BucketName": {
+                            "Ref": "InfluxDBLogsS3Bucket"
+                        },
+                        "Enabled": true
+                    }
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "VPC": {
+            "Description": "A reference to the VPC used to create network resources",
+            "Value": {
+                "Ref": "VPC"
+            }
+        },
+        "Subnets": {
+            "Description": "A list of the subnets created",
+            "Value": {
+                "Fn::If": [
+                    "IsMultiAZ",
+                    {
+                        "Fn::Join": [
+                            ",",
+                            [
+                                {
+                                    "Ref": "Subnet1"
+                                },
+                                {
+                                    "Ref": "Subnet2"
+                                }
+                            ]
+                        ]
+                    },
+                    {
+                        "Ref": "Subnet1"
+                    }
+                ]
+            }
+        },
+        "Subnet1": {
+            "Description": "A reference to the subnet in the 1st Availability Zone",
+            "Value": {
+                "Ref": "Subnet1"
+            }
+        },
+        "Subnet2": {
+            "Condition": "IsMultiAZ",
+            "Description": "A reference to the subnet in the 2nd Availability Zone",
+            "Value": {
+                "Ref": "Subnet2"
+            }
+        },
+        "InfluxDBSecurityGroup": {
+            "Description": "Security group with port 8086 ingress rule",
+            "Value": {
+                "Ref": "InfluxDBSecurityGroup"
+            }
+        },
+        "InfluxDBLogsS3Bucket": {
+            "Description": "S3 Bucket containing InfluxDB logs from the DB instance",
+            "Value": {
+                "Ref": "InfluxDBLogsS3Bucket"
+            }
+        },
+        "DbInstance": {
+            "Description": "A reference to the Timestream for InfluxDB DB instance",
+            "Value": {
+                "Ref": "DbInstance"
+            }
+        },
+        "InfluxAuthParametersSecretArn": {
+            "Description": "The Amazon Resource Name (ARN) of the Amazon Secrets Manager secret containing the initial InfluxDB authorization parameters. The secret value is a JSON formatted key-value pair holding InfluxDB authorization values: organization, bucket, username, and password.",
+            "Value": {
+                "Fn::GetAtt": [
+                    "DbInstance",
+                    "InfluxAuthParametersSecretArn"
+                ]
+            }
+        },
+        "Endpoint": {
+            "Description": "The endpoint URL to connect to InfluxDB",
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "https://",
+                        {
+                            "Fn::GetAtt": [
+                                "DbInstance",
+                                "Endpoint"
+                            ]
+                        },
+                        ":",
+                        8086
+                    ]
+                ]
+            }
+        }
+    }
+}
