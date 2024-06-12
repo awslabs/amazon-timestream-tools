@@ -162,5 +162,5 @@ Outputs:
     Value: !GetAtt DbInstance.InfluxAuthParametersSecretArn
   Endpoint:
     Description: The endpoint URL to connect to InfluxDB
-    Value: !Join ['', ["https://", !GetAtt DbInstance.Endpoint, ":", 8086]]
+    Value: !Join ["", ["https://", !GetAtt DbInstance.Endpoint, ":8086"]]
     
