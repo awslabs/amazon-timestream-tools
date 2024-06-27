@@ -1,8 +1,10 @@
 package com.amazonaws.samples.connectors.timestream;
 
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.operators.ProcessingTimeService;
 import org.apache.flink.api.common.serialization.SerializationSchema;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.connector.sink2.Sink.InitContext;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.metrics.groups.SinkWriterMetricGroup;
@@ -125,5 +127,20 @@ public class SinkInitContext implements InitContext {
 
     public SinkWriterMetricGroup getSinkMetricGroup() {
         return this.sinkMetricGroup;
+    }
+
+    @Override
+    public <IN> TypeSerializer<IN> createInputSerializer() {
+        return null;
+    }
+
+    @Override
+    public JobID getJobId() {
+        return null;
+    }
+
+    @Override
+    public boolean isObjectReuseEnabled() {
+        return false;
     }
 }

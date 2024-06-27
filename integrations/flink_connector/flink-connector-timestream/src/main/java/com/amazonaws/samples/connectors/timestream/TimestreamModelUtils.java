@@ -1,6 +1,6 @@
 package com.amazonaws.samples.connectors.timestream;
 
-import org.apache.flink.shaded.guava30.com.google.common.base.Utf8;
+import com.google.common.base.Utf8;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -29,7 +29,8 @@ under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <flink.version>1.17.1</flink.version>
+        <flink.version>1.18.1</flink.version>
+        <guava.version>33.2.1-jre</guava.version>
         <java.version>1.11</java.version>
         <jdk.version>11</jdk.version>
         <next.jdk.version>12</next.jdk.version>
@@ -90,6 +91,12 @@ under the License.
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>aws-crt-client</artifactId>
             <version>2.20.101</version>
+       </dependency>
+
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
         </dependency>
 
         <!-- Test dependencies -->
