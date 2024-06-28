@@ -67,10 +67,10 @@ aws s3 cp target/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar s3://YOUR_BUC
  - Choose `Create streaming application`
 
 4. In the `Application details` pane of your new application
- - Choose `IAM role` to add add the required permissions to the application role
- - From the IAM Role of your application, choose the `Policy name` for the policy
+ - Choose `IAM role` to add the required permissions to the application role
+ - From the IAM Role of your application, choose the `Policy name`
  - From the selected policy, choose `Edit`
- - Append the following permissions to the role policy `Statement` and replace `<region>` with the region of your deployed application, and replace `<account-id>` with the AWS account id:
+ - Append the following permissions to the role policy `Statement`, replacing `<region>` with the region of your deployed application and `<account-id>` with the AWS account ID:
 
     ```json
         {
@@ -108,10 +108,10 @@ aws s3 cp target/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar s3://YOUR_BUC
 
 5. From the `Apache Flink applications` page, choose the application you previously created
 6. Choose `Configure`
-7. Under `Amazon S3 bucket` in `Application Code Location`, choose the S3 bucket that you uploaded the application to in `Step 2`
+7. Under `Amazon S3 bucket` in `Application Code Location`, choose the S3 bucket that the application was uploaded to in `Step 2`
 8. Under `Path to S3 object`, input the path to the application jar file
 9. Choose `Save changes`
-10. Choose `Run` and choose `Rune` again
+10. Choose `Run` and choose `Run` again
 11. Follow **Getting Started** section from [sample data generator](/integrations/flink_connector/sample-data-generator) to send records to Kinesis.
 12. The records now should be consumed by the sample application and written to Timestream table.
 13. Query Timestream table using [AWS Console](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) or AWS CLI:
