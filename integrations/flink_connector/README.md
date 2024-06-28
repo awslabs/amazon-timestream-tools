@@ -59,13 +59,62 @@ mvn clean compile && mvn package
 cd ../sample-kinesis-to-timestream-app
 aws s3 cp target/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar s3://YOUR_BUCKET_NAME/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar
 ```
-3. Follow the steps in [Create and Run the Kinesis Data Analytics Application](https://docs.aws.amazon.com/kinesisanalytics/latest/java/get-started-exercise.html#get-started-exercise-7)
- - pick Apache Flink version 1.13.2
- - in "Edit the IAM Policy" step, add Timestream Write permissions to the created policy
+3. In the AWS Console, navigate to [Managed Apache Flink](https://console.aws.amazon.com/flink/home) to create the Apache Flink application
+ - Choose `Apache Flink Applications` in the navigation side bar
+ - Choose `Create streaming application`
+ - pick Apache Flink version 1.18
+ - Enter an application name and optional description
+ - Choose `Create streaming application`
 
-4. Follow **Getting Started** section from [sample data generator](/integrations/flink_connector/sample-data-generator) to send records to Kinesis.
-5. The records now should be consumed by the sample application and written to Timestream table.
-6. Query Timestream table using [AWS Console](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) or AWS CLI:
+4. In the `Application details` pane of your new application
+ - Choose `IAM role` to add the required permissions to the application role
+ - From the IAM Role of your application, choose the `Policy name`
+ - From the selected policy, choose `Edit`
+ - Append the following permissions to the role policy `Statement`, replacing `<region>` with the region of your deployed application and `<account-id>` with the AWS account ID:
+
+    ```json
+        {
+          "Effect": "Allow",
+          "Action": [
+            "timestream:CreateDatabase"
+          ],
+          "Resource": "arn:aws:timestream:<region>:<account-id>:database/kdaflink"
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "timestream:WriteRecords",
+            "timestream:CreateTable"
+          ],
+          "Resource": "arn:aws:timestream:<region>:<account-id>:database/kdaflink/table/kinesisdata"
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "timestream:DescribeEndpoints"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "kinesis:GetShardIterator",
+            "kinesis:GetRecords",
+            "kinesis:ListShards"
+          ],
+          "Resource": "arn:aws:kinesis:<region>:<account-id>:stream/TimestreamTestStream"
+        }
+    ```
+
+5. From the `Apache Flink applications` page, choose the application you previously created
+6. Choose `Configure`
+7. Under `Amazon S3 bucket` in `Application Code Location`, choose the S3 bucket that the application was uploaded to in `Step 2`
+8. Under `Path to S3 object`, input the path to the application jar file
+9. Choose `Save changes`
+10. Choose `Run` and choose `Run` again
+11. Follow **Getting Started** section from [sample data generator](/integrations/flink_connector/sample-data-generator) to send records to Kinesis.
+12. The records now should be consumed by the sample application and written to Timestream table.
+13. Query Timestream table using [AWS Console](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.queries.using-console) or AWS CLI:
 ```
 aws timestream-query query --query-string "SELECT * FROM kdaflink.kinesisdata WHERE time >= ago (15m) LIMIT 10"
 ```
