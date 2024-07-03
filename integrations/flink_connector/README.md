@@ -100,7 +100,8 @@ aws s3 cp target/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar s3://YOUR_BUC
           "Action": [
             "kinesis:GetShardIterator",
             "kinesis:GetRecords",
-            "kinesis:ListShards"
+            "kinesis:ListShards",
+            "kinesis:DescribeStream"
           ],
           "Resource": "arn:aws:kinesis:<region>:<account-id>:stream/TimestreamTestStream"
         }
