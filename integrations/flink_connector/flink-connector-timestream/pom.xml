@@ -21,7 +21,7 @@ under the License.
     <modelVersion>4.0.0</modelVersion>
     <artifactId>flink-connector-timestream</artifactId>
     <groupId>com.amazonaws.samples.connectors.timestream</groupId>
-    <version>0.3-SNAPSHOT</version>
+    <version>0.5-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>flink-connector-timestream</name>
@@ -33,6 +33,7 @@ under the License.
         <guava.version>33.2.1-jre</guava.version>
         <java.version>1.11</java.version>
         <jdk.version>11</jdk.version>
+        <awssdk.version>2.26.9</awssdk.version>
         <next.jdk.version>12</next.jdk.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -43,7 +44,7 @@ under the License.
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
-                <version>2.20.101</version>
+                <version>${awssdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -62,6 +63,11 @@ under the License.
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-base</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-core</artifactId>
             <version>${flink.version}</version>
         </dependency>
 
@@ -85,12 +91,13 @@ under the License.
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>timestreamwrite</artifactId>
+            <version>${awssdk.version}</version>
         </dependency>
 
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>aws-crt-client</artifactId>
-            <version>2.20.101</version>
+            <version>${awssdk.version}</version>
        </dependency>
 
         <dependency>
