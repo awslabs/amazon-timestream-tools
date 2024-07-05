@@ -33,7 +33,7 @@ mvn clean compile && mvn package
 
 You can run the application on your local environment by running `StreamingJobs` class:
 ```
-mvn install exec:java -Dexec.mainClass="com.amazonaws.samples.kinesis2timestream.StreamingJob" -Dexec.args="--InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata" -Dexec.classpathScope=test
+java -jar target/sample-kinesis-to-timestream-app-0.1-SNAPSHOT.jar --InputStreamName TimestreamTestStream --Region us-east-1 --TimestreamDbName kdaflink --TimestreamTableName kinesisdata
 ```
 
 In another terminal, concurrently, run the [python sample data generator](../sample-data-generator).
