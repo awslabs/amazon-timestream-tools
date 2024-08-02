@@ -1,0 +1,29 @@
+[package]
+name = "sample-timestream-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
+aws-sdk-timestreamwrite = "1.25.0"
+aws-sdk-timestreamquery = "1.25.0"
+aws-types = "1.3.3"
+chrono = "0.4.38"
+tokio = { version = "1.38", features = ["full"] }
+csv = "1.3.0"
+aws-sdk-s3 = "1.38.0"
+clap = {version = "4.5.8", features = ["derive"]}
+
+[[example]]
+name = "query_sample"
+path = "examples/query_sample.rs"
+
+[[example]]
+name = "ingestion_csv_sample"
+path = "examples/ingestion_csv_sample.rs"
+
+[[example]]
+name = "cleanup_sample"
+path = "examples/cleanup_sample.rs"
+
