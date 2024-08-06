@@ -2,29 +2,82 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Template to connect Kinesis streams to Timestream
 
+
+Metadata: 
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Configuration for Timeatream and EventBridge Pipes"
+        Parameters:
+          - KinesisStreamName
+          - CWGroupName
+          - DLQName
+          - TimestreamDatabaseName
+          - TimestreamTableName
+          - PipeName
+
+Parameters:
+  KinesisStreamName:
+    Description: A name to identify the Kinesis stream.
+    Type: String
+    Default: samplekinesisstream
+    MinLength: 1
+    MaxLength: 128
+  CWGroupName:
+    Description: A name for the cloudwatch log group
+    Type: String
+    Default: sampleloggroup
+    MinLength: 1
+    MaxLength: 128
+  DLQName:
+    Description: The name of the new dead-letter queue
+    Type: String
+    Default: sampledlq
+    MinLength: 1
+    MaxLength: 64
+  TimestreamDatabaseName:
+    Description: The name of the database in Timestream
+    Type: String
+    Default: sampledatabase
+    MinLength: 1
+    MaxLength: 64
+  TimestreamTableName:
+    Description: The name of the table in Timestream
+    Type: String
+    Default: sampletable
+    MinLength: 1
+    MaxLength: 64
+  PipeName:
+    Description: The name of the EventBridge Pipe
+    Type: String
+    Default: samplepipe
+    MinLength: 1
+    MaxLength: 64
+
 Resources:
   # Kinesis Data Stream
   Source:
     Type: AWS::Kinesis::Stream
     Properties:
-      Name: !Sub ${AWS::StackName}-source
+      Name: !Ref KinesisStreamName
       RetentionPeriodHours: 168
       ShardCount: 10
   # DLQ for source
   SourceQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub ${AWS::StackName}-dlq
+      QueueName: !Ref DLQName
   # Target
   TimestreamTargetDatabase:
     Type: AWS::Timestream::Database
     Properties:
-      DatabaseName: !Sub ${AWS::StackName}-db
+      DatabaseName: !Ref TimestreamDatabaseName
   TimestreamTargetTable:
     Type: AWS::Timestream::Table
     Properties:
       DatabaseName: !Ref TimestreamTargetDatabase
-      TableName: !Sub ${AWS::StackName}-tbl
+      TableName: !Ref TimestreamTableName
       RetentionProperties:
         MemoryStoreRetentionPeriodInHours: "168"
         MagneticStoreRetentionPeriodInDays: "7"
@@ -32,7 +85,7 @@ Resources:
   CloudwatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub ${AWS::StackName}-pipe-logs
+      LogGroupName: !Ref CWGroupName
   # IAM Role for Pipe
   PipeRole:
     Type: AWS::IAM::Role
@@ -96,7 +149,7 @@ Resources:
   TimestreamPipe:
     Type: AWS::Pipes::Pipe
     Properties:
-      Name: !Sub ${AWS::StackName}-pipe
+      Name: !Ref PipeName
       RoleArn: !GetAtt PipeRole.Arn
       Source: !GetAtt Source.Arn
       SourceParameters:
@@ -129,3 +182,29 @@ Resources:
         Level: TRACE
         IncludeExecutionData:  
           - ALL
+Outputs:
+  Kinesis:
+    Description: Source stream to send data to Timestream
+    Value: !Ref Source
+  DLQ:
+    Description: SQS Queue used as Dead letter queue
+    Value: !Ref SourceQueueDLQ
+  Database:
+    Description: Database created in Timestream
+    Value: !Ref TimestreamTargetDatabase
+  Table:
+    Description: Table created in Timestream for storing the ingested records
+    Value: !Ref TimestreamTargetTable
+  CWLogs:
+    Description: Cloudwatch log group to store execution logs from pipes
+    Value: !Ref CloudwatchLogGroup
+  Role:
+    Description: IAM Role used for executing the pipe
+    Value: !Ref PipeRole
+  Pipe:
+    Description: EventBrigde Pipe connecting Kinesis to Timestream
+    Value: !Ref TimestreamPipe
+
+
+  
+  

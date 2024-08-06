@@ -12,6 +12,8 @@ Learn more about this integration and steps to map Kinesis record to Timestream 
 
 ## Deployment Instructions
 
+### Via CLI
+
 1. Create a new directory, navigate to that directory in a terminal and clone the GitHub repository:
     ``` 
     git clone https://github.com/awslabs/amazon-timestream-tools.git
@@ -28,6 +30,23 @@ Learn more about this integration and steps to map Kinesis record to Timestream 
     * Enter a stack name
     * Enter the desired AWS Region
     * Allow SAM CLI to create IAM roles with the required permissions.
+
+### Via Console
+1. Create a new directory, navigate to that directory in a terminal and clone the GitHub repository:
+    ``` 
+    git clone https://github.com/awslabs/amazon-timestream-tools.git
+    ```
+1. Open the AWS CloudFormation console at https://console.aws.amazon.com/cloudformation
+
+1. On the Stacks page, choose Create stack at top right, and then choose With new resources 
+
+1. In Prepare template section, select `Choose an existing template` and then select `Upload a template file` from specify template.
+
+1. Upload the template.yaml file available in integrations/eventbridge_pipes/ of the clone git repository
+
+1. Add the name of the stack and update the names of resources created by the template.
+
+1. Make any other changes, if necessary and create the stack
 
 ## How it works
 
