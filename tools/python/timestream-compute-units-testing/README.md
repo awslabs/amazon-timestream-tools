@@ -24,13 +24,13 @@ We provided scripts to create timestream resource (database and table) and inges
 4. Run the [lastpoint-query.ipynb](./lastpoint-query.ipynb) and [single-groupby-orderby.ipynb](./single-groupby-orderby.ipynb) notebooks to capture the perfomance metrics for different TCU configuration. These notebooks run one minute for different number of workers (7, 14, 21, 28, 42, 50, 60) concurrently and capture p50, p90, p99, total number of queries per minute, throttles and plot graphs (latency percentiles, Queries Per Minute, Throttling Counts vs number of workers in three different graphs). 
 
     ## lastpoint-query 
-    Retrieves the most recent CPU Utilization for a given host
+    Retrieves the most recent memory Utilization for a given host
     ```sql
     select memory from "devops"."sample_devops" where time > ago(10m) and hostname='host1' order by time desc limit 1
     ```
 
     ## single-groupby-orderby
-    Has binning, grouping, and ordering, a relatively more resource intensive query than lastpoint-query 
+    Binning, grouping, and ordering, a relatively more resource intensive query than lastpoint-query 
     ```sql
     select bin(time, 1m) AS binned_time, max(cpu_utilization) as max_cpu_utilization from "devops"."sample_devops" where time > ago(10m) and hostname='host2' group by bin(time, 1m) order by binned_time asc
     ```
