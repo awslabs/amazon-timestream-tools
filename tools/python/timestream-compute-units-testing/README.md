@@ -34,3 +34,4 @@ We provided scripts to create timestream resource (database and table) and inges
     ```sql
     select bin(time, 1m) AS binned_time, max(cpu_utilization) as max_cpu_utilization from "devops"."sample_devops" where time > ago(10m) and hostname='host2' group by bin(time, 1m) order by binned_time asc
     ```
+    
