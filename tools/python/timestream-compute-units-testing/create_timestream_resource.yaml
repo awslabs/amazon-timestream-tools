@@ -24,5 +24,3 @@ Resources:
           - EnforcementInRecord: "REQUIRED"
             Name: "hostname"
             Type: "DIMENSION"
-
-            

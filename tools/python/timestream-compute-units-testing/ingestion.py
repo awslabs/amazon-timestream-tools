@@ -189,5 +189,3 @@ if __name__ == '__main__':
     }
     context = {}
     lambda_handler(event, context)
-
-

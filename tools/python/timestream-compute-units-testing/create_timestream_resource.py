@@ -52,5 +52,3 @@ except timestream_client.exceptions.ConflictException:
 except Exception as err:
     print(f"Create table failed: {err}")
     raise
-
-
