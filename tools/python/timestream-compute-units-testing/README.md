@@ -21,7 +21,7 @@ We provided scripts to create timestream resource (database and table) and inges
 ## How to use it 
 
 1. Create Timestream for LiveAnalytics Database and Table, you can use create_timestream_resource python, terraform or cloudformation template depending upon your choice. 
-    - ** you can change the database name,table name, memory and magentic retention within the script or template** 
+    - **you can change the database name,table name, memory and magentic retention within the script or template** 
 2. After resources are created start the ingestion script (ingestion.py), script will 
 
 
