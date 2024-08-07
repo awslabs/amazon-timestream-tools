@@ -2,7 +2,7 @@
 
 ## Performance testing 
 
-We provided scripts to create timestream resource (database and table) and ingestion script to load data and finally querying scripts for testing the tcu configuration with different queries concurrently.
+We provided scripts to create Timestream for LiveAnalytics resource (database and table) and ingestion script to load data and finally querying scripts for testing the tcu configuration with different queries concurrently.
 
 ## Requirements
 
