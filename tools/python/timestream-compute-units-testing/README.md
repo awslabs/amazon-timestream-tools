@@ -30,7 +30,7 @@ We provided scripts to create timestream resource (database and table) and inges
     ```
 
     ## single-groupby-orderby
-    Binning, grouping, and ordering for given host.A relatively more resource intensive query than lastpoint-query 
+    Binning, grouping, and ordering for given host. A relatively more resource intensive query than lastpoint-query 
     ```sql
     select bin(time, 1m) AS binned_time, max(cpu_utilization) as max_cpu_utilization from "devops"."sample_devops" where time > ago(10m) and hostname='host2' group by bin(time, 1m) order by binned_time asc
     ```
