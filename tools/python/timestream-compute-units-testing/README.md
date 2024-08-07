@@ -17,7 +17,7 @@ We provided scripts to create timestream resource (database and table) and inges
 
 ## How to use it 
 
-1. Create Timestream for LiveAnalytics Database and Table, you can use create_timestream_resource [python](./create_timestream_resource.py), [terraform](./create_timestream_resource.tf) or [cloudformation template](./create_timestream_resource.yaml) depending upon your choice. 
+1. Create Timestream for LiveAnalytics Database and Table, you can use create_timestream_resource [python](./create_timestream_resource.py), [cloudformation template](./create_timestream_resource.yaml) or [terraform](./create_timestream_resource.tf) depending upon your choice. 
     - You can change the database name,table name, memory and magentic retention within the script or template
 2. After resources are created, start the [ingestion script](./ingestion.py), script will ingest 100 devops metrics into Timestream for LiveAnalytics Table every second. Let the ingestion run for atleast couple hours before you start querying. 
 3. [Configure the Timestream Compute Unit (TCU)](https://docs.aws.amazon.com/timestream/latest/developerguide/tcu.html), we tested for 4 and 8 TCUs and shared the results and insights in the **blog** (once the blog is published this will be hyperlink to blog-- circular dependency, this needs to published so github link can be referenced in the blog)
