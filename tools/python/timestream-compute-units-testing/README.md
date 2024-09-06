@@ -35,3 +35,27 @@ We provided scripts to create Timestream for LiveAnalytics resource (database an
     ```sql
     select bin(time, 1m) AS binned_time, max(cpu_utilization) as max_cpu_utilization from "devops"."sample_devops" where time > ago(10m) and hostname='host2' group by bin(time, 1m) order by binned_time asc
     ```
+
+
+
+Following graphs show Latency Percentiles (seconds), Queries Per Minute, Throttling Counts vs number of workers. 
+
+select last point with 4 TCU configuration
+
+We start with 7 workers (users) and continue to increase the number of users accessing the data and we notice that with just 4 TCUs, the service supported approximately 4830 queries per minute (approximately 81 Queries per second) with p90 latency of less than 150ms.  As the number of Grafana users/workers increase, we see an increase in the latency, and thereby a decrease in the number of queries per minute but zero throttles. This is because the default SDK maximum retries set to 3 (a best practice) and SDK retries the queries before throttling. If sub-500ms performance query latency is acceptable for your use case, you could serve up to 35 concurrent users and 4000+ queries per minute with 4 TCU. 
+select last point with 8 TCU configuration : We increase the MaxQueryTCU to 8 and rerun the test. (8 TCUs might not immediately allocated, based on the workload the service automatically scales, there is chance the initial results are only for 4 TCUs)
+
+
+ 
+
+We observed with 8 TCUs the service supported approximately 5000 queries. If your requirement of p99 is sub second performance, you could serve 50 concurrent users and 5000 queries per minute with 8 TCU. Based, on the use-case you could have lesser number of queries which may yield p99 to sub 500 milliseconds as well. 
+
+
+
+binning and grouping with 4 TCU configuration 
+
+With 4 TCUs, you can analyze the metrics of 2750+ hosts in a minute with 30 concurrent workers (Grafana users), and maximum of approximately 3346 queries with 14 concurrent workers at 55 QPS. As the number of Grafana users increase, so does the latency and thereby fewer queries per minute. 
+
+binning and grouping with 8 TCU configuration
+
+With 8 TCUs, you can analyze the metrics of 3750+ hosts in a minute for 30 concurrent Grafana users. 
