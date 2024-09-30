@@ -21,8 +21,8 @@ We provided scripts to create Timestream for LiveAnalytics resource (database an
 1. Create Timestream for LiveAnalytics Database and Table, you can use create_timestream_resource [python](./create_timestream_resource.py), [cloudformation template](./create_timestream_resource.yaml) or [terraform](./create_timestream_resource.tf) depending upon your choice. 
     - You can change the database name, table name, memory and magentic retention within the script or template
 2. After resources are created, Execute the  [ingestion script](./ingestion.py), python3.8 ingestion.py. If required [You can change the database name,table name, region](https://github.com/awslabs/amazon-timestream-tools/blob/tcu-testing/tools/python/timestream-compute-units-testing/ingestion.py#L183). Script will ingest 100 devops metrics into Timestream for LiveAnalytics table every second. Let the ingestion run for atleast couple hours before you start querying. 
-3. [Configure the Timestream Compute Unit (TCU)](https://docs.aws.amazon.com/timestream/latest/developerguide/tcu.html), we tested for 4 and 8 TCUs and shared the results and insights in the **blog** (once the blog is published this will be hyperlink to blog-- circular dependency, this needs to published so github link can be referenced in the blog)
-4. Run the [lastpoint-query.ipynb](./lastpoint-query.ipynb) and [single-groupby-orderby.ipynb](./single-groupby-orderby.ipynb) notebooks to capture the perfomance metrics for different TCU configuration. These notebooks run one minute for different number of workers (7, 14, 21, 28, 42, 50, 60) concurrently and capture p50, p90, p99, total number of queries per minute, throttles and plot graphs (latency percentiles, Queries Per Minute, Throttling Counts vs number of workers in three different graphs). 
+3. [Configure the Timestream Compute Unit (TCU)](https://docs.aws.amazon.com/timestream/latest/developerguide/tcu.html), we tested for 4 and 8 TCUs and shared the results and insights in the **[blog](https://aws.amazon.com/blogs/database/understanding-and-optimizing-amazon-timestream-compute-units-for-efficient-time-series-data-management)
+4. Run the [lastpoint-query.ipynb](./lastpoint-query.ipynb) and [single-groupby-orderby.ipynb](./single-groupby-orderby-query.ipynb) notebooks to capture the perfomance metrics for different TCU configuration. These notebooks run one minute, increasing the users from 1 to 21 concurrently and capture p50, p90, p99, total number of queries per minute, throttles and plot graphs (latency percentiles, Queries Per Minute, Throttling Counts vs number of workers in three different graphs). 
 
     ## lastpoint-query 
     Retrieves the most recent memory Utilization for a given host
@@ -36,26 +36,4 @@ We provided scripts to create Timestream for LiveAnalytics resource (database an
     select bin(time, 1m) AS binned_time, max(cpu_utilization) as max_cpu_utilization from "devops"."sample_devops" where time > ago(10m) and hostname='host2' group by bin(time, 1m) order by binned_time asc
     ```
 
-
-
-Following graphs show Latency Percentiles (seconds), Queries Per Minute, Throttling Counts vs number of workers. 
-
-select last point with 4 TCU configuration
-
-We start with 7 workers (users) and continue to increase the number of users accessing the data and we notice that with just 4 TCUs, the service supported approximately 4830 queries per minute (approximately 81 Queries per second) with p90 latency of less than 150ms.  As the number of Grafana users/workers increase, we see an increase in the latency, and thereby a decrease in the number of queries per minute but zero throttles. This is because the default SDK maximum retries set to 3 (a best practice) and SDK retries the queries before throttling. If sub-500ms performance query latency is acceptable for your use case, you could serve up to 35 concurrent users and 4000+ queries per minute with 4 TCU. 
-select last point with 8 TCU configuration : We increase the MaxQueryTCU to 8 and rerun the test. (8 TCUs might not immediately allocated, based on the workload the service automatically scales, there is chance the initial results are only for 4 TCUs)
-
-
- 
-
-We observed with 8 TCUs the service supported approximately 5000 queries. If your requirement of p99 is sub second performance, you could serve 50 concurrent users and 5000 queries per minute with 8 TCU. Based, on the use-case you could have lesser number of queries which may yield p99 to sub 500 milliseconds as well. 
-
-
-
-binning and grouping with 4 TCU configuration 
-
-With 4 TCUs, you can analyze the metrics of 2750+ hosts in a minute with 30 concurrent workers (Grafana users), and maximum of approximately 3346 queries with 14 concurrent workers at 55 QPS. As the number of Grafana users increase, so does the latency and thereby fewer queries per minute. 
-
-binning and grouping with 8 TCU configuration
-
-With 8 TCUs, you can analyze the metrics of 3750+ hosts in a minute for 30 concurrent Grafana users. 
+we simulated two popular observability query patterns with more than one user monitoring the metrics, increasing the users from 1 to 21. We then varied MaxQueryTCU settings (4 and 8) to monitor the volume of queries handled and corresponding latencies as the users increase. We explained about TCUs and test results in the the **[blog](https://aws.amazon.com/blogs/database/understanding-and-optimizing-amazon-timestream-compute-units-for-efficient-time-series-data-management)**, please refer the blog for more insights. 
