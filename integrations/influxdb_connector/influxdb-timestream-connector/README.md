@@ -10,7 +10,37 @@ The following diagram shows a high-level overview of the connector's architectur
 
 <img src="./docs/img/influxdb_timestream_connector_lambda_function_arch.png" width=700/>
 
-## Table Schema
+## Table Mapping
+
+### Single-Table Multi-Measure
+
+The following table shows how the connector maps line protocol elements to Timestream for LiveAnalytics record attributes when table mapping is set to single table.
+
+| Line Protocol Element | Timestream Record Attribute |
+|-----------------------|---------------------------|
+| Timestamp             | Time                      |
+| Tags                  | Dimensions                |
+| Fields                | Measures                  |
+| Measurements          | Measure names              |
+
+Single table mapping ingests all line protocol points ingested through the InfluxDB Timestream Connector to the table defined with the `single_table_name` environment variable. The `measure_name` in each Timestream record is derived from the line protocol measurement.
+
+The following example shows the translation of two line protocol points into a Timestream for LiveAnalytics table, using Timestamps with second precision and a `single_table_name` Lambda environment variable configured to `influxdb-measures`:
+
+#### Line Protocol Points
+
+```
+cpu_load_short,host=server01,region=us-west value=0.64,average=1.24 1725059274
+weather,location=us-midwest,season=summer temperature=82.0,humidity=71.0 1706480990
+```
+
+#### Resulting influxdb-measures Timestream for LiveAnalytics Table
+
+| host     | region  | location   | season | measure_name     | time                          | value | average | temperature | humidity |
+|----------|---------|---------------------|------------------|-------------------------------|-------|---------|-------------|----------|
+| server01 | us-west |            |        | cpu_load_short   | 2024-08-30 23:07:54.000000000 | 0.64  | 1.24    |             |          |
+|          |         | us-midwest | summer | weather          | 2024-01-22 26:07:33.000000000 |       |         | 82.0        | 71.0     |
+
 
 ### Multi-Table Multi-Measure
 
@@ -25,12 +55,13 @@ The following table shows how the connector maps line protocol elements to Times
 
 A Timestream record's `measure_name` field is not derived from any element of ingested line protocol. Due to the multi-measure record translation, the connector sets the `measure_name` for each multi-measure record to the value of a Lambda environment variable. When [deployed as part of a CloudFormation stack](#aws-cloudformation-deployment), this can be customized by overriding the `MeasureNameForMultiMeasureRecords` parameter. When [deployed locally](#local-deployment), this can be customized by setting the `measure_name_for_multi_measure_records` environment variable.
 
-The following example shows the translation of a single line protocol point into a Timestream for LiveAnalytics table, using a Timestamp with second precision and a Lambda environment variable configured to `influxdb-measure`:
+The following example shows the translation of two line protocol points into two Timestream for LiveAnalytics tables, using Timestamps with second precision and a Lambda environment variable configured to `influxdb-measure`:
 
-#### Line Protocol Point
+#### Line Protocol Points
 
 ```
-cpu_load_short,host=server01,region=us-west value=0.64,average=1.24, 1725059274
+cpu_load_short,host=server01,region=us-west value=0.64,average=1.24 1725059274
+weather,location=us-midwest,season=summer temperature=82.0,humidity=71.0 1706480990
 ```
 
 #### Resulting cpu_load_short Timestream for LiveAnalytics Table
@@ -38,6 +69,12 @@ cpu_load_short,host=server01,region=us-west value=0.64,average=1.24, 1725059274
 | host     | region  | measure_name     | time                          | value | average |
 |----------|---------|------------------|-------------------------------|-------|---------|
 | server01 | us-west | influxdb-measure | 2024-08-30 23:07:54.000000000 | 0.64  | 1.24    |
+
+#### Resulting weather Timestream for LiveAnalytics Table
+
+| location   | season  | measure_name     | time                          | temperature | humidity |
+|------------|---------|------------------|-------------------------------|-------------|----------|
+| us-midwest | summer  | influxdb-measure | 2024-01-22 26:0733.000000000  | 82.0        | 71.0     |
 
 ## Deployment Options
 
@@ -72,6 +109,8 @@ The following parameters are available when deploying the connector as part of a
 | `RestApiGatewayStageName` | The name to use for the REST API Gateway stage. | `dev` |
 | `RestApiGatewayTimeoutInMillis` | The maximum number of milliseconds a REST API Gateway event will wait before timing out. | `30000` |
 | `RustLog` | The log level to use for the Lambda function. Typical values are error, warn, info, debug, trace, and off. Use trace in order to log the execution time of each function. | `INFO` |
+| `SingleTableName` | Determines the table name for ingestion when table mapping is type single-table. | `influxdb-measures` |
+| `TableMapping` | Determines whether to ingest all records to a single table or to multiple tables. | `single-table` |
 | `WriteThrottlingBurstLimit` | The number of burst requests per second that the REST API Gateway permits. | `1200` |
 
 ##### SAM Deployment Steps
@@ -143,6 +182,8 @@ The connector can be run locally using [Cargo Lambda](https://www.cargo-lambda.i
     - `region` string: the AWS region to use. Defaults to `us-east-1`.
     - `database_name` string: the Timestream for LiveAnalytics database name to use. Defaults to `influxdb-line-protocol`.
     - `measure_name_for_multi_measure_records` string: the value to use in records as the measure name. Defaults to `influxdb-measure`.
+    - `table_mapping` string: determines whether to ingest all data to a single table or multiple tables.
+    - `single_table_name` string: when table mapping is set to `single-table`, this value determines the table name.
     - `enable_database_creation` bool: whether to create a database if the `database_name` database does not already exist in Timestream for LiveAnalytics. Defaults to `true`.
     - `enable_table_creation` bool: whether to create new tables if they don't already exist. Defaults to `true`.
         - `enable_mag_store_writes` bool: if `enable_table_creation` is `true`, whether to enable mag store writes. Defaults to `true`.

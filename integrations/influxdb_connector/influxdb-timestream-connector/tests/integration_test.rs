@@ -2,6 +2,7 @@ use anyhow::Error;
 use aws_credential_types::Credentials;
 use aws_sdk_timestreamwrite as timestream_write;
 use aws_types::region::Region;
+use influxdb_timestream_connector::records_builder::SchemaType;
 use lambda_runtime::{Context, LambdaEvent};
 use rand::{distributions::uniform::SampleUniform, distributions::Alphanumeric, Rng};
 use serde_json::{json, Value};
@@ -57,7 +58,19 @@ impl CleanupBatch {
     }
 }
 
-fn set_environment_variables() {
+fn set_table_mapping_env_variables(schema_type: SchemaType) {
+    match schema_type {
+        SchemaType::MultiTableMultiMeasure => {
+            env::set_var("table_mapping", "multi-table");
+        }
+        SchemaType::SingleTableMultiMeasure => {
+            env::set_var("table_mapping", "multi-table");
+            env::set_var("single_table_name", "influxdb-measures");
+        }
+    }
+}
+
+fn set_base_environment_variables() {
     env::set_var("database_name", DATABASE_NAME);
     env::set_var("enable_database_creation", "true");
     env::set_var("enable_table_creation", "true");
@@ -96,7 +109,8 @@ fn random_number<T: PartialOrd + SampleUniform>(low: T, high: T) -> T {
 #[tokio::test]
 async fn test_mtmm_basic() -> Result<(), Error> {
     // Tests ingesting a single point.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -132,7 +146,8 @@ async fn test_mtmm_basic() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_create_database() -> Result<(), Error> {
     // Tests ingesting a single point and creating a database.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let test_create_database_name = "test_create_database_influxdb_timestream_connector_integ";
     env::set_var("database_name", test_create_database_name);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
@@ -184,7 +199,8 @@ async fn test_mtmm_create_database() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_unusual_query_parameters() -> Result<(), Error> {
     // Tests ingesting a single point with a query parameters key with unusual spelling.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -220,7 +236,8 @@ async fn test_mtmm_unusual_query_parameters() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_no_query_parameters() -> Result<(), Error> {
     // Tests ingesting a single point without query parameters.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -254,7 +271,8 @@ async fn test_mtmm_multiple_timestamps() -> Result<(), Error> {
     // Tests ingesting a single point with two timestamps.
     // Note, the connector either returns JSON with a 200 status code or an Error. This is so that
     // the dead letter queue works when the connector is deployed as part of a stack.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -289,7 +307,8 @@ async fn test_mtmm_multiple_timestamps() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_many_tags_many_fields() -> Result<(), Error> {
     // Tests ingesting a single point with 50 tags and 50 fields.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -337,7 +356,8 @@ async fn test_mtmm_many_tags_many_fields() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_float() -> Result<(), Error> {
     // Tests ingesting a single point with a float value for the field.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -373,7 +393,8 @@ async fn test_mtmm_float() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_string() -> Result<(), Error> {
     // Tests ingesting a single point with a string value for the field.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -409,7 +430,8 @@ async fn test_mtmm_string() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_bool() -> Result<(), Error> {
     // Tests ingesting a single point with a bool value for the field.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -448,7 +470,8 @@ async fn test_mtmm_max_tag_length() -> Result<(), Error> {
     // is 60, the maximum allowed dimension name length, and its value
     // is 1988 characters long. The length of the tag key and tag value
     // together amount to the maximum size for a dimension pair, 2 kilobytes.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -488,7 +511,8 @@ async fn test_mtmm_beyond_max_tag_length() -> Result<(), Error> {
     // is 60, the maximum allowed dimension name length, and its value
     // is 1989 characters long. The length of the tag key and tag value
     // together exceed the maximum size for a dimension pair, 2 kilobytes.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -525,7 +549,8 @@ async fn test_mtmm_max_field_length() -> Result<(), Error> {
     // Tests ingesting a single point with a field where the length
     // of the field key is the maximum measure name, 256, and the length
     // of the field value is the maximum measure value size, 2048.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -564,7 +589,8 @@ async fn test_mtmm_beyond_max_field_length() -> Result<(), Error> {
     // Tests ingesting a single point with a field where the length
     // of the field key is the maximum measure name, 256, and the length
     // of the field value is beyond the maximum measure value size, 2048.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -601,7 +627,8 @@ async fn test_mtmm_max_unique_field_keys() -> Result<(), Error> {
     // Tests ingesting a batch of points where the number of unique field keys
     // in the batch equals the maximum number of unique measures for a single
     // table, 1024.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -644,7 +671,8 @@ async fn test_mtmm_beyond_max_unique_field_keys() -> Result<(), Error> {
     // Tests ingesting a batch of points where the number of unique field keys
     // in the batch exceeds the maximum number of unique measures for a single
     // table, 1024.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -686,7 +714,8 @@ async fn test_mtmm_max_unique_tag_keys() -> Result<(), Error> {
     // Tests ingesting a batch of points where the number of unique tag keys
     // in the batch equals the maximum number of unique dimensions for a single
     // table, 128.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -729,7 +758,8 @@ async fn test_mtmm_beyond_max_unique_tag_keys() -> Result<(), Error> {
     // Tests ingesting a batch of points where the number of unique tag keys
     // in the batch exceeds the maximum number of unique dimensions for a single
     // table, 128.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -771,7 +801,8 @@ async fn test_mtmm_max_table_name_length() -> Result<(), Error> {
     // Tests ingesting a single point with measurement with length
     // equal to the maximum number of bytes a Timestream table name can
     // have.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -809,7 +840,8 @@ async fn test_mtmm_beyond_max_table_name_length() -> Result<(), Error> {
     // Tests ingesting a single point with measurement with length
     // exceeding the maximum number of bytes a Timestream table name can
     // have.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -843,7 +875,8 @@ async fn test_mtmm_beyond_max_table_name_length() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_nanosecond_precision() -> Result<(), Error> {
     // Tests ingesting a single point with nanosecond precision.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -881,7 +914,8 @@ async fn test_mtmm_nanosecond_precision() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_microsecond_precision() -> Result<(), Error> {
     // Tests ingesting a single point with microsecond precision.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -917,7 +951,8 @@ async fn test_mtmm_microsecond_precision() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_second_precision() -> Result<(), Error> {
     // Tests ingesting a single point with second precision.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -953,7 +988,8 @@ async fn test_mtmm_second_precision() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_no_precision() -> Result<(), Error> {
     // Tests ingesting a single point without precision supplied.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -992,7 +1028,8 @@ async fn test_mtmm_no_precision() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_empty_point() -> Result<(), Error> {
     // Tests ingesting an empty string.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -1016,7 +1053,8 @@ async fn test_mtmm_empty_point() -> Result<(), Error> {
 #[tokio::test]
 pub async fn test_mtmm_small_timestamp() -> Result<(), Error> {
     // Tests ingesting with a single-digit millisecond timestamp.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -1052,7 +1090,8 @@ pub async fn test_mtmm_small_timestamp() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_5_measurements() -> Result<(), Error> {
     // Tests ingesting a batch with five measurements.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -1096,7 +1135,8 @@ async fn test_mtmm_5_measurements() -> Result<(), Error> {
 #[tokio::test]
 async fn test_mtmm_100_measurements() -> Result<(), Error> {
     // Tests ingesting a batch with 100 measurements.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
@@ -1141,7 +1181,8 @@ async fn test_mtmm_100_measurements() -> Result<(), Error> {
 async fn test_mtmm_5000_batch() -> Result<(), Error> {
     // Tests ingesting a batch of 5000 points with a single measurement.
     // 5000 is the recommended batch size for InfluxDB v2 OSS.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     // Cleanup
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
@@ -1183,7 +1224,8 @@ async fn test_mtmm_5000_batch() -> Result<(), Error> {
 #[should_panic]
 async fn test_mtmm_no_credentials() {
     // Tests ingesting without AWS credentials. This test should panic.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
 
     let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
         .credentials_provider(Credentials::new("", "", None, None, "test"))
@@ -1221,7 +1263,8 @@ async fn test_mtmm_no_credentials() {
 #[should_panic]
 async fn test_mtmm_incorrect_credentials() {
     // Tests ingesting with incorrect AWS credentials. This test should panic.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
 
     let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
         .credentials_provider(Credentials::new(
@@ -1265,7 +1308,8 @@ async fn test_mtmm_incorrect_credentials() {
 async fn test_mtmm_custom_dimension_partition_key_optional_enforcement() -> Result<(), Error> {
     // Tests ingesting a single point and specifying a valid configuration for
     // a custom dimension partition key with optional enforcement.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "dimension");
     env::set_var("custom_partition_key_dimension", "nomatch");
     env::set_var("enforce_custom_partition_key", "false");
@@ -1306,7 +1350,8 @@ async fn test_mtmm_custom_dimension_partition_key_required_enforcement_accepted(
 ) -> Result<(), Error> {
     // Tests ingesting a single point and specifying a valid configuration for
     // a custom dimension partition key with required enforcement and a successful ingestion.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "dimension");
     env::set_var("custom_partition_key_dimension", "tag1");
     env::set_var("enforce_custom_partition_key", "true");
@@ -1347,7 +1392,8 @@ async fn test_mtmm_custom_dimension_partition_key_required_enforcement_rejected(
 ) -> Result<(), Error> {
     // Tests ingesting a single point and specifying a valid configuration for
     // a custom dimension partition key with required enforcement and an unsuccessful ingestion.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "dimension");
     env::set_var("custom_partition_key_dimension", "nomatch");
     env::set_var("enforce_custom_partition_key", "true");
@@ -1386,7 +1432,8 @@ async fn test_mtmm_custom_dimension_partition_key_required_enforcement_rejected(
 async fn test_mtmm_custom_dimension_partition_key_no_dimension() -> Result<(), Error> {
     // Tests ingesting a single point and specifying a configuration for
     // a custom dimension partition key without a dimension specified.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "dimension");
     env::remove_var("custom_partition_key_dimension");
     env::set_var("enforce_custom_partition_key", "false");
@@ -1425,7 +1472,8 @@ async fn test_mtmm_custom_dimension_partition_key_no_dimension() -> Result<(), E
 async fn test_mtmm_custom_dimension_partition_key_no_enforcement() -> Result<(), Error> {
     // Tests ingesting a single point and specifying a configuration for
     // a custom dimension partition key without an enforcement configuration specified.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "dimension");
     env::set_var("custom_partition_key_dimension", "tag1");
     env::remove_var("enforce_custom_partition_key");
@@ -1464,7 +1512,8 @@ async fn test_mtmm_custom_dimension_partition_key_no_enforcement() -> Result<(),
 async fn test_mtmm_custom_measure_partition_key() -> Result<(), Error> {
     // Tests ingesting a single point and specifying a valid configuration for
     // a custom measure partition key.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "measure");
     env::remove_var("custom_partition_key_dimension");
     env::remove_var("enforce_custom_partition_key");
@@ -1504,7 +1553,8 @@ async fn test_mtmm_custom_measure_partition_key() -> Result<(), Error> {
 async fn test_mtmm_custom_measure_partition_key_with_dimension() -> Result<(), Error> {
     // Tests ingesting a single point and specifying a valid configuration for
     // a custom measure partition key with a dimension specified. The dimension should be ignored.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "measure");
     env::set_var("custom_partition_key_dimension", "should_be_ignored");
     env::remove_var("enforce_custom_partition_key");
@@ -1545,7 +1595,8 @@ async fn test_mtmm_custom_measure_partition_key_with_enforcement() -> Result<(),
     // Tests ingesting a single point and specifying a valid configuration for
     // a custom measure partition key with an enforcement configuration specified.
     // The enforcement configuration should be ignored.
-    set_environment_variables();
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     env::set_var("custom_partition_key_type", "measure");
     env::remove_var("custom_partition_key_dimension");
     env::set_var("enforce_custom_partition_key", "false");
@@ -1574,6 +1625,103 @@ async fn test_mtmm_custom_measure_partition_key_with_enforcement() -> Result<(),
     println!("Response: {:?}", response);
 
     let mut cleanup_batch = CleanupBatch::new(DATABASE_NAME.to_string(), vec![lp_measurement_name]);
+    cleanup_batch.cleanup(&client).await;
+
+    assert!(response.is_ok());
+    assert!(response?["statusCode"] == 200);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_stmm_basic() -> Result<(), Error> {
+    // Tests ingesting a single point.
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::SingleTableMultiMeasure);
+    let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
+        .await
+        .expect("Failed to get client");
+    let client = Arc::new(client);
+
+    let lp_measurement_name = String::from("readings");
+
+    let point = format!(
+        "{},tag1={} field1={}i {}\n",
+        lp_measurement_name,
+        random_string(9),
+        random_number(0, 100001),
+        chrono::offset::Utc::now().timestamp_millis()
+    );
+
+    let query_parameters = HashMap::from([("precision".to_string(), "ms".to_string())]);
+    let request = LambdaEvent::<Value>::new(
+        json!({ "queryStringParameters": query_parameters, "body": point }),
+        Context::default(),
+    );
+
+    let response = influxdb_timestream_connector::lambda_handler(&client, request).await;
+    println!("Response {:?}", response);
+
+    let mut cleanup_batch = CleanupBatch::new(DATABASE_NAME.to_string(), vec![lp_measurement_name]);
+    cleanup_batch.cleanup(&client).await;
+
+    assert!(response.is_ok());
+    assert!(response?["statusCode"] == 200);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_stmm_varying_metrics() -> Result<(), Error> {
+    // Tests ingesting a batch with 100 measurements.
+    set_base_environment_variables();
+    set_table_mapping_env_variables(SchemaType::SingleTableMultiMeasure);
+    let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
+        .await
+        .expect("Failed to get client");
+    let client = Arc::new(client);
+
+    let mut table_names_to_delete = Vec::<String>::new();
+
+    let lp_readings_measurement_name = String::from("readings");
+    let mut lp_batch = String::new();
+    for i in 0..10 {
+        let lp_readings_measurement_name = format!("{lp_readings_measurement_name}{i}").to_string();
+        table_names_to_delete.push(lp_readings_measurement_name.clone());
+
+        let point = format!(
+            "{},tag1={} field1={}i {}\n",
+            lp_readings_measurement_name,
+            random_string(9),
+            random_number(0, 100001),
+            chrono::Utc::now().timestamp_millis()
+        );
+        lp_batch.push_str(&point);
+    }
+
+    let lp_velocity_measurement_name = String::from("velocity");
+    for i in 0..10 {
+        let lp_velocity_measurement_name = format!("{lp_velocity_measurement_name}{i}").to_string();
+        table_names_to_delete.push(lp_readings_measurement_name.clone());
+
+        let point = format!(
+            "{},tag1={} field1={}i {}\n",
+            lp_velocity_measurement_name,
+            random_string(9),
+            random_number(0, 100001),
+            chrono::Utc::now().timestamp_millis()
+        );
+        lp_batch.push_str(&point);
+    }
+
+    let query_parameters = HashMap::from([("precision".to_string(), "ms".to_string())]);
+    let request = LambdaEvent::<Value>::new(
+        json!({ "queryStringParameters": query_parameters, "body": lp_batch }),
+        Context::default(),
+    );
+
+    let response = influxdb_timestream_connector::lambda_handler(&client, request).await;
+    println!("Response {:?}", response);
+
+    let mut cleanup_batch = CleanupBatch::new(DATABASE_NAME.to_string(), table_names_to_delete);
     cleanup_batch.cleanup(&client).await;
 
     assert!(response.is_ok());

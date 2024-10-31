@@ -39,18 +39,26 @@ async fn handle_body(
 
     let line_protocol = str::from_utf8(body).unwrap();
     let metric_data = parse_line_protocol(line_protocol)?;
-    let multi_measure_builder = get_builder(SchemaType::MultiTableMultiMeasure(std::env::var(
-        "measure_name_for_multi_measure_records",
-    )?));
 
-    // Only currently supports multi-measure multi-table
+    let multi_measure_builder = match std::env::var("table_mapping")?.to_lowercase().as_str() {
+        "multi-table" => get_builder(
+            SchemaType::MultiTableMultiMeasure,
+            std::env::var("measure_name_for_multi_measure_records")?,
+        ),
+        _ => get_builder(
+            SchemaType::SingleTableMultiMeasure,
+            std::env::var("single_table_name")?,
+        ),
+    };
+
+    // Only currently supports multi-measure
     let multi_table_batch = build_records(&multi_measure_builder, &metric_data, precision)?;
-    handle_multi_table_ingestion(client, multi_table_batch).await?;
+    handle_ingestion(client, multi_table_batch).await?;
     Ok(())
 }
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-async fn handle_multi_table_ingestion(
+async fn handle_ingestion(
     client: &Arc<timestream_write::Client>,
     records: HashMap<String, Vec<timestream_write::types::Record>>,
 ) -> Result<(), Error> {

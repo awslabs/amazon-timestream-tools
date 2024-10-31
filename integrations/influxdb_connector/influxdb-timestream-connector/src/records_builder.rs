@@ -1,31 +1,32 @@
 use crate::metric::Metric;
+use crate::timestream_utils::{DIMENSION_PARTITION_KEY_TYPE, MEASURE_PARTITION_KEY_TYPE};
 use anyhow::{anyhow, Error};
-use aws_sdk_timestreamwrite as timestream_write;
+use aws_sdk_timestreamwrite::types as timestream_types;
 use std::{collections::HashMap, fmt::Debug};
 
-mod multi_table_multi_measure_builder;
-
-const DIMENSION_PARTITION_KEY_TYPE: &str = "dimension";
-const MEASURE_PARTITION_KEY_TYPE: &str = "measure";
+mod multi_measure_builder;
 
 #[derive(Debug)]
 pub enum SchemaType {
-    MultiTableMultiMeasure(String),
-}
-
-impl std::fmt::Display for SchemaType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SchemaType::MultiTableMultiMeasure(v) => std::fmt::Display::fmt(&v, f),
-        }
-    }
+    MultiTableMultiMeasure,
+    SingleTableMultiMeasure,
 }
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-pub fn get_builder(schema: SchemaType) -> impl BuildRecords {
-    // Currently only supported schema is multi-table multi-measure
-    multi_table_multi_measure_builder::MultiTableMultiMeasureBuilder {
-        measure_name: schema.to_string(),
+pub fn get_builder(schema: SchemaType, measure_name: String) -> impl BuildRecords {
+    match schema {
+        SchemaType::SingleTableMultiMeasure => {
+            return multi_measure_builder::MultiMeasureBuilder {
+                measure_name: None,
+                schema_type: SchemaType::SingleTableMultiMeasure,
+            }
+        }
+        SchemaType::MultiTableMultiMeasure => {
+            return multi_measure_builder::MultiMeasureBuilder {
+                measure_name: Some(measure_name.to_string()),
+                schema_type: SchemaType::MultiTableMultiMeasure,
+            }
+        }
     }
 }
 
@@ -33,86 +34,9 @@ pub fn get_builder(schema: SchemaType) -> impl BuildRecords {
 pub fn build_records(
     records_builder: &impl BuildRecords,
     metrics: &[Metric],
-    precision: &timestream_write::types::TimeUnit,
-) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error> {
+    precision: &timestream_types::TimeUnit,
+) -> Result<HashMap<String, Vec<timestream_types::Record>>, Error> {
     records_builder.build_records(metrics, precision)
-}
-
-#[derive(Debug)]
-pub struct TableConfig {
-    pub mag_store_retention_period: i64,
-    pub mem_store_retention_period: i64,
-    pub enable_mag_store_writes: bool,
-    pub enforce_custom_partition_key: Option<timestream_write::types::PartitionKeyEnforcementLevel>,
-    pub custom_partition_key_type: Option<timestream_write::types::PartitionKeyType>,
-    pub custom_partition_key_dimension: Option<String>,
-}
-
-#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-pub fn get_table_config() -> Result<TableConfig, Error> {
-    // Get the populated table_config struct
-
-    let custom_partition_key_type = match std::env::var("custom_partition_key_type") {
-        Ok(custom_partition_key_type_value) => {
-            match custom_partition_key_type_value.to_lowercase().as_str() {
-                DIMENSION_PARTITION_KEY_TYPE => {
-                    Some(timestream_write::types::PartitionKeyType::Dimension)
-                }
-                MEASURE_PARTITION_KEY_TYPE => {
-                    Some(timestream_write::types::PartitionKeyType::Measure)
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    };
-
-    // If custom_partition_key_type is "dimension", then enforce_custom_partition_key is required (true or false).
-    // If custom_partition_key_type is "measure", then this will ignore enforce_custom_partition_key.
-    // The SDK will return an error if custom_partition_key_type is "measure" and any value is specified for
-    // enforce_custom_partition_key
-    let enforce_custom_partition_key = match custom_partition_key_type {
-        Some(timestream_write::types::PartitionKeyType::Dimension) => {
-            // enforce_custom_partition_key value (true or false) is required if custom_partition_key_type is PartitionKeyType::Dimension
-            match std::env::var("enforce_custom_partition_key")?
-                .to_lowercase()
-                .as_str()
-            {
-                "true" | "t" | "1" => {
-                    Some(timestream_write::types::PartitionKeyEnforcementLevel::Required)
-                }
-                "false" | "f" | "0" => {
-                    Some(timestream_write::types::PartitionKeyEnforcementLevel::Optional)
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    };
-
-    // If custom_partition_key_type is "dimension", then custom_partition_key_dimension is required.
-    // The SDK will return an error if custom_partition_key_type is "measure" and
-    // any value is specified for custom_partition_key_dimension
-    let custom_partition_key_dimension = match custom_partition_key_type {
-        Some(timestream_write::types::PartitionKeyType::Dimension) => {
-            Some(std::env::var("custom_partition_key_dimension")?)
-        }
-        _ => None,
-    };
-
-    Ok(TableConfig {
-        mag_store_retention_period: std::env::var("mag_store_retention_period")?.parse()?,
-        mem_store_retention_period: std::env::var("mem_store_retention_period")?.parse()?,
-        enable_mag_store_writes: matches!(
-            std::env::var("enable_mag_store_writes")?
-                .to_lowercase()
-                .as_str(),
-            "true" | "t" | "1"
-        ),
-        enforce_custom_partition_key,
-        custom_partition_key_type,
-        custom_partition_key_dimension,
-    })
 }
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
@@ -186,6 +110,33 @@ pub fn validate_env_variables() -> Result<(), Error> {
         }
     }
 
+    // Validate environment variables for table mapping
+    match std::env::var("table_mapping") {
+        Ok(table_mapping) => match table_mapping.as_str() {
+            "single-table" => {
+                if std::env::var("single_table_name").is_err() {
+                    return Err(anyhow!(
+                        "single_table_name environment variable is not defined"
+                    ));
+                }
+            }
+            "multi-table" => {
+                if std::env::var("measure_name_for_multi_measure_records").is_err() {
+                    return Err(anyhow!(
+                        "measure_name_for_multi_measure_records environment variable is not defined"
+                    ));
+                }
+            }
+            table_mapping => {
+                return Err(anyhow!(
+                    "{:?} is an invalid value for the table_mapping environment variable",
+                    table_mapping
+                ))
+            }
+        },
+        Err(_) => return Err(anyhow!("table_mapping environment variable is not defined")),
+    }
+
     // Customer-defined partition key environment variables
     let custom_partition_key_type = std::env::var("custom_partition_key_type");
 
@@ -229,8 +180,8 @@ pub trait BuildRecords: Debug {
     fn build_records(
         &self,
         metrics: &[Metric],
-        precision: &timestream_write::types::TimeUnit,
-    ) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error>;
+        precision: &timestream_types::TimeUnit,
+    ) -> Result<HashMap<String, Vec<timestream_types::Record>>, Error>;
 }
 
 #[cfg(test)]

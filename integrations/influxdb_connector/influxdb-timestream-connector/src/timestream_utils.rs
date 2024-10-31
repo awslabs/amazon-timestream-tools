@@ -1,4 +1,3 @@
-use super::records_builder::TableConfig;
 use anyhow::{anyhow, Error, Result};
 use aws_sdk_timestreamwrite as timestream_write;
 use aws_types::region::Region;
@@ -13,6 +12,19 @@ use tokio::task;
 // The maximum number of threads to use for ingesting
 // batches of records to Timestream in parallel
 static NUM_TIMESTREAM_INGEST_THREADS: usize = 12;
+
+pub const DIMENSION_PARTITION_KEY_TYPE: &str = "dimension";
+pub const MEASURE_PARTITION_KEY_TYPE: &str = "measure";
+
+#[derive(Debug)]
+pub struct TableConfig {
+    pub mag_store_retention_period: i64,
+    pub mem_store_retention_period: i64,
+    pub enable_mag_store_writes: bool,
+    pub enforce_custom_partition_key: Option<timestream_write::types::PartitionKeyEnforcementLevel>,
+    pub custom_partition_key_type: Option<timestream_write::types::PartitionKeyType>,
+    pub custom_partition_key_dimension: Option<String>,
+}
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn get_connection(
@@ -152,6 +164,73 @@ pub async fn database_exists(
             _ => Err(anyhow!(error)),
         },
     }
+}
+
+#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
+pub fn get_table_config() -> Result<TableConfig, Error> {
+    // Get the populated table_config struct
+
+    let custom_partition_key_type = match std::env::var("custom_partition_key_type") {
+        Ok(custom_partition_key_type_value) => {
+            match custom_partition_key_type_value.to_lowercase().as_str() {
+                DIMENSION_PARTITION_KEY_TYPE => {
+                    Some(timestream_write::types::PartitionKeyType::Dimension)
+                }
+                MEASURE_PARTITION_KEY_TYPE => {
+                    Some(timestream_write::types::PartitionKeyType::Measure)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+
+    // If custom_partition_key_type is "dimension", then enforce_custom_partition_key is required (true or false).
+    // If custom_partition_key_type is "measure", then this will ignore enforce_custom_partition_key.
+    // The SDK will return an error if custom_partition_key_type is "measure" and any value is specified for
+    // enforce_custom_partition_key
+    let enforce_custom_partition_key = match custom_partition_key_type {
+        Some(timestream_write::types::PartitionKeyType::Dimension) => {
+            // enforce_custom_partition_key value (true or false) is required if custom_partition_key_type is PartitionKeyType::Dimension
+            match std::env::var("enforce_custom_partition_key")?
+                .to_lowercase()
+                .as_str()
+            {
+                "true" | "t" | "1" => {
+                    Some(timestream_write::types::PartitionKeyEnforcementLevel::Required)
+                }
+                "false" | "f" | "0" => {
+                    Some(timestream_write::types::PartitionKeyEnforcementLevel::Optional)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+
+    // If custom_partition_key_type is "dimension", then custom_partition_key_dimension is required.
+    // The SDK will return an error if custom_partition_key_type is "measure" and
+    // any value is specified for custom_partition_key_dimension
+    let custom_partition_key_dimension = match custom_partition_key_type {
+        Some(timestream_write::types::PartitionKeyType::Dimension) => {
+            Some(std::env::var("custom_partition_key_dimension")?)
+        }
+        _ => None,
+    };
+
+    Ok(TableConfig {
+        mag_store_retention_period: std::env::var("mag_store_retention_period")?.parse()?,
+        mem_store_retention_period: std::env::var("mem_store_retention_period")?.parse()?,
+        enable_mag_store_writes: matches!(
+            std::env::var("enable_mag_store_writes")?
+                .to_lowercase()
+                .as_str(),
+            "true" | "t" | "1"
+        ),
+        enforce_custom_partition_key,
+        custom_partition_key_type,
+        custom_partition_key_dimension,
+    })
 }
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]

@@ -1,15 +1,19 @@
 use super::{validate_env_variables, BuildRecords};
-use crate::metric::{FieldValue, Metric};
-use anyhow::{anyhow, Error, Result};
+use crate::{
+    metric::{FieldValue, Metric},
+    SchemaType,
+};
+use anyhow::{Error, Result};
 use aws_sdk_timestreamwrite as timestream_write;
 use std::collections::HashMap;
 
-pub struct MultiTableMultiMeasureBuilder {
-    pub measure_name: String,
+pub struct MultiMeasureBuilder {
+    pub measure_name: Option<String>,
+    pub schema_type: SchemaType,
 }
 
-impl BuildRecords for MultiTableMultiMeasureBuilder {
-    // trait implementation to support multi-measure multi-table schema with Timestream
+impl BuildRecords for MultiMeasureBuilder {
+    // trait implementation to support multi-measure records Timestream
 
     #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
     fn build_records(
@@ -18,51 +22,81 @@ impl BuildRecords for MultiTableMultiMeasureBuilder {
         precision: &timestream_write::types::TimeUnit,
     ) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error> {
         validate_env_variables()?;
-        validate_multi_measure_env_variables()?;
-        build_multi_measure_records(metrics, &self.measure_name, precision)
+        match self.schema_type {
+            SchemaType::SingleTableMultiMeasure => {
+                return build_single_table_multi_measure_records(metrics, precision)
+            }
+            SchemaType::MultiTableMultiMeasure => {
+                return build_multi_table_multi_measure_records(
+                    metrics,
+                    self.measure_name.as_deref(),
+                    precision,
+                )
+            }
+        }
     }
 }
 
-impl std::fmt::Debug for MultiTableMultiMeasureBuilder {
+impl std::fmt::Debug for MultiMeasureBuilder {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(formatter, "{}", self.measure_name)
+        write!(
+            formatter,
+            "{}",
+            self.measure_name
+                .as_deref()
+                .expect("Failed to unwrap")
+                .to_owned()
+        )
     }
 }
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-fn validate_multi_measure_env_variables() -> Result<(), Error> {
-    // Validate environment variables for multi-measure schema types
-
-    if std::env::var("measure_name_for_multi_measure_records").is_err() {
-        return Err(anyhow!(
-            "measure_name_for_multi_measure_records environment variable is not defined"
-        ));
-    }
-
-    Ok(())
-}
-
-#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-fn build_multi_measure_records(
+fn build_single_table_multi_measure_records(
     metrics: &[Metric],
-    measure_name: &str,
     precision: &timestream_write::types::TimeUnit,
 ) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error> {
-    // Builds multi-measure multi-table records hashmap
+    // Builds multi-measure records hashmap to be ingested to one table
 
-    let mut multi_table_batch: HashMap<String, Vec<aws_sdk_timestreamwrite::types::Record>> =
+    let mut records_batch: HashMap<String, Vec<aws_sdk_timestreamwrite::types::Record>> =
         HashMap::new();
+    let table_name = std::env::var("single_table_name")?;
     for metric in metrics.iter() {
-        let new_record = metric_to_timestream_record(measure_name, metric, precision)?;
-        let table_name = metric.name();
-        if let Some(record_vec) = multi_table_batch.get_mut(table_name) {
+        let new_record = metric_to_timestream_record(metric.name(), metric, precision)?;
+        if let Some(record_vec) = records_batch.get_mut(&table_name) {
             record_vec.push(new_record);
         } else {
-            multi_table_batch.insert(table_name.to_string(), vec![new_record]);
+            records_batch.insert(table_name.to_string(), vec![new_record]);
         }
     }
 
-    Ok(multi_table_batch)
+    Ok(records_batch)
+}
+
+#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
+fn build_multi_table_multi_measure_records(
+    metrics: &[Metric],
+    measure_name: Option<&str>,
+    precision: &timestream_write::types::TimeUnit,
+) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error> {
+    // Builds multi-measure records hashmap to be ingested to multiple tables
+
+    let mut records_batch: HashMap<String, Vec<aws_sdk_timestreamwrite::types::Record>> =
+        HashMap::new();
+    for metric in metrics.iter() {
+        let new_record = metric_to_timestream_record(
+            measure_name.expect("Failed to unwrap"),
+            metric,
+            precision,
+        )?;
+        let table_name = metric.name();
+        if let Some(record_vec) = records_batch.get_mut(table_name) {
+            record_vec.push(new_record);
+        } else {
+            records_batch.insert(table_name.to_string(), vec![new_record]);
+        }
+    }
+
+    Ok(records_batch)
 }
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
