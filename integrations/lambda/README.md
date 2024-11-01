@@ -121,7 +121,7 @@ When deployed in Amazon SageMaker, the instance hosting the Jupyter notebook mus
 }
 ```
 
-The Lambda function name `TimestreamLambdaFunction` and the role name `TimestreamLambdaRole` are the default names used in the Jupyter notebook.
+The Lambda function name `TimestreamSampleLambda` and the role name `TimestreamLambdaRole` are the default names used in the Jupyter notebook.
 
 ### SageMaker Configuration
 
