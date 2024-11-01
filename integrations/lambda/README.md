@@ -70,7 +70,7 @@ When deployed in Amazon SageMaker, the instance hosting the Jupyter notebook mus
                 "lambda:CreateFunctionUrlConfig",
                 "lambda:AddPermission"
             ],
-            "Resource": "arn:aws:lambda:<region>:<account ID>:function:TimestreamLambdaFunction"
+            "Resource": "arn:aws:lambda:<region>:<account ID>:function:TimestreamSampleLambda"
         },
         {
             "Effect": "Allow",
@@ -88,7 +88,34 @@ When deployed in Amazon SageMaker, the instance hosting the Jupyter notebook mus
                 "iam:PutGroupPolicy",
                 "iam:PassRole"
             ],
-            "Resource": "arn:aws:iam::<account ID>:role/TimestreamLambdaRole"
+            "Resource": [
+                "arn:aws:iam::<account ID>:role/TimestreamLambdaRole",
+                "arn:aws:iam::<account ID>:role/GrafanaWorkspaceRole"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sso:DescribeRegisteredRegions",
+                "sso:CreateManagedApplicationInstance"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "grafana:DescribeWorkspace",
+                "grafana:CreateWorkspace",
+                "grafana:ListWorkspaces",
+                "grafana:CreateWorkspaceServiceAccount",
+                "grafana:CreateWorkspaceServiceAccountToken",
+                "grafana:DeleteWorkspaceServiceAccountToken",
+                "grafana:DescribeWorkspaceConfiguration",
+                "grafana:UpdateWorkspaceConfiguration",
+                "grafana:ListWorkspaceServiceAccounts",
+                "grafana:ListWorkspaceServiceAccountTokens"
+            ],
+            "Resource": "arn:aws:grafana:<region>>:<account ID>:/workspaces*"
         }
     ]
 }
@@ -111,3 +138,9 @@ To host the Jupyter notebook in SageMaker and run the notebook:
 9. In the **Kernel not found** popup window, select `conda_python3` form the dropdown menu and choose **Set Kernel**.
 10. Once the kernel has started, choose **Kernel** > **Restart & Run All**.
 11. When all cells in the notebook have finished executing, records will have been ingested to the `sample_app_table` table in the `sample_app_database` database in Timestream for LiveAnalytics.
+
+## Viewing Data in Amazon Managed Grafana
+
+The notebook will create an Amazon Managed Grafana workspace and create a dashboard.
+
+Before accessing the dashboard, an IAM Identity Center user must be created and added to the workspace manually. The last two steps of the notebook provide instructions for how to do this and access the dashboard. The "Generate and Upload Grafana Dashboard" cell will output the login url for the workspace.
