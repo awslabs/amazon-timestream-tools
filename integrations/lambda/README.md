@@ -9,8 +9,8 @@ This sample application is comprised of three files:
     - Generates simulated time series data from a selection of predefined scenarios or a user-defined scenario.
     - Deploys a Lambda function that receives the data and ingests the data into Timestream for LiveAnalytics.
     - Sends the generated time series data to the Lambda's URL using SigV4 authentication.
-- `dashboard.json`: A Grafana dashboard, configured to view all data ingested into the Timestream for LiveAnalytics database in the last hour.
 - `requirements.txt`: A file containing required packages for the Jupyter notebook, for quick environment setup.
+- `environment.yml`: A Conda environment file that specifies the environment name, channel, and dependencies.
 
 The following diagram depicts the deployed Lambda function receiving generated data and ingesting the data to Timestream for LiveAnalytics that then is queried and displayed in [Amazon Managed Grafana](https://aws.amazon.com/grafana/).
 
