@@ -34,7 +34,7 @@ Parameters:
     Description: The value to use in records as the measure name.
   TableMapping:
     Type: String
-    Default: single-table
+    Default: multi-table
     Description: Maps records ingested to a single table or multiple tables.
   SingleTableName:
     Type: String

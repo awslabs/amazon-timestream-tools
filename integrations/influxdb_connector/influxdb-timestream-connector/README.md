@@ -17,11 +17,11 @@ The following diagram shows a high-level overview of the connector's architectur
 The following table shows how the connector maps line protocol elements to Timestream for LiveAnalytics record attributes when table mapping is set to single table.
 
 | Line Protocol Element | Timestream Record Attribute |
-|-----------------------|---------------------------|
-| Timestamp             | Time                      |
-| Tags                  | Dimensions                |
-| Fields                | Measures                  |
-| Measurements          | Measure names              |
+|-----------------------|-----------------------------|
+| Timestamp             | Time                        |
+| Tags                  | Dimensions                  |
+| Fields                | Measures                    |
+| Measurements          | Measure names               |
 
 Single table mapping ingests all line protocol points ingested through the InfluxDB Timestream Connector to the table defined with the `single_table_name` environment variable. The `measure_name` in each Timestream record is derived from the line protocol measurement.
 
@@ -37,7 +37,7 @@ weather,location=us-midwest,season=summer temperature=82.0,humidity=71.0 1706480
 #### Resulting influxdb-measures Timestream for LiveAnalytics Table
 
 | host     | region  | location   | season | measure_name     | time                          | value | average | temperature | humidity |
-|----------|---------|---------------------|------------------|-------------------------------|-------|---------|-------------|----------|
+|----------|---------|------------|--------|------------------|-------------------------------|-------|---------|-------------|----------|
 | server01 | us-west |            |        | cpu_load_short   | 2024-08-30 23:07:54.000000000 | 0.64  | 1.24    |             |          |
 |          |         | us-midwest | summer | weather          | 2024-01-22 26:07:33.000000000 |       |         | 82.0        | 71.0     |
 
@@ -47,11 +47,11 @@ weather,location=us-midwest,season=summer temperature=82.0,humidity=71.0 1706480
 The following table shows how the connector maps line protocol elements to Timestream for LiveAnalytics record attributes.
 
 | Line Protocol Element | Timestream Record Attribute |
-|-----------------------|---------------------------|
-| Timestamp             | Time                      |
-| Tags                  | Dimensions                |
-| Fields                | Measures                  |
-| Measurements          | Table names               |
+|-----------------------|-----------------------------|
+| Timestamp             | Time                        |
+| Tags                  | Dimensions                  |
+| Fields                | Measures                    |
+| Measurements          | Table names                 |
 
 A Timestream record's `measure_name` field is not derived from any element of ingested line protocol. Due to the multi-measure record translation, the connector sets the `measure_name` for each multi-measure record to the value of a Lambda environment variable. When [deployed as part of a CloudFormation stack](#aws-cloudformation-deployment), this can be customized by overriding the `MeasureNameForMultiMeasureRecords` parameter. When [deployed locally](#local-deployment), this can be customized by setting the `measure_name_for_multi_measure_records` environment variable.
 
@@ -110,7 +110,7 @@ The following parameters are available when deploying the connector as part of a
 | `RestApiGatewayTimeoutInMillis` | The maximum number of milliseconds a REST API Gateway event will wait before timing out. | `30000` |
 | `RustLog` | The log level to use for the Lambda function. Typical values are error, warn, info, debug, trace, and off. Use trace in order to log the execution time of each function. | `INFO` |
 | `SingleTableName` | Determines the table name for ingestion when table mapping is type single-table. | `influxdb-measures` |
-| `TableMapping` | Determines whether to ingest all records to a single table or to multiple tables. | `single-table` |
+| `TableMapping` | Determines whether to ingest all records to a single table or to multiple tables. | `multi-table` |
 | `WriteThrottlingBurstLimit` | The number of burst requests per second that the REST API Gateway permits. | `1200` |
 
 ##### SAM Deployment Steps
