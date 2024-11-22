@@ -27,7 +27,6 @@ This sample application is currently available for the following programming lan
 * [Getting started with Java](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/java/)
 * [Getting started with Java v2](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/javaV2/)
 * [Getting started with Python](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/python/)
-* [Getting started with Go](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/go/)
 * [Getting started with Go v2](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/goV2/)
 * [Getting started with Node.js](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/js/)
 * [Getting started with .NET](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/sample_apps/dotnet/)
@@ -51,10 +50,10 @@ To continue to use your preferred data collection, analytics, visualization, and
 ## Data ingestion and query tools
 To understand the performance and scale capabilities of Amazon Timestream, you can run the following workload:
 
-* [Running large scale workloads with Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/perf-scale-workload/)
+* [Running large scale workloads with Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/python/perf-scale-workload/)
 
 You can use the following tools to continuously send data to Amazon Timestream:
 
 * [Publishing data with Amazon Kinesis to send to Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/tools/python/kinesis_ingestor/)
-* [Publishing data with Apache Kafka/ Amazon MSK to send to Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/tools/python/kafka_ingestor/)
+* [Publishing data with Apache Kafka/ Amazon MSK to send to Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/tools/java/kafka_ingestor/)
 * [Multi-threaded continuous data generator for writing DevOps metrics into Amazon Timestream](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/python/continuous-ingestor/)
