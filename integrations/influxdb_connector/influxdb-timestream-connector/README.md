@@ -623,3 +623,7 @@ In order to ingest to Timestream for LiveAnalytics, every line protocol point mu
 ### Query String Parameters
 
 The connector expects query string parameters to be included as `queryParameters` or `queryStringParameters` in requests.
+
+### Lack of Local Gzip Support
+
+The connector, when deployed as part of a CloudFormation stack, supports requests sent with Content-Type and Accept-Encoding headers set to `gzip`. However, when run locally with either Cargo Lambda or the SAM CLI, gzip compression is not supported.

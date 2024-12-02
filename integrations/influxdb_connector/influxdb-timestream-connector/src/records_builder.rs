@@ -1,5 +1,5 @@
 use crate::metric::Metric;
-use crate::timestream_utils::{DIMENSION_PARTITION_KEY_TYPE, MEASURE_PARTITION_KEY_TYPE};
+use crate::timestream_utils::DIMENSION_PARTITION_KEY_TYPE;
 use anyhow::{anyhow, Error};
 use aws_sdk_timestreamwrite::types as timestream_types;
 use std::{collections::HashMap, fmt::Debug};
@@ -141,14 +141,6 @@ pub fn validate_env_variables() -> Result<(), Error> {
     let custom_partition_key_type = std::env::var("custom_partition_key_type");
 
     if let Ok(custom_partition_key_type) = custom_partition_key_type {
-        if custom_partition_key_type != DIMENSION_PARTITION_KEY_TYPE
-            && custom_partition_key_type != MEASURE_PARTITION_KEY_TYPE
-        {
-            return Err(anyhow!(
-                format!("custom_partition_key_type can only be {DIMENSION_PARTITION_KEY_TYPE} or {MEASURE_PARTITION_KEY_TYPE}")
-            ));
-        }
-
         // Check required environment variables for when custom partition key type is "dimension." If it is "measure,"
         // no other environment variables are necessary.
 
