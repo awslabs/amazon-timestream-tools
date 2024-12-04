@@ -21,6 +21,7 @@ The following diagram depicts the deployed Lambda function receiving generated d
 ## Prerequisites
 
 1. [Configure AWS credentials for use with boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
+    - The AWS region all resources will be deployed in is determined using the [configuration boto3 uses](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#guide-credentials).
 2. [Install Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
 3. On Linux and macOS, run the following command to enable `conda`, replacing `<shell>` with your shell, whether that be `zsh`, `bash`, or `fish`:
     ```shell
