@@ -1,0 +1,509 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/grafana"
+	grafanaTypes "github.com/aws/aws-sdk-go-v2/service/grafana/types"
+)
+
+func getWorkspaceByName(grafanaClient *grafana.Client, workspaceName string) (*grafanaTypes.WorkspaceSummary, error) {
+	const SleepDuration = 5
+	const MaxWaitIntervals = 200
+	waiterInterval := 0
+
+	resp, err := grafanaClient.ListWorkspaces(context.TODO(), &grafana.ListWorkspacesInput{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workspaces: %v", err)
+	}
+
+	if resp == nil {
+		for waiterInterval < MaxWaitIntervals {
+			resp, err = grafanaClient.ListWorkspaces(context.TODO(), &grafana.ListWorkspacesInput{})
+			if resp != nil {
+				break
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to list workspaces: %v", err)
+			}
+			waiterInterval++
+			time.Sleep(SleepDuration * time.Second)
+		}
+	}
+
+	if waiterInterval == MaxWaitIntervals {
+		return nil, fmt.Errorf("failed to find workspace %s in workspaces", workspaceName)
+	}
+
+	for _, workspace := range resp.Workspaces {
+		if *workspace.Name == workspaceName {
+			return &workspace, nil
+		}
+	}
+
+	return nil, fmt.Errorf("failed to find workspace %s in workspaces", workspaceName)
+}
+
+func getGrafanaHttpReq(requestType string, urlWithEndpoint string, payload io.Reader, serviceAccountTokenKey string) (*http.Request, error) {
+	req, err := http.NewRequest(requestType, "https://"+urlWithEndpoint, payload)
+	if err != nil {
+		log.Printf("Failed to create Grafana HTTP request: %s", err)
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+serviceAccountTokenKey)
+	return req, nil
+}
+
+func sendGrafanaHttpReq(httpClient http.Client, req *http.Request) (*http.Response, error) {
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Printf("Failed to execute Grafana HTTP request: %s", err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func uploadDashboard(serviceAccountTokenKey string, workspaceUrl string, datasourceName string, dashboardName string, databaseName string) (string, error) {
+	const SleepDuration = 10
+	const MaxWaitIntervals = 100
+
+	var plugins []struct {
+		Id   string `json:"id"`
+		Name string `json:"name"`
+	}
+
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	installTimestreamPluginReq, err := getGrafanaHttpReq(
+		"POST",
+		workspaceUrl+"/api/plugins/grafana-timestream-datasource/install",
+		nil,
+		serviceAccountTokenKey,
+	)
+	if err != nil {
+		return "", err
+	}
+	installTimestreamPluginResp, err := sendGrafanaHttpReq(*httpClient, installTimestreamPluginReq)
+	if err != nil {
+		log.Printf("Failed to install Timestream plugin in Grafana workspace: %s", err)
+		return "", err
+	}
+
+	if installTimestreamPluginResp.StatusCode == http.StatusConflict {
+		log.Printf("Timestream plugin is already installed in the Grafana workspace")
+	} else if installTimestreamPluginResp.StatusCode != http.StatusOK {
+		log.Printf("Received status code %d when trying to install plugin: %s", installTimestreamPluginResp.StatusCode, err)
+		return "", fmt.Errorf("error: %d", installTimestreamPluginResp.StatusCode)
+	}
+	log.Printf("Timestream data source installed")
+
+	getGrafanaPluginsReq, err := getGrafanaHttpReq(
+		"GET",
+		workspaceUrl+"/api/plugins",
+		nil,
+		serviceAccountTokenKey,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	getGrafanaPluginsResp, err := sendGrafanaHttpReq(*httpClient, getGrafanaPluginsReq)
+	if err != nil {
+		log.Printf("Failed to retrieve plugins for Grafana workspace: %s", err)
+		return "", err
+	}
+
+	waiterInterval := 0
+	for waiterInterval < MaxWaitIntervals {
+		// Let Grafana catch up
+		time.Sleep(SleepDuration * time.Second)
+		body, err := io.ReadAll(getGrafanaPluginsResp.Body)
+		if err != nil {
+			log.Printf("Failed to read response body %s", err)
+			return "", err
+		}
+		if err := json.Unmarshal(body, &plugins); err != nil {
+			log.Printf("Failed to unmarshal JSON %s", err)
+			return "", err
+		}
+		pluginInstalled := false
+		for _, plugin := range plugins {
+			if plugin.Name == "Amazon Timestream" {
+				pluginInstalled = true
+				break
+			}
+		}
+		if pluginInstalled {
+			break
+		}
+		getGrafanaPluginsResp, err = httpClient.Do(getGrafanaPluginsReq)
+		if err != nil {
+			log.Printf("failed to retrieve plugins for grafana workspace: %s", err)
+			return "", err
+		}
+
+		waiterInterval++
+	}
+
+	if waiterInterval == MaxWaitIntervals {
+		return "", fmt.Errorf("timeout reached for installing Timestream plugin in workspace")
+	}
+
+	// Grafana still requires additional time after plugin is listed installed
+	time.Sleep(20 * time.Second)
+
+	enablePluginConfig := map[string]interface{}{
+		"enabled": true,
+		"pinned":  true,
+	}
+
+	jsonPluginConfig, err := json.Marshal(enablePluginConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %v", err)
+	}
+
+	enableGrafanaPluginReq, err := getGrafanaHttpReq(
+		"POST",
+		workspaceUrl+"/api/plugins/grafana-timestream-datasource/settings",
+		bytes.NewBuffer(jsonPluginConfig),
+		serviceAccountTokenKey,
+	)
+	if err != nil {
+		return "", err
+	}
+	enableGrafanaPluginResp, err := sendGrafanaHttpReq(*httpClient, enableGrafanaPluginReq)
+	if err != nil {
+		log.Printf("Failed to enable Grafana plugin: %s", err)
+		return "", err
+	}
+
+	if enableGrafanaPluginResp.StatusCode == http.StatusOK {
+		log.Printf("Timestream plugin successfully enabled")
+	} else if enableGrafanaPluginResp.StatusCode == http.StatusConflict {
+		log.Printf("Timestream plugin already enabled")
+	} else {
+		log.Printf("Failed to enable with status code %d", enableGrafanaPluginResp.StatusCode)
+		return "", fmt.Errorf("failed to enable Timestream plugin: %d", enableGrafanaPluginResp.StatusCode)
+	}
+
+	log.Printf("Timestream plugin installed")
+	dataSourceConfig := map[string]interface{}{
+		"name":   datasourceName,
+		"type":   "grafana-timestream-datasource",
+		"access": "proxy",
+		"jsonData": map[string]interface{}{
+			"defaultRegion":      os.Getenv("AWS_REGION"),
+			"database":           "",
+			"table":              "",
+			"authenticationType": "AWS_IAM",
+		},
+	}
+
+	jsonDataSourceConfig, err := json.Marshal(dataSourceConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %v", err)
+	}
+
+	configureGrafanaDatasourceReq, err := getGrafanaHttpReq(
+		"POST",
+		workspaceUrl+"/api/datasources",
+		bytes.NewBuffer(jsonDataSourceConfig),
+		serviceAccountTokenKey,
+	)
+	if err != nil {
+		return "", err
+	}
+	configureGrafanaDatasourceResp, err := sendGrafanaHttpReq(*httpClient, configureGrafanaDatasourceReq)
+	if err != nil {
+		log.Printf("Failed to configure Timestream data source: %s", err)
+		return "", err
+	}
+
+	if configureGrafanaDatasourceResp.StatusCode == http.StatusOK {
+		log.Printf("Timestream data source successfully added to workspace")
+	} else if configureGrafanaDatasourceResp.StatusCode == http.StatusConflict {
+		log.Printf("Timestream data source already exists in workspace")
+	} else {
+		log.Printf("Failed to add Timestream data source to workspace with status code %d", configureGrafanaDatasourceResp.StatusCode)
+		return "", fmt.Errorf("failed to add Timestream data source: %d", configureGrafanaDatasourceResp.StatusCode)
+	}
+
+	jsonDashboard, err := json.Marshal(generateDashboard(datasourceName, dashboardName, databaseName))
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %v", err)
+	}
+
+	uploadGrafanaDashboardReq, err := getGrafanaHttpReq(
+		"POST",
+		workspaceUrl+"/api/dashboards/db",
+		bytes.NewBuffer(jsonDashboard),
+		serviceAccountTokenKey,
+	)
+	if err != nil {
+		return "", err
+	}
+	uploadGrafanaDashboardResp, err := sendGrafanaHttpReq(*httpClient, uploadGrafanaDashboardReq)
+	if err != nil {
+		log.Printf("Failed to upload Grafana dashboard: %s", err)
+		return "", err
+	}
+
+	if uploadGrafanaDashboardResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("error status code returned from uploading dashboard: %d", uploadGrafanaDashboardResp.StatusCode)
+	}
+
+	return "Dashboard created successfully", nil
+}
+
+func createGrafanaDashboard() (string, error) {
+	const SleepDuration = 5
+	const MaxWaitIntervals = 200
+
+	workspaceName := os.Getenv("GrafanaWorkspaceName")
+	if workspaceName == "" {
+		return "", fmt.Errorf("Failed to get GrafanaWorkspaceName environment variable")
+	}
+	datasourceName := os.Getenv("TimestreamDatasourceName")
+	if datasourceName == "" {
+		return "", fmt.Errorf("Failed to get TimestreamDatasourceName environment variable")
+	}
+	dashboardName := os.Getenv("DashboardName")
+	if dashboardName == "" {
+		return "", fmt.Errorf("Failed to get DashboardName environment variable")
+	}
+	databaseName := os.Getenv("DatabaseName")
+	if databaseName == "" {
+		return "", fmt.Errorf("Failed to get DatabaseName environment variable")
+	}
+
+	awsConfig, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Printf("error loading default AWS config: %s", err)
+		return "", err
+	}
+
+	grafanaServiceAccountTokenName := "ADMIN"
+	var grafanaServiceAccountTokenSecondsToLive int32 = 86400 //24 hours
+	grafanaClient := grafana.NewFromConfig(awsConfig)
+
+	serviceAccountTokenKey := ""
+	grafanaWorkspace, err := getWorkspaceByName(grafanaClient, workspaceName)
+	if err != nil {
+		log.Printf("Failed to get workspace: %s", err)
+		return "", err
+	}
+
+	waiterInterval := 0
+
+	if grafanaWorkspace.Status != grafanaTypes.WorkspaceStatusActive {
+		for waiterInterval < MaxWaitIntervals {
+			grafanaWorkspace, err = getWorkspaceByName(grafanaClient, workspaceName)
+			if err != nil {
+				log.Printf("Failed to get workspace: %s", err)
+				return "", err
+			}
+			if grafanaWorkspace.Status == grafanaTypes.WorkspaceStatusActive {
+				break
+			}
+			waiterInterval++
+			time.Sleep(SleepDuration * time.Second)
+		}
+	}
+
+	if waiterInterval == MaxWaitIntervals {
+		return "", fmt.Errorf("Failed to create service account due to workspace creation timeout")
+	}
+
+	var maxWorkspaceServiceAccountsResult int32 = 200
+	workspaceServiceAccounts, err := grafanaClient.ListWorkspaceServiceAccounts(
+		context.TODO(),
+		&grafana.ListWorkspaceServiceAccountsInput{
+			WorkspaceId: grafanaWorkspace.Id,
+			MaxResults:  &maxWorkspaceServiceAccountsResult,
+		},
+	)
+	if err != nil {
+		log.Printf("Error listing workspace service accounts: %s", err)
+		return "", err
+	}
+
+	serviceAccountID := ""
+	for _, serviceAccount := range workspaceServiceAccounts.ServiceAccounts {
+		if *serviceAccount.Name == workspaceName {
+			serviceAccountID = *serviceAccount.Id
+			break
+		}
+	}
+
+	if serviceAccountID == "" {
+		serviceAccountOutput, err := grafanaClient.CreateWorkspaceServiceAccount(
+			context.TODO(),
+			&grafana.CreateWorkspaceServiceAccountInput{
+				GrafanaRole: grafanaTypes.RoleAdmin,
+				Name:        &workspaceName,
+				WorkspaceId: grafanaWorkspace.Id,
+			},
+		)
+		if err != nil {
+			log.Printf("Error listing workspace service accounts: %s", err)
+			return "", err
+		}
+		serviceAccountID = *serviceAccountOutput.Id
+	} else {
+		serviceAccountTokens, err := grafanaClient.ListWorkspaceServiceAccountTokens(context.TODO(), &grafana.ListWorkspaceServiceAccountTokensInput{
+			ServiceAccountId: &serviceAccountID,
+			WorkspaceId:      grafanaWorkspace.Id,
+			MaxResults:       &maxWorkspaceServiceAccountsResult,
+		})
+		if err != nil {
+			log.Printf("Error listing workspace service account tokens: %s", err)
+			return "", err
+		}
+		for _, serviceAccountToken := range serviceAccountTokens.ServiceAccountTokens {
+			if *serviceAccountToken.Name == "ADMIN" {
+				log.Printf("Existing service account token exists which needs to be deleted and re-created")
+				grafanaClient.DeleteWorkspaceServiceAccountToken(context.TODO(), &grafana.DeleteWorkspaceServiceAccountTokenInput{
+					ServiceAccountId: &serviceAccountID,
+					TokenId:          *&serviceAccountToken.Id,
+					WorkspaceId:      grafanaWorkspace.Id,
+				})
+				break
+			}
+		}
+	}
+
+	serviceAccountTokenOutput, err := grafanaClient.CreateWorkspaceServiceAccountToken(context.TODO(), &grafana.CreateWorkspaceServiceAccountTokenInput{
+		Name:             &grafanaServiceAccountTokenName,
+		SecondsToLive:    &grafanaServiceAccountTokenSecondsToLive,
+		ServiceAccountId: &serviceAccountID,
+		WorkspaceId:      grafanaWorkspace.Id,
+	})
+	if err != nil {
+		log.Printf("Error getting Grafana service account token: %s", err)
+		return "", err
+	}
+	if serviceAccountTokenOutput.ServiceAccountToken.Key == nil {
+		log.Printf("Error getting Grafana service account token: %s", err)
+		return "", fmt.Errorf("Failed to get token key")
+	}
+	serviceAccountTokenKey = *serviceAccountTokenOutput.ServiceAccountToken.Key
+
+	// The endpoint may take time to populate from the workspace output
+	waiterInterval = 0
+	for waiterInterval < MaxWaitIntervals {
+		grafanaWorkspace, err = getWorkspaceByName(grafanaClient, workspaceName)
+		if err != nil {
+			log.Printf("Failed to get workspace: %s", err)
+			return "", err
+		}
+		if grafanaWorkspace.Endpoint != nil {
+			break
+		}
+		waiterInterval++
+		time.Sleep(SleepDuration * time.Second)
+	}
+
+	ret, err := uploadDashboard(serviceAccountTokenKey, *grafanaWorkspace.Endpoint, datasourceName, dashboardName, databaseName)
+	if err != nil {
+		return "", err
+	}
+
+	return ret, nil
+}
+
+func lambdaHandler(ctx context.Context, event map[string]interface{}) (events.APIGatewayProxyResponse, error) {
+	resp, err := createGrafanaDashboard()
+	if err != nil {
+		log.Printf("Error creating Grafana dashboard: %v", err)
+		return events.APIGatewayProxyResponse{
+			StatusCode: http.StatusInternalServerError,
+			Body:       fmt.Sprintf("Error creating Grafana dashboard: %v", err),
+		}, nil
+	}
+
+	return events.APIGatewayProxyResponse{
+		StatusCode: http.StatusOK,
+		Body:       resp,
+	}, nil
+}
+
+func main() {
+	lambda.Start(lambdaHandler)
+}
+
+type panelField struct {
+	gridPosition map[string]interface{}
+	title        string
+	panelType    string
+	refId        string
+	query        string
+}
+
+func generatePanels(datasourceName string, databaseName string) []interface{} {
+
+	panelFields := []panelField{
+		{map[string]interface{}{"h": 6, "w": 7, "x": 0, "y": 0}, "Bucket Cardinality", "stat", "A", fmt.Sprintf("SELECT time,gauge FROM \"%s\".\"storage_bucket_series_num\" group by 1,2 ORDER BY time,gauge DESC LIMIT 1", databaseName)},
+		{map[string]interface{}{"h": 6, "w": 6, "x": 7, "y": 0}, "Memory Cache Usage", "stat", "B", fmt.Sprintf("SELECT time, gauge FROM \"%s\".\"go_memstats_mcache_inuse_bytes\" ORDER BY time DESC limit 1", databaseName)},
+		{map[string]interface{}{"h": 6, "w": 6, "x": 13, "y": 0}, "BoltDb Writes", "stat", "C", fmt.Sprintf("SELECT time, counter FROM \"%s\".\"boltdb_writes_total\" ORDER BY time DESC limit 1", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 22}, "Allocated Memory", "timeseries", "G", fmt.Sprintf("SELECT time, host, gauge FROM \"%s\".\"go_memstats_alloc_bytes\" ORDER BY time DESC", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 30}, "HTTP Write Requests Count", "timeseries", "I", fmt.Sprintf("SELECT time, host, sum(counter)  FROM \"%s\".\"http_write_request_count\" WHERE endpoint in ('/api/v2/write')  group by  time,host ORDER BY time DESC", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 38}, "Free Memory", "timeseries", "K", fmt.Sprintf("SELECT time, host, counter FROM \"%s\".\"go_memstats_frees_total\" ORDER BY time DESC", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 38}, "Total Available Memory from System", "timeseries", "L", fmt.Sprintf("SELECT time, host, gauge FROM \"%s\".\"go_memstats_sys_bytes\" ORDER BY time DESC", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 46}, "Query Execution Duration in Seconds", "timeseries", "M", fmt.Sprintf("SELECT * FROM \"%s\".\"qc_executing_duration_seconds\" ORDER BY time desc", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 46}, "HTTP Query Requests Count", "timeseries", "N", fmt.Sprintf("SELECT time, host, sum(counter) FROM \"%s\".\"http_query_request_count\" WHERE endpoint in ('/api/v2/query') group by 1,2 ORDER BY time  desc", databaseName)},
+	}
+
+	var panelConfig []interface{}
+	for _, panel := range panelFields {
+		panelConfig = append(
+			panelConfig,
+			map[string]interface{}{
+				"gridPos": panel.gridPosition,
+				"targets": []interface{}{
+					map[string]interface{}{
+						"datasource": datasourceName,
+						"format":     0,
+						"rawQuery":   panel.query,
+						"refId":      panel.refId,
+					},
+				},
+				"title": panel.title,
+				"type":  panel.panelType,
+			},
+		)
+	}
+
+	return panelConfig
+}
+
+func generateDashboard(datasourceName string, dashboardName string, databaseName string) map[string]interface{} {
+	dashboardConfig := map[string]interface{}{
+		"overwrite": true,
+		"folder":    0,
+		"dashboard": map[string]interface{}{
+			"panels": generatePanels(datasourceName, databaseName),
+			"title":  dashboardName,
+		},
+		"time": map[string]interface{}{
+			"from": "now-15m",
+			"to":   "now",
+		},
+	}
+
+	return dashboardConfig
+}
