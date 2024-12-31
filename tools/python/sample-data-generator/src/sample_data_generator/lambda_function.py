@@ -55,6 +55,9 @@ def lambda_handler(event, context):
             }
         ingest_records(session, records=records, database_name=DATABASE_NAME, table_name=TABLE_NAME,
                        precision=precision, batch_size=BATCH_SIZE)
+        
+        query_table_metadata(session, database_name=DATABASE_NAME, table_name=TABLE_NAME)
+        query_table_statistics(session, database_name=DATABASE_NAME, table_name=TABLE_NAME)
 
         return {
             "statusCode": 200,
@@ -199,3 +202,39 @@ def ingest_records(session: boto3.session.Session, records: list, database_name:
             Records=prepared_records
         )
         print(f"Batch write successful for records {i} to {i + len(records_batch) - 1}: {response}")
+
+def query_table_metadata(session: boto3.session.Session, database_name: str, table_name: str):
+    """
+    Executes a query to describe a Timestream for LiveAnalytics table.
+
+    :param session: boto3.session.Session: The session to use for requests.
+    :param database: str: The name of the Timestream for LiveAnalytics database to query.
+    :param table: str: The name of the Timestream for LiveAnalytics table to query.
+    """
+
+    timestream_client = session.client('timestream-query')
+
+    query_string = f"DESCRIBE \"{database_name}\".\"{table_name}\""
+
+    print("Executing metadata query: " + query_string)
+    query_result = timestream_client.query(QueryString=query_string)
+    for row in query_result['Rows']:
+        print(row)
+
+def query_table_statistics(session: boto3.session.Session, database_name: str, table_name: str):
+    """
+    Executes a query to retrieve statistics for a Timestream for LiveAnalytics table.
+
+    :param session: boto3.session.Session: The session to use for requests.
+    :param database: str: The name of the Timestream for LiveAnalytics database to query.
+    :param table: str: The name of the Timestream for LiveAnalytics table to query.
+    """
+
+    timestream_client = session.client('timestream-query')
+
+    query_string = f"SELECT MIN(time), MAX(time), COUNT(*) FROM \"{database_name}\".\"{table_name}\""
+
+    print("Executing statistics query: " + query_string)
+    query_result = timestream_client.query(QueryString=query_string)
+    for row in query_result['Rows']:
+        print(row)
