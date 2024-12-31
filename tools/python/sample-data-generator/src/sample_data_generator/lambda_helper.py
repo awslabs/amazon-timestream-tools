@@ -12,7 +12,7 @@ import zipfile
 MAX_WAIT_SECONDS = 900 # 15 minutes
 
 def create_lambda(session: session, lambda_name: str, database_name: str, table_name: str, role_name: str,
-                  partition_key_enforcement='OPTIONAL', dimension_partition_key=None,
+                  partition_key_enforcement='OPTIONAL', dimension_partition_key=None, database_kms_key_id=None,
                   mem_store_retention_period_in_hours=12, mag_store_retention_period_in_days=3653, batch_size=100) -> str:
     """
     Creates a Lambda function that will accept time series data and ingest the data into Timestream for LiveAnalytics.
@@ -26,6 +26,8 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
         are 'OPTIONAL' or 'REQUIRED'. (Default = 'OPTIONAL')
     :param dimension_partition_key: str: The name of the dimension to use for the partition key. If not provided,
         the default partition key for the new table is 'MEASURE'. (Default = None)
+    :param database_kms_key_id: str: The ID of the KMS key to use to encrypt the newly-created Timestream for
+        LiveAnalytics database. (Default value = None)
     :param mem_store_retention_period_in_hours: If the table is created, the number of hours Timestream for LiveAnalytics will keep data in memory. (Default value = 12)
     :param mag_store_retention_period_in_days: If the table is created, the number of days Timestream for LiveAnalytics will keep data in magnetic storage. (Default value = 3653)
     :param batch_size: The number of records to write at a time to Timestream for LiveAnalytics. 100 is the maximum. (Default value = 100)
@@ -46,6 +48,23 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
 
     total_wait_seconds = 0
     wait_seconds = 2
+
+    environment = {
+        'Variables': {
+            'DATABASE_NAME': database_name,
+            'TABLE_NAME': table_name,
+            'MEM_STORE_RETENTION_PERIOD_IN_HOURS': str(mem_store_retention_period_in_hours),
+            'MAG_STORE_RETENTION_PERIOD_IN_DAYS': str(mag_store_retention_period_in_days),
+            'BATCH_SIZE': str(batch_size),
+            'PARTITION_KEY_ENFORCEMENT': partition_key_enforcement
+        }
+    }
+
+    if dimension_partition_key is not None:
+        environment['Variables']['DIMENSION_PARTITION_KEY'] = dimension_partition_key
+    if database_kms_key_id is not None:
+        environment['Variables']['DATABASE_KMS_KEY_ID'] = database_kms_key_id
+
     while total_wait_seconds < MAX_WAIT_SECONDS:
         try:
             with open(lambda_zip, 'rb') as f:
@@ -56,18 +75,7 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
                     Handler='lambda_function.lambda_handler',
                     Architectures=['arm64'],
                     Code={'ZipFile': f.read()},
-                    Environment={
-                        'Variables': {
-                            'REGION_NAME': lambda_client.meta.region_name,
-                            'DATABASE_NAME': database_name,
-                            'TABLE_NAME': table_name,
-                            'MEM_STORE_RETENTION_PERIOD_IN_HOURS': str(mem_store_retention_period_in_hours),
-                            'MAG_STORE_RETENTION_PERIOD_IN_DAYS': str(mag_store_retention_period_in_days),
-                            'BATCH_SIZE': str(batch_size),
-                            'PARTITION_KEY_ENFORCEMENT': partition_key_enforcement,
-                            'DIMENSION_PARTITION_KEY': dimension_partition_key
-                        }
-                    },
+                    Environment=environment,
                     Timeout=30,
                     MemorySize=128
                 )
