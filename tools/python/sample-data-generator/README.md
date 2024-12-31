@@ -1,4 +1,4 @@
-# Timestream for LiveAnalytics Lambda Sample Application
+# Timestream for LiveAnalytics Sample Data Generator
 
 ## Overview
 
@@ -17,6 +17,19 @@ This sample application is comprised of three files:
 The following diagram depicts the deployed Lambda function receiving generated data and ingesting the data to Timestream for LiveAnalytics that then is queried and displayed in [Amazon Managed Grafana](https://aws.amazon.com/grafana/).
 
 <img src="./img/lambda_ingestion_overview.png" width=575px/>
+
+The data generators this sample application uses simulate real-world time series data. The following data generators are available:
+- `DevOpsDataGenerator`: Generates generic DevOps time series data for servers.
+- `IoTDateGenerator`: Generates generic IoT time series data for devices.
+- `StockMarketGenerator`: Generates time series data simulating stock market prices.
+- `WeatherDataGenerator`: Generates time series data simulating weather reporting for different US cities.
+- `GamingDataGenerator`: Generates time series data simulating player activity in a competitive online video game.
+- `AirQualityDataGenerator`: Generates time series data simulating air quality in different cities around the world.
+- `PatientDataGenerator`: Generates time series data simulating the status of healthcare patients.
+- `EnergyDataGenerator`: Generates time series data simulating building energy usage.
+- `FlightDataGenerator`: Generates time series data simulating different airline flights and the status of in-flight planes.
+- `ExchangeRateDataGenerator`: Generates time series data simulating the fluctuating exchange rates of different currency pairs.
+- `CustomDataGenerator`: Allows users to define their own `measure_templates` and `dimension_templates` to generate data of their choosing.
 
 ## Prerequisites
 
