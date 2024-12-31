@@ -9,6 +9,8 @@ TABLE_NAME = os.environ['TABLE_NAME']
 BATCH_SIZE = int(os.environ['BATCH_SIZE'])
 MEM_STORE_RETENTION_PERIOD_IN_HOURS = int(os.environ['MEM_STORE_RETENTION_PERIOD_IN_HOURS'])
 MAG_STORE_RETENTION_PERIOD_IN_DAYS = int(os.environ['MAG_STORE_RETENTION_PERIOD_IN_DAYS'])
+DIMENSION_PARTITION_KEY = os.environ.get('DIMENSION_PARTITION_KEY', None)
+PARTITION_KEY_ENFORCEMENT = os.environ.get('PARTITION_KEY_ENFORCEMENT', 'OPTIONAL')
 
 # Initialize the Timestream client
 timestream_client = boto3.client('timestream-write', REGION_NAME)
@@ -19,8 +21,15 @@ RETENTION_PROPERTIES = {
     'MagneticStoreRetentionPeriodInDays': MAG_STORE_RETENTION_PERIOD_IN_DAYS
 }
 
-def create_timestream_database_and_table():
-    """Create Timestream database and table if they do not exist."""
+def create_timestream_database_and_table(partition_key_enforcement='OPTIONAL', dimension_partition_key=None):
+    """
+    Create Timestream database and table if they do not exist.
+
+    :param partition_key_enforcement: str: Whether to require that all records contain the partition key. Options
+        are 'OPTIONAL' or 'REQUIRED'. (Default = 'OPTIONAL')
+    :param dimension_partition_key: str: The name of the dimension to use for the partition key. If not provided,
+        the default partition key for the new table is 'MEASURE'. (Default = None)
+    """
     try:
         # Create database if it does not exist
         timestream_client.create_database(DatabaseName=DATABASE_NAME)
@@ -31,12 +40,32 @@ def create_timestream_database_and_table():
         else:
             raise e
 
+    if dimension_partition_key is not None:
+        schema = {
+            'CompositePartitionKey': [
+                {
+                    'Type': 'DIMENSION',
+                    'Name': dimension_partition_key,
+                    'EnforcementInRecord': partition_key_enforcement
+                }
+            ]
+        }
+    else:
+        schema = {
+            'CompositePartitionKey': [
+                {
+                    'Type': 'MEASURE'
+                }
+            ]
+        }
+
     try:
         # Create table if it does not exist
         timestream_client.create_table(
             DatabaseName=DATABASE_NAME,
             TableName=TABLE_NAME,
-            RetentionProperties=RETENTION_PROPERTIES
+            RetentionProperties=RETENTION_PROPERTIES,
+            Schema=schema
         )
         print(f"Table '{TABLE_NAME}' created successfully in database '{DATABASE_NAME}'.")
     except ClientError as e:
@@ -46,20 +75,22 @@ def create_timestream_database_and_table():
             raise e
 
 def lambda_handler(event, context):
-    """Lambda function to process the request and ingest records into Timestream.
+    """
+    Lambda function to process the request and ingest records into Timestream.
     The function accepts a list of records, handles MULTI measure types,
     and sends data in batches to Timestream.
 
-    :param event: 
-    :param context: 
-
+    :param event: dict: The Lambda event.
+    :param context: LambdaContext: The AWS context for the event.
+    :returns: A dict containing an HTTP status code and body as a result of processing the event.
     """
 
     query_params = event.get('queryStringParameters', {})
     precision = query_params.get('precision', 'MILLISECONDS')
 
     # Create the database and table if they do not exist
-    create_timestream_database_and_table()
+    create_timestream_database_and_table(partition_key_enforcement=PARTITION_KEY_ENFORCEMENT,
+                                         dimension_partition_key=DIMENSION_PARTITION_KEY)
 
     try:
         # Extract the records from the event

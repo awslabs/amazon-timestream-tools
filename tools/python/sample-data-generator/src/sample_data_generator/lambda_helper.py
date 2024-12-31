@@ -12,6 +12,7 @@ import zipfile
 MAX_WAIT_SECONDS = 900 # 15 minutes
 
 def create_lambda(session: session, lambda_name: str, database_name: str, table_name: str, role_name: str,
+                  partition_key_enforcement='OPTIONAL', dimension_partition_key=None,
                   mem_store_retention_period_in_hours=12, mag_store_retention_period_in_days=3653, batch_size=100) -> str:
     """
     Creates a Lambda function that will accept time series data and ingest the data into Timestream for LiveAnalytics.
@@ -21,6 +22,10 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
     :param database_name: str: The Timestream for LiveAnalytics database to ingest into. Will be created if it doesn't already exist.
     :param table_name: str: The Timestream for LiveAnalytics table to ingest into. Will be created if it doesn't already exist.
     :param role_name: str: The name to use for the Lambda's IAM role.
+    :param partition_key_enforcement: str: Whether to require that all records contain the partition key. Options
+        are 'OPTIONAL' or 'REQUIRED'. (Default = 'OPTIONAL')
+    :param dimension_partition_key: str: The name of the dimension to use for the partition key. If not provided,
+        the default partition key for the new table is 'MEASURE'. (Default = None)
     :param mem_store_retention_period_in_hours: If the table is created, the number of hours Timestream for LiveAnalytics will keep data in memory. (Default value = 12)
     :param mag_store_retention_period_in_days: If the table is created, the number of days Timestream for LiveAnalytics will keep data in magnetic storage. (Default value = 3653)
     :param batch_size: The number of records to write at a time to Timestream for LiveAnalytics. 100 is the maximum. (Default value = 100)
@@ -58,7 +63,9 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
                             'TABLE_NAME': table_name,
                             'MEM_STORE_RETENTION_PERIOD_IN_HOURS': str(mem_store_retention_period_in_hours),
                             'MAG_STORE_RETENTION_PERIOD_IN_DAYS': str(mag_store_retention_period_in_days),
-                            'BATCH_SIZE': str(batch_size)
+                            'BATCH_SIZE': str(batch_size),
+                            'PARTITION_KEY_ENFORCEMENT': partition_key_enforcement,
+                            'DIMENSION_PARTITION_KEY': dimension_partition_key
                         }
                     },
                     Timeout=30,
