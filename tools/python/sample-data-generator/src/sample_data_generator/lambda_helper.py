@@ -244,12 +244,12 @@ def create_lambda_role(session: session, lambda_name: str, database_name: str, t
     print(f"Attached TimestreamSampleWritePolicy policy to {role_name}")
     return role_arn
 
-def send_data_to_lambda(session: session, data: dict, function_url: str, precision="MILLISECONDS"):
+def send_data_to_lambda(session: session, data: list, function_url: str, precision="MILLISECONDS"):
     """
     Sends generated data to the Lambda function in chunks, in order to not exceed AWS Lambda's quota for the size of each request.
 
     :param session: session: The AWS session to use for clients.
-    :param data: dict: The time series data to send to the Lambda function.
+    :param data: list: The time series data to send to the Lambda function.
     :param function_url: str: The Lambda function's URL.
     :param precision: The Unix timestream precision for the data. (Default value = "MILLISECONDS")
     """
@@ -273,7 +273,35 @@ def send_data_to_lambda(session: session, data: dict, function_url: str, precisi
 
 def send_request(session: session, method: str, function_url: str, payload: dict, precision="MILLISECONDS"):
     """
-    Sends a single request to the Lambda function.
+    Sends a single POST request to the Lambda function.
+
+    The request is signed with SigV4 and sent directly to the Lambda function's URL. The request is made with the
+    headers Content-Type: application/json and a 'precision' query string parameter, indicating the Unix timestamp
+    precision of the records.
+
+    The following is an example of the request body (the payload dict):
+
+    payload = {
+        'records': [
+            {
+                "Dimensions": [
+                    {
+                        "Name": "some_dimension_name"
+                        "Value": "some_dimension_value",
+                        "DimensionValueType": "VARCHAR"
+                    }
+                ],
+                "Measures": [
+                    {
+                        "MeasureName": "some_measure_name",
+                        "MeasureValueType": "DOUBLE",
+                        "MeasureValue": 90.2
+                    }
+                ],
+                "Time": "1735689062"
+            }
+        ]
+    }
 
     :param session: session: The AWS session to use for clients.
     :param method: str: The HTTP method to use in the request.
