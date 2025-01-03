@@ -566,6 +566,19 @@ Outputs:
   Endpoint:
     Description: The endpoint for the REST API Gateway.
     Value: !Sub https://${RestApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${RestApiGatewayStageName}
+  ExecutionPolicy:
+    Description: The IAM policy permissions required for invoking the InfluxDB Timestream Connector.
+    Value: !Sub |
+      {
+          "Version": "2012-10-17",
+          "Statement": [
+              {
+                  "Effect": "Allow",
+                  "Action": "execute-api:Invoke",
+                  "Resource": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiGateway}/${RestApiGatewayStageName}/POST/api/v2/write"
+              }
+          ]
+      }
   LambdaDeadLetterQueueName:
     Description: The name of the dead letter queue used by the Lambda function.
     Condition: IsAsyncEnabled

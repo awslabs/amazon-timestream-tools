@@ -260,6 +260,11 @@ The following permissions are the least-privilege permissions for deploying and 
 
 The following is the least-privilege IAM permissions for deploying the connector.
 
+Replace all items listed below in the IAM policy with values from your AWS account:
+
+- *{region}* &mdash; The AWS region where the InfluxDB Timestream Connector is deployed.
+- *{account-id}* &mdash; The AWS account ID used to deploy the connector.
+
 ```json
 {
     "Version": "2012-10-17",
@@ -391,7 +396,37 @@ The following is the least-privilege IAM permissions for deploying the connector
 
 ### IAM Execution Permissions
 
-The following is the least privileged IAM permissions for executing the connector.
+The following are the least privileged IAM permissions required for invoking the deployed InfluxDB Timestream connector REST API Gateway.
+
+Replace all items listed below in the IAM policy with values from your AWS account:
+
+- *{region}* &mdash; The AWS region where the InfluxDB Timestream Connector is deployed.
+- *{account-id}* &mdash; The AWS account ID used to deploy the connector.
+- *{api-id}* &mdash; The API ID for the deployed REST API Gateway.
+- *{api-stage-name}* &mdash; The stage name for the deployed REST API Gateway.
+
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "execute-api:Invoke",
+            "Resource": "arn:aws:execute-api:{region}:{account-id}:{api-id}/{api-stage-name}/POST/api/v2/write"
+        }
+    ]
+}
+```
+
+### IAM Lambda Permissions
+
+The following are the IAM permissions required for the InfluxDB Timestream Connector Lambda function to ingest data into Timestream for LiveAnalytics. This IAM policy is attached to the Lambda function when deployed with the CloudFormation template. Additional policies are also attached for logging and DLQ functionalities. For the complete list of IAM permissions attached to the Lambda function, see the [template.yml](./template.yml).
+
+All items listed below in the IAM policy are associated to the equivalent values from your AWS account:
+
+- *{region}* &mdash; The AWS region where the InfluxDB Timestream Connector is deployed.
+- *{account-id}* &mdash; The AWS account ID used to deploy the connector.
 
 ```json
 {
@@ -403,7 +438,7 @@ The following is the least privileged IAM permissions for executing the connecto
                 "timestream:WriteRecords",
                 "timestream:Select",
                 "timestream:DescribeTable",
-				"timestream:CreateTable"
+                "timestream:CreateTable"
             ],
             "Resource": "arn:aws:timestream:{region}:{account-id}:database/influxdb-line-protocol/table/*"
         },
@@ -418,7 +453,7 @@ The following is the least privileged IAM permissions for executing the connecto
             "Effect": "Allow",
             "Action": [
                 "timestream:DescribeDatabase",
-				"timestream:CreateDatabase"
+                "timestream:CreateDatabase"
             ],
             "Resource": "arn:aws:timestream:{region}:{account-id}:database/influxdb-line-protocol"
         }
