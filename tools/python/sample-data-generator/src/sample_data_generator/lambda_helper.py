@@ -12,8 +12,9 @@ import zipfile
 MAX_WAIT_SECONDS = 900 # 15 minutes
 
 def create_lambda(session: session, lambda_name: str, database_name: str, table_name: str, role_name: str,
-                  partition_key_enforcement='OPTIONAL', dimension_partition_key=None, database_kms_key_id=None,
-                  mem_store_retention_period_in_hours=12, mag_store_retention_period_in_days=3653, batch_size=100) -> str:
+                  data_source_s3_bucket_name=None, report_s3_bucket_name=None, partition_key_enforcement='OPTIONAL',
+                  dimension_partition_key=None, database_kms_key_id=None, mem_store_retention_period_in_hours=12,
+                  mag_store_retention_period_in_days=3653, batch_size=100) -> str:
     """
     Creates a Lambda function that will accept time series data and ingest the data into Timestream for LiveAnalytics.
 
@@ -22,6 +23,8 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
     :param database_name: str: The Timestream for LiveAnalytics database to ingest into. Will be created if it doesn't already exist.
     :param table_name: str: The Timestream for LiveAnalytics table to ingest into. Will be created if it doesn't already exist.
     :param role_name: str: The name to use for the Lambda's IAM role.
+    :param data_source_s3_bucket_name: str: The name of the S3 bucket to use to hold data during batch load ingestion. (Default = None)
+    :param report_s3_bucket_name: str: The name of the S3 bucket to use for logging of errors during batch load ingestion. (Default = None)
     :param partition_key_enforcement: str: Whether to require that all records contain the partition key. Options
         are 'OPTIONAL' or 'REQUIRED'. (Default = 'OPTIONAL')
     :param dimension_partition_key: str: The name of the dimension to use for the partition key. If not provided,
@@ -34,7 +37,10 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
     :return: The Lambda function's URL.
     """
 
-    role_arn = create_lambda_role(session, lambda_name, database_name, table_name, role_name)
+    role_arn = create_lambda_role(session, lambda_name=lambda_name, database_name=database_name,
+                                  table_name=table_name, role_name=role_name,
+                                  data_source_s3_bucket_name=data_source_s3_bucket_name,
+                                  report_s3_bucket_name=report_s3_bucket_name)
     lambda_client = session.client('lambda')
 
     lambda_function_filename = "lambda_function.py"
@@ -124,7 +130,8 @@ def create_lambda(session: session, lambda_name: str, database_name: str, table_
         print(f"Lambda Function URL (existing): {function_url}")
     return function_url
 
-def create_lambda_role(session: session, lambda_name: str, database_name: str, table_name: str, role_name: str) -> str:
+def create_lambda_role(session: session, lambda_name: str, database_name: str, table_name: str, role_name: str,
+                       data_source_s3_bucket_name=None, report_s3_bucket_name=None) -> str:
     """
     Creates an IAM role to be used by a Lambda function to write time series data to Timestream for LiveAnalytics.
 
@@ -133,6 +140,8 @@ def create_lambda_role(session: session, lambda_name: str, database_name: str, t
     :param database_name: str: The Timestream for LiveAnalytics database.
     :param table_name: str: The Timestream for LiveAnalytics table.
     :param role_name: str: The name to use for the role.
+    :param data_source_s3_bucket_name: str: The name of the S3 bucket to use to hold data during batch load ingestion. (Default = None)
+    :param report_s3_bucket_name: str: The name of the S3 bucket to use for logging of errors during batch load ingestion. (Default = None)
     :returns: The IAM role ARN.
     """
     lambda_client = session.client('lambda')
@@ -208,14 +217,16 @@ def create_lambda_role(session: session, lambda_name: str, database_name: str, t
                     "timestream:WriteRecords",
                     "timestream:Select",
                     "timestream:DescribeTable",
-                    "timestream:CreateTable"
+                    "timestream:CreateTable",
+                    "timestream:CreateBatchLoadTask"
                 ],
                 "Resource": f"arn:aws:timestream:{lambda_client.meta.region_name}:{account_id}:database/{database_name}/table/{table_name}"
             },
             {
                 "Effect": "Allow",
                 "Action": [
-                    "timestream:DescribeEndpoints"
+                    "timestream:DescribeEndpoints",
+                    "timestream:DescribeBatchLoadTask"
                 ],
                 "Resource": "*"
             },
@@ -229,6 +240,40 @@ def create_lambda_role(session: session, lambda_name: str, database_name: str, t
             }
         ]
     }
+
+    if data_source_s3_bucket_name is not None:
+        s3_policy = {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObjectAcl",
+                "s3:GetBucketAcl",
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                f"arn:aws:s3:::{data_source_s3_bucket_name}",
+                f"arn:aws:s3:::{data_source_s3_bucket_name}/*"
+            ]
+        }
+        timestream_write_policy["Statement"].append(s3_policy)
+
+    if report_s3_bucket_name is not None:
+        s3_policy = {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObjectAcl",
+                "s3:GetBucketAcl",
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                f"arn:aws:s3:::{report_s3_bucket_name}",
+                f"arn:aws:s3:::{report_s3_bucket_name}/*"
+            ]
+        }
+        timestream_write_policy["Statement"].append(s3_policy)
 
     # Add the Timestream write policy to the role
     try:
@@ -244,7 +289,8 @@ def create_lambda_role(session: session, lambda_name: str, database_name: str, t
     print(f"Attached TimestreamSampleWritePolicy policy to {role_name}")
     return role_arn
 
-def send_data_to_lambda(session: session, data: list, function_url: str, precision="MILLISECONDS"):
+def send_data_to_lambda(session: session, data: list, function_url: str, precision="MILLISECONDS",
+                        data_source_s3_bucket_name=None, report_s3_bucket_name=None):
     """
     Sends generated data to the Lambda function in chunks, in order to not exceed AWS Lambda's quota for the size of each request.
 
@@ -252,6 +298,8 @@ def send_data_to_lambda(session: session, data: list, function_url: str, precisi
     :param data: list: The time series data to send to the Lambda function.
     :param function_url: str: The Lambda function's URL.
     :param precision: The Unix timestream precision for the data. (Default value = "MILLISECONDS")
+    :param data_source_s3_bucket_name: str: The name of the S3 bucket to use to hold data during batch load ingestion. (Default = None)
+    :param report_s3_bucket_name: str: The name of the S3 bucket to use for logging of errors during batch load ingestion. (Default = None)
     """
     MAX_REQUEST_SIZE = 6 * 1024 * 1024  # 6 MB in bytes
     method = "POST"
@@ -262,16 +310,17 @@ def send_data_to_lambda(session: session, data: list, function_url: str, precisi
 
     # Check if the total size exceeds the maximum request size
     if total_size <= MAX_REQUEST_SIZE:
-        send_request(session, method, function_url, data_payload, precision)
+        send_request(session, method, function_url, data_payload, precision, data_source_s3_bucket_name, report_s3_bucket_name)
     else:
         # Chunk the data if it's too large
         chunk_size = MAX_REQUEST_SIZE - len(b'{"records":[]}')  # Reserve space for the JSON structure
         chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
         for chunk in chunks:
             chunk_payload = json.dumps({'records': chunk})
-            send_request(session, method, function_url, chunk_payload, precision)
+            send_request(session, method, function_url, chunk_payload, precision, data_source_s3_bucket_name, report_s3_bucket_name)
 
-def send_request(session: session, method: str, function_url: str, payload: dict, precision="MILLISECONDS"):
+def send_request(session: session, method: str, function_url: str, payload: dict, precision="MILLISECONDS",
+                 data_source_s3_bucket_name=None, report_s3_bucket_name=None):
     """
     Sends a single POST request to the Lambda function.
 
@@ -308,11 +357,20 @@ def send_request(session: session, method: str, function_url: str, payload: dict
     :param function_url: str: The Lambda function's URL.
     :param payload: dict: The time series data payload.
     :param precision: The Unix timestream precision for the data. (Default value = "MILLISECONDS")
+    :param data_source_s3_bucket_name: str: The name of the S3 bucket to use to hold data during batch load ingestion. (Default = None)
+    :param report_s3_bucket_name: str: The name of the S3 bucket to use for logging of errors during batch load ingestion. (Default = None)
     """
+
+    params = {'precision': precision}
+    
+    if data_source_s3_bucket_name is not None and report_s3_bucket_name is not None:
+        params['dataSourceS3BucketName'] = data_source_s3_bucket_name
+        params['reportS3BucketName'] = report_s3_bucket_name
+
     request = AWSRequest(
         method=method,
         url=function_url,
-        params={'precision': precision},
+        params=params,
         headers={'Content-Type': 'application/json'},
         data=payload
     )
@@ -324,7 +382,7 @@ def send_request(session: session, method: str, function_url: str, payload: dict
     wait_seconds = 2
     while total_wait_seconds < MAX_WAIT_SECONDS:
         try:
-            response = requests.request(method, function_url, params={"precision": precision}, headers=dict(request.headers), data=payload, timeout=30)
+            response = requests.request(method, function_url, params=params, headers=dict(request.headers), data=payload, timeout=30)
             response.raise_for_status()
             print(f'Response Status: {response.status_code}')
             print(f'Response Body: {response.content.decode("utf-8")}')
