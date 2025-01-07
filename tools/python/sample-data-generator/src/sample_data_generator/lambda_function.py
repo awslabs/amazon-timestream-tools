@@ -4,8 +4,6 @@ import boto3
 from botocore.exceptions import ClientError
 import time
 
-MAX_WAIT_SECONDS = 900 # 15 minutes
-
 def lambda_handler(event, context):
     """
     Lambda function to process the request and ingest records into Timestream.
