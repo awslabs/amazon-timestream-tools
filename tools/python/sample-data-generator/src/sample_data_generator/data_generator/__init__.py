@@ -1,6 +1,6 @@
 from .air_quality_data_generator import AirQualityDataGenerator
 from .custom_data_generator import CustomDataGenerator
-from .data_generator import DataGenerator
+from .data_generator import DataGenerator, Direction
 from .devops_data_generator import DevOpsDataGenerator
 from .energy_data_generator import EnergyDataGenerator
 from .exchange_rate_data_generator import ExchangeRateDataGenerator

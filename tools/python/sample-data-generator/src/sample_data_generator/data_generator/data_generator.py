@@ -1,5 +1,11 @@
 import random
 from datetime import datetime, timedelta
+from enum import Enum
+
+class Direction(Enum):
+    UP = "UP"
+    DOWN = "DOWN"
+    BIDIRECTIONAL = "BIDIRECTIONAL"
 
 class DataGenerator:
     def __init__(self, measure_templates: list, dimension_templates: list):
@@ -11,6 +17,9 @@ class DataGenerator:
                 "BIGINT", "BOOLEAN", and "VARCHAR". Defaults to "DOUBLE".
             "max_variation": Optional. The maximum amount a measure value can changed over time, positively or negatively.
                 For example, with a value of 5.0, measure values will increment by a max of 5.0 and a min of -5.0. Defaults to 1.5.
+            "direction": Enum. Optional. Specifies the allowed direction of change for the measure value over time. This
+                field will only apply on measure types "DOUBLE" and "BIGINT". Valid options are "UP", "DOWN", and
+                "BIDIRECTIONAL". Defaults to "BIDIRECTIONAL".
             "max": Optional. The maximum measure value. Defaults to 100.0.
             "min": Optional. The minimum measure value. Defaults to 0.0.
             "random_options": Optional. A list of values the measure value can have. All elements of the list should be the same data type and
@@ -83,7 +92,7 @@ class DataGenerator:
         for _ in range(num_entities):
             entity = {"latest_measures": {}}
             for dimension_template in self.dimension_templates:
-                dimension_value_length = 20
+                dimension_value_length = 10
 
                 if "value_length" in dimension_template:
                     dimension_value_length = dimension_template["value_length"]
@@ -140,6 +149,9 @@ class DataGenerator:
                     max_variation = 1.5
                     if "max_variation" in measure_template:
                         max_variation = measure_template["max_variation"]
+                    direction = Direction.BIDIRECTIONAL
+                    if "direction" in measure_template:
+                        direction = measure_template["direction"]
                     max_value = 100.0
                     if "max" in measure_template:
                         max_value = measure_template["max"]
@@ -149,6 +161,13 @@ class DataGenerator:
                     varchar_length = 10
                     if "varchar_length" in measure_template:
                         varchar_length = measure_template["varchar_length"]
+
+                    if direction == Direction.UP:
+                        variation = random.uniform(0, max_variation)
+                    elif direction == Direction.DOWN:
+                        variation = random.uniform(-max_variation, 0)
+                    else:
+                        variation = random.uniform(-max_variation, max_variation)
 
                     measure = {
                         "MeasureName": measure_name,
@@ -172,11 +191,11 @@ class DataGenerator:
                                 raise Exception("Measure value type not recognized")
                         else:
                             if measure_value_type == "DOUBLE":
-                                measure_value = max(min_value, min(entity["latest_measures"][measure_name] + random.uniform(-max_variation, max_variation), max_value))
+                                measure_value = max(min_value, min(entity["latest_measures"][measure_name] + variation, max_value))
                             elif measure_value_type == "VARCHAR":
                                 measure_value = self._generate_random_string(varchar_length)
                             elif measure_value_type == "BIGINT":
-                                measure_value = int(max(min_value, min(entity["latest_measures"][measure_name] + int(random.uniform(-max_variation, max_variation)), max_value)))
+                                measure_value = int(max(min_value, min(entity["latest_measures"][measure_name] + int(variation), max_value)))
                             elif measure_value_type == "BOOLEAN":
                                 measure_value = random.choice([True, False])
                             else:
