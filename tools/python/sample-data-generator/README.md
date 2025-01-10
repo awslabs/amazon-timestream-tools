@@ -1,4 +1,4 @@
-# Timestream for LiveAnalytics Lambda Sample Application
+# Timestream for LiveAnalytics Sample Data Generator
 
 ## Overview
 
@@ -18,9 +18,23 @@ The following diagram depicts the deployed Lambda function receiving generated d
 
 <img src="./img/lambda_ingestion_overview.png" width=575px/>
 
+The data generators this sample application uses simulate real-world time series data. The following data generators are available:
+- `DevOpsDataGenerator`: Generates generic DevOps time series data for servers.
+- `IoTDateGenerator`: Generates generic IoT time series data for devices.
+- `StockMarketGenerator`: Generates time series data simulating stock market prices.
+- `WeatherDataGenerator`: Generates time series data simulating weather reporting for different US cities.
+- `GamingDataGenerator`: Generates time series data simulating player activity in a competitive online video game.
+- `AirQualityDataGenerator`: Generates time series data simulating air quality in different cities around the world.
+- `PatientDataGenerator`: Generates time series data simulating the status of healthcare patients.
+- `EnergyDataGenerator`: Generates time series data simulating building energy usage.
+- `FlightDataGenerator`: Generates time series data simulating different airline flights and the status of in-flight planes.
+- `ExchangeRateDataGenerator`: Generates time series data simulating the fluctuating exchange rates of different currency pairs.
+- `CustomDataGenerator`: Allows users to define their own `measure_templates` and `dimension_templates` to generate data of their choosing.
+
 ## Prerequisites
 
 1. [Configure AWS credentials for use with boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
+    - The AWS region all resources will be deployed in is determined using the [configuration boto3 uses](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#guide-credentials).
 2. [Install Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
 3. On Linux and macOS, run the following command to enable `conda`, replacing `<shell>` with your shell, whether that be `zsh`, `bash`, or `fish`:
     ```shell
@@ -146,3 +160,19 @@ To host the Jupyter notebook in SageMaker and run the notebook:
 The notebook will create an Amazon Managed Grafana workspace and create a dashboard.
 
 Before accessing the dashboard, an IAM Identity Center user must be created and added to the workspace manually. The last two steps of the notebook provide instructions for how to do this and access the dashboard. The "Generate and Upload Grafana Dashboard" cell will output the login url for the workspace.
+
+## Running Tests
+
+To run unit tests, first, create a Python environment and install all necessary requirements with the following command:
+
+```shell
+python3 -m venv env && \
+    source env/bin/activate && \
+    python3 -m pip install -r requirements.txt
+```
+
+To run the tests, use the following command:
+
+```shell
+python3 -m pytest src/sample_data_generator/data_generator/data_generator_test.py
+```
