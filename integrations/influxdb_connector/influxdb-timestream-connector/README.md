@@ -95,6 +95,9 @@ The following parameters are available when deploying the connector as part of a
 | `CustomPartitionKeyDimension` |  The dimension to use as the partition key. This parameter is required if the CustomPartitionKeyType parameter is set to `dimension`. | |
 | `CustomPartitionKeyType` | The type of custom partition key to use. Valid options are `dimension` or `measure`. The `dimension` option requires the CustomPartitionKeyDimension parameter to also be set. If this parameter is not provided, newly-created tables will use default partitioning and none of the parameters relating to custom partition keys will be used. | |
 | `DatabaseName`  | The name of the database to use for ingestion. | `influxdb-line-protocol` |
+| `KmsKey`  | AWS KMS key to encrypt the database on creation. If the KMS key is not specified, the database will be encrypted with a Timestream managed KMS key created under your account. | |
+| `DatabaseTags`  | A comma-separated string of key-value pairs to label the database. For example, `example_key1=example_value1,example_key2=example_value2` | |
+| `TableTags`  | A comma-separated string of key-value pairs to label the table(s). For example, `example_key1=example_value1,example_key2=example_value2` | |
 | `EnableDatabaseCreation` | Whether to allow database creation upon ingestion of records. | `true` |
 | `EnableTableCreation` | Whether to allow table creation upon ingestion of records. When using multi-table multi measure schema, each unique line protocol measurement in a request will result in the creation of a new table with the same name as the measurement. | `true` |
 | `EnableMagStoreWrites` | if `EnableTableCreation` is `true`, whether to enable mag store writes. | `true` |
@@ -181,6 +184,9 @@ The connector can be run locally using [Cargo Lambda](https://www.cargo-lambda.i
 4. Configure the following environment variables:
     - `region` string: the AWS region to use. Defaults to `us-east-1`.
     - `database_name` string: the Timestream for LiveAnalytics database name to use. Defaults to `influxdb-line-protocol`.
+    - `kms_key_id` string: AWS KMS key to encrypt the database on creation.
+    - `database_tags` string: A comma-separated string of key-value pairs to label the database.
+    - `table_tags` string: A comma-separated string of key-value pairs to label the table(s).
     - `measure_name_for_multi_measure_records` string: the value to use in records as the measure name. Defaults to `influxdb-measure`.
     - `table_mapping` string: determines whether to ingest all data to a single table or multiple tables.
     - `single_table_name` string: when table mapping is set to `single-table`, this value determines the table name.

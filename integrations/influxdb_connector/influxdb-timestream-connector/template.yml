@@ -28,6 +28,18 @@ Parameters:
     Type: String
     Default: influxdb-line-protocol
     Description: The Timestream for LiveAnalytics database name to use.
+  KmsKeyId:
+    Type: String
+    Description: AWS KMS key for the database. If the KMS key is not specified, the database will be encrypted with a Timestream managed KMS key located in your account.
+    Default: ''
+  DatabaseTags:
+    Type: String
+    Description: A comma-separated string of key-value pairs to label the database. For example, `example_key1=example_value1,example_key2=example_value2`
+    Default: ''
+  TableTags:
+    Type: String
+    Description: A comma-separated string of key-value pairs to label the table(s). For example, `example_key1=example_value1,example_key2=example_value2`
+    Default: ''
   MeasureNameForMultiMeasureRecords:
     Type: String
     Default: influxdb-measure
@@ -504,6 +516,7 @@ Resources:
                 - timestream:DescribeTable
                 - timestream:WriteRecords
                 - timestream:CreateTable
+                - timestream:TagResource
                 Effect: Allow
                 Resource: !Sub arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${DatabaseName}/table/*
         - PolicyName: LambdaTimestreamDatabasePolicy
@@ -513,8 +526,18 @@ Resources:
               - Action:
                 - timestream:DescribeDatabase
                 - timestream:CreateDatabase
+                - timestream:TagResource
                 Effect: Allow
                 Resource: !Sub arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${DatabaseName}
+        - PolicyName: LambdaKMSPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                - kms:DescribeKey
+                - kms:CreateGrant
+                Effect: Allow
+                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${KmsKeyId}
 
   LambdaFunction:
     Type: AWS::Serverless::Function
@@ -547,6 +570,9 @@ Resources:
           custom_partition_key_type: !If [CustomPartitionKeyTypeProvided, !Ref CustomPartitionKeyType, !Ref "AWS::NoValue"]
           custom_partition_key_dimension: !If [CustomPartitionKeyDimensionProvided, !Ref CustomPartitionKeyDimension, !Ref "AWS::NoValue"]
           database_name: !Ref DatabaseName
+          kms_key_id: !Ref KmsKeyId
+          database_tags: !Ref DatabaseTags
+          table_tags: !Ref TableTags
           measure_name_for_multi_measure_records: !Ref MeasureNameForMultiMeasureRecords
           table_mapping: !Ref TableMapping
           single_table_name: !Ref SingleTableName

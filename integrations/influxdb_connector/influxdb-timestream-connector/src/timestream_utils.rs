@@ -50,16 +50,37 @@ pub async fn get_connection(
 pub async fn create_database(
     client: &Arc<timestream_write::Client>,
     database_name: &str,
+    kms_key_id: Option<&str>,
+    tags: Option<Vec<timestream_write::types::Tag>>,
 ) -> Result<(), timestream_write::Error> {
     // Create a new Timestream database
+    info!("Creating new database: {}", database_name);
 
-    info!("Creating new database {}", database_name);
-    client
+    let mut create_db_builder = client
         .create_database()
-        .set_database_name(Some(database_name.to_owned()))
-        .send()
-        .await?;
+        .set_database_name(Some(database_name.to_owned()));
 
+    if let Some(kms) = kms_key_id.filter(|s| !s.is_empty()) {
+        info!("Using KMS Key ID: {}", kms);
+        create_db_builder = create_db_builder.set_kms_key_id(Some(kms.to_owned()));
+    } else {
+        info!("No KMS Key ID provided. Using default Timestream-managed KMS key.");
+    }
+
+    if let Some(tags_vec) = tags {
+        if !tags_vec.is_empty() {
+            info!("Adding {} tags to the database.", tags_vec.len());
+            create_db_builder = create_db_builder.set_tags(Some(tags_vec));
+        } else {
+            info!("Empty tags vector provided. Skipping tag assignment.");
+        }
+    } else {
+        info!("No tags provided for the database.");
+    }
+
+    create_db_builder.send().await?;
+
+    info!("Database '{}' created successfully.", database_name);
     Ok(())
 }
 
@@ -69,13 +90,14 @@ pub async fn create_table(
     database_name: &str,
     table_name: &str,
     table_config: TableConfig,
+    tags: Option<Vec<timestream_write::types::Tag>>,
 ) -> Result<(), timestream_write::Error> {
     // Create a new Timestream table
-
     info!(
         "Creating new table {} for database {}",
         table_name, database_name
     );
+
     let retention_properties = timestream_write::types::RetentionProperties::builder()
         .set_magnetic_store_retention_period_in_days(Some(table_config.mag_store_retention_period))
         .set_memory_store_retention_period_in_hours(Some(table_config.mem_store_retention_period))
@@ -103,18 +125,31 @@ pub async fn create_table(
         None
     };
 
-    client
+    let mut create_table_builder = client
         .create_table()
         .set_schema(table_schema)
         .set_table_name(Some(table_name.to_owned()))
         .set_database_name(Some(database_name.to_owned()))
         .set_retention_properties(Some(retention_properties))
-        .set_magnetic_store_write_properties(Some(magnetic_store_properties))
-        .send()
-        .await?;
+        .set_magnetic_store_write_properties(Some(magnetic_store_properties));
 
+    if let Some(tags_vec) = tags {
+        if !tags_vec.is_empty() {
+            info!("Adding {} tags to the table.", tags_vec.len());
+            create_table_builder = create_table_builder.set_tags(Some(tags_vec));
+        } else {
+            info!("Empty tags vector provided. Skipping tag assignment.");
+        }
+    } else {
+        info!("No tags provided for the table.");
+    }
+
+    create_table_builder.send().await?;
+
+    info!("Table '{}' created successfully in database '{}'.", table_name, database_name);
     Ok(())
 }
+
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn table_exists(
@@ -165,6 +200,41 @@ pub async fn database_exists(
         },
     }
 }
+
+#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
+pub fn parse_tags_from_str(tags_str: &str) -> Result<Vec<timestream_write::types::Tag>, Error> {
+    let mut tags = Vec::new();
+
+    for tag in tags_str.split(',') {
+        let tag = tag.trim();
+        if tag.is_empty() {
+            continue;
+        }
+        let mut parts = tag.splitn(2, '=');
+        let key = parts
+            .next()
+            .ok_or_else(|| anyhow!("Missing key in tag '{}'", tag))?
+            .trim();
+
+        // ensure key is not empty
+        if key.is_empty() {
+            return Err(anyhow!("Tag key must not be empty in tag '{}'", tag));
+        }
+        let key = key.to_string();
+
+        // get the value if present; if it's missing or empty, use an empty string.
+        let value = parts.next().map(|v| v.trim()).unwrap_or("");
+
+        let tag_instance = timestream_write::types::Tag::builder()
+            .key(key)
+            .value(value.to_string())
+            .build()?;
+        tags.push(tag_instance);
+    }
+
+    Ok(tags)
+}
+
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub fn get_table_config() -> Result<TableConfig, Error> {

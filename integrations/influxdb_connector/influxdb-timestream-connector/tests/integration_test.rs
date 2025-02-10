@@ -149,7 +149,9 @@ async fn test_mtmm_create_database() -> Result<(), Error> {
     set_base_environment_variables();
     set_table_mapping_env_variables(SchemaType::MultiTableMultiMeasure);
     let test_create_database_name = "test_create_database_influxdb_timestream_connector_integ";
+    let database_tags = "environment=test";
     env::set_var("database_name", test_create_database_name);
+    env::set_var("database_tags", database_tags);
     let client = influxdb_timestream_connector::timestream_utils::get_connection(REGION)
         .await
         .expect("Failed to get client");
