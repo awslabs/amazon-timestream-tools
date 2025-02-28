@@ -454,18 +454,190 @@ type panelField struct {
 	query        string
 }
 
+func generateBucketedGaugePanelQuery(instanceName string, databaseName string, tableName string) string {
+	return fmt.Sprintf(`SELECT CONCAT('ID: ', %s), CONCAT('bucket: ', bucket), gauge FROM "%s"."%s"
+  WHERE time = (
+    SELECT MAX(time)
+      FROM "%s"."%s" as subquery
+  	  WHERE subquery.%s = "%s".%s
+  	AND subquery.bucket = "%s".bucket
+)
+ORDER BY %s, bucket LIMIT 25`, instanceName, databaseName, tableName, databaseName, tableName, instanceName, tableName, instanceName, tableName, instanceName)
+}
+
+func generateGaugePanelQuery(instanceName string, databaseName string, tableName string) string {
+	return fmt.Sprintf(`SELECT CONCAT('ID: ', %s), gauge FROM "%s"."%s"
+  WHERE time = (
+    SELECT MAX(time)
+      FROM "%s"."%s" as subquery
+  	  WHERE subquery.%s = "%s".%s
+)
+ORDER BY %s LIMIT 25`, instanceName, databaseName, tableName, databaseName, tableName, instanceName, tableName, instanceName, instanceName)
+}
+
+func generateCounterStatPanelQuery(instanceName string, databaseName string, tableName string) string {
+	return fmt.Sprintf("SELECT CONCAT('ID: ', %s), MAX(counter) FROM \"%s\".\"%s\" GROUP BY %s ORDER BY %s DESC LIMIT 25", instanceName, databaseName, tableName, instanceName, instanceName)
+}
+
+func generateEndpointCounterStatPanelQuery(instanceName string, databaseName string, tableName string, endpoint string) string {
+	return fmt.Sprintf("SELECT CONCAT('ID: ', %s), MAX(counter) FROM \"%s\".\"%s\" WHERE endpoint LIKE '%s' GROUP BY %s ORDER BY %s DESC LIMIT 25", instanceName, databaseName, tableName, endpoint, instanceName, instanceName)
+}
+
+func generatePanelOptions(panelType string) map[string]interface{} {
+	switch panelType {
+	case "stat":
+		return map[string]interface{}{
+			"colorMode":   "value",
+			"graphMode":   "area",
+			"justifyMode": "auto",
+			"orientation": "auto",
+			"reduceOptions": map[string]interface{}{
+				"calcs": []string{
+					"lastNotNull",
+				},
+				"fields": "",
+				"values": true,
+			},
+			"showPercentChange": false,
+			"textMode":          "auto",
+			"wideLayout":        true,
+		}
+	case "bargauge":
+		return map[string]interface{}{
+			"minVizHeight":  16,
+			"minVizWidth":   8,
+			"maxVizHeight":  300,
+			"orientation":   "auto",
+			"displayMode":   "gradient",
+			"valueMode":     "color",
+			"namePlacement": "auto",
+			"reduceOptions": map[string]interface{}{
+				"calcs": []string{
+					"lastNotNull",
+				},
+				"fields": "",
+				"values": false,
+			},
+			"showUnfilled":         true,
+			"showThresholdLabels":  false,
+			"showThresholdMarkers": true,
+			"sizing":               "auto",
+		}
+	default:
+		return map[string]interface{}{}
+	}
+}
+
+func generatePanelFieldConfig(panelType string, panelTitle string) map[string]interface{} {
+	switch panelType {
+	case "stat":
+		if panelTitle == "HTTP Write Requests Count" || panelTitle == "HTTP Query Requests Count" || panelTitle == "Bucket Cardinality" || panelTitle == "BoltDb Writes"{
+			return map[string]interface{}{
+				"defaults": map[string]interface{}{
+					"mappings": []string{},
+					"thresholds": map[string]interface{}{
+						"mode": "absolute",
+						"steps": []interface{}{
+							map[string]interface{}{
+								"color": "yellow",
+								"value": nil,
+							},
+							map[string]interface{}{
+								"color": "green",
+								"value": 1,
+							},
+						},
+					},
+					"noValue": "0",
+				},
+				"overrides": []string{},
+			}
+		} else {
+			return map[string]interface{}{
+				"defaults": map[string]interface{}{
+					"mappings": []string{},
+					"thresholds": map[string]interface{}{
+						"mode": "absolute",
+						"steps": []interface{}{
+							map[string]interface{}{
+								"color": "green",
+								"value": nil,
+							},
+						},
+					},
+					"noValue": 0,
+					"unit":    "bytes",
+				},
+				"overrides": []string{},
+			}
+		}
+	case "bargauge":
+		return map[string]interface{}{"defaults": map[string]interface{}{
+			"mappings": []string{},
+			"thresholds": map[string]interface{}{
+				"mode": "absolute",
+				"steps": []interface{}{
+					map[string]interface{}{
+						"color": "yellow",
+						"value": nil,
+					},
+					map[string]interface{}{
+						"color": "green",
+						"value": 1,
+					},
+				},
+			},
+			"color": map[string]interface{}{
+				"mode": "thresholds",
+			},
+		},
+			"overrides": []interface{}{
+				map[string]interface{}{
+					"matcher": map[string]interface{}{
+						"id":      "byName",
+						"options": "sum",
+					},
+					"properties": []interface{}{
+						map[string]interface{}{
+							"id": "thresholds",
+							"value": map[string]interface{}{
+								"mode": "absolute",
+								"steps": []interface{}{
+									map[string]interface{}{
+										"color": "green",
+										"value": nil,
+									},
+									map[string]interface{}{
+										"color": "yellow",
+										"value": 1,
+									},
+									map[string]interface{}{
+										"color": "red",
+										"value": 50,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	default:
+		return map[string]interface{}{}
+	}
+}
+
 func generatePanels(datasourceName string, databaseName string) []interface{} {
 
 	panelFields := []panelField{
-		{map[string]interface{}{"h": 6, "w": 7, "x": 0, "y": 0}, "Bucket Cardinality", "stat", "A", fmt.Sprintf("SELECT time,gauge FROM \"%s\".\"storage_bucket_series_num\" group by 1,2 ORDER BY time,gauge DESC LIMIT 1", databaseName)},
-		{map[string]interface{}{"h": 6, "w": 6, "x": 7, "y": 0}, "Memory Cache Usage", "stat", "B", fmt.Sprintf("SELECT time, gauge FROM \"%s\".\"go_memstats_mcache_inuse_bytes\" ORDER BY time DESC limit 1", databaseName)},
-		{map[string]interface{}{"h": 6, "w": 6, "x": 13, "y": 0}, "BoltDb Writes", "stat", "C", fmt.Sprintf("SELECT time, counter FROM \"%s\".\"boltdb_writes_total\" ORDER BY time DESC limit 1", databaseName)},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 22}, "Allocated Memory", "timeseries", "G", fmt.Sprintf("SELECT time, host, gauge FROM \"%s\".\"go_memstats_alloc_bytes\" ORDER BY time DESC", databaseName)},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 30}, "HTTP Write Requests Count", "timeseries", "I", fmt.Sprintf("SELECT time, host, sum(counter)  FROM \"%s\".\"http_write_request_count\" WHERE endpoint in ('/api/v2/write')  group by  time,host ORDER BY time DESC", databaseName)},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 38}, "Free Memory", "timeseries", "K", fmt.Sprintf("SELECT time, host, counter FROM \"%s\".\"go_memstats_frees_total\" ORDER BY time DESC", databaseName)},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 38}, "Total Available Memory from System", "timeseries", "L", fmt.Sprintf("SELECT time, host, gauge FROM \"%s\".\"go_memstats_sys_bytes\" ORDER BY time DESC", databaseName)},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 46}, "Query Execution Duration in Seconds", "timeseries", "M", fmt.Sprintf("SELECT * FROM \"%s\".\"qc_executing_duration_seconds\" ORDER BY time desc", databaseName)},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 46}, "HTTP Query Requests Count", "timeseries", "N", fmt.Sprintf("SELECT time, host, sum(counter) FROM \"%s\".\"http_query_request_count\" WHERE endpoint in ('/api/v2/query') group by 1,2 ORDER BY time  desc", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 0}, "Query Execution Duration in Seconds", "bargauge", "M", fmt.Sprintf("SELECT * FROM \"%s\".\"qc_executing_duration_seconds\" ORDER BY time desc", databaseName)},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 0}, "Total Available Memory from System", "stat", "L", generateGaugePanelQuery("influxDBInstance", databaseName, "go_memstats_sys_bytes")},
+		{map[string]interface{}{"h": 6, "w": 7, "x": 0, "y": 22}, "Bucket Cardinality", "stat", "A", generateBucketedGaugePanelQuery("influxDBInstance", databaseName, "storage_bucket_series_num")},
+		{map[string]interface{}{"h": 6, "w": 6, "x": 7, "y": 22}, "Memory Cache Usage", "stat", "B", generateGaugePanelQuery("influxDBInstance", databaseName, "go_memstats_mcache_inuse_bytes")},
+		{map[string]interface{}{"h": 6, "w": 6, "x": 13, "y": 22}, "BoltDb Writes", "stat", "C", generateCounterStatPanelQuery("influxDBInstance", databaseName, "boltdb_writes_total")},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 30}, "Allocated Memory", "stat", "G", generateGaugePanelQuery("influxDBInstance", databaseName, "go_memstats_alloc_bytes")},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 30}, "HTTP Write Requests Count", "stat", "I", generateEndpointCounterStatPanelQuery("influxDBInstance", databaseName, "http_write_request_count", "%write%")},
+		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 30}, "HTTP Query Requests Count", "stat", "N", generateEndpointCounterStatPanelQuery("influxDBInstance", databaseName, "http_query_request_count", "%query%")},
 	}
 
 	var panelConfig []interface{}
@@ -482,8 +654,10 @@ func generatePanels(datasourceName string, databaseName string) []interface{} {
 						"refId":      panel.refId,
 					},
 				},
-				"title": panel.title,
-				"type":  panel.panelType,
+				"title":       panel.title,
+				"type":        panel.panelType,
+				"options":     generatePanelOptions(panel.panelType),
+				"fieldConfig": generatePanelFieldConfig(panel.panelType, panel.title),
 			},
 		)
 	}
