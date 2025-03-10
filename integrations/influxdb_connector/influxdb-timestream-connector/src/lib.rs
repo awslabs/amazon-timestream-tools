@@ -3,15 +3,20 @@ use aws_sdk_timestreamwrite as timestream_write;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use lambda_runtime::LambdaEvent;
-use line_protocol_parser::*;
+use line_protocol_parser::parse_line_protocol;
 use log::{info, trace};
-use records_builder::*;
+use records_builder::{
+    build_records, database_creation_enabled, env_var_to_bool, get_builder, SchemaType,
+};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{str, thread, time};
-use timestream_utils::*;
+use timestream_utils::{
+    create_database, create_table, database_exists, get_table_config, ingest_records,
+    parse_tags_from_str, table_exists,
+};
 use tokio::sync::Semaphore;
 use tokio::task;
 
@@ -77,14 +82,14 @@ async fn handle_ingestion(
         Err(_) => None,
     };
 
-
     if let Ok(true) = std::env::var("enable_database_creation").map(env_var_to_bool) {
         match database_exists(client, &database_name).await {
             Ok(true) => (),
             Ok(false) => {
                 if database_creation_enabled()? {
                     thread::sleep(time::Duration::from_secs(TIMESTREAM_API_WAIT_SECONDS));
-                    create_database(client, &database_name, kms_key_id.as_deref(), database_tags).await?;
+                    create_database(client, &database_name, kms_key_id.as_deref(), database_tags)
+                        .await?;
                 } else {
                     return Err(anyhow!(
                         "Database {} does not exist and database creation is not enabled",
@@ -170,7 +175,14 @@ pub async fn create_table_if_non_existent(
         Ok(true) => (),
         Ok(false) => {
             thread::sleep(time::Duration::from_secs(TIMESTREAM_API_WAIT_SECONDS));
-            create_table(client, database_name, table_name, get_table_config()?, table_tags).await?
+            create_table(
+                client,
+                database_name,
+                table_name,
+                get_table_config()?,
+                table_tags,
+            )
+            .await?
         }
         Err(error) => info!("error checking table exists: {:?}", error),
     }
@@ -435,4 +447,3 @@ pub fn test_parse_tags_from_str_error_only_equals() {
     let err = parse_tags_from_str(tags_str).unwrap_err();
     assert!(err.to_string().contains("Tag key must not be empty"));
 }
-

@@ -4,7 +4,7 @@ use aws_types::region::Region;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use log::info;
-use rayon::prelude::*;
+use rayon::prelude::{ParallelIterator, ParallelSlice};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::task;
@@ -146,10 +146,12 @@ pub async fn create_table(
 
     create_table_builder.send().await?;
 
-    info!("Table '{}' created successfully in database '{}'.", table_name, database_name);
+    info!(
+        "Table '{}' created successfully in database '{}'.",
+        table_name, database_name
+    );
     Ok(())
 }
-
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn table_exists(
@@ -234,7 +236,6 @@ pub fn parse_tags_from_str(tags_str: &str) -> Result<Vec<timestream_write::types
 
     Ok(tags)
 }
-
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub fn get_table_config() -> Result<TableConfig, Error> {
