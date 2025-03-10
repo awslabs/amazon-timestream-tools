@@ -4,7 +4,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use lambda_runtime::LambdaEvent;
 use line_protocol_parser::parse_line_protocol;
-use log::{info, trace};
+use log::{error, info, trace};
 use records_builder::{
     build_records, database_creation_enabled, env_var_to_bool, get_builder, SchemaType,
 };
@@ -42,7 +42,13 @@ async fn handle_body(
 ) -> Result<(), Error> {
     // Handle parsing body in request
 
-    let line_protocol = str::from_utf8(body).unwrap();
+    let line_protocol = match str::from_utf8(body) {
+        Ok(line_protocol) => line_protocol,
+        Err(err) => {
+            error!("Failed to decode line protocol body as UTF-8: {}", err);
+            return Err(anyhow!(err));
+        }
+    };
     let metric_data = parse_line_protocol(line_protocol)?;
 
     let multi_measure_builder = match std::env::var("table_mapping")?.to_lowercase().as_str() {
