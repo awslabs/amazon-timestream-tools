@@ -531,7 +531,7 @@ func generatePanelOptions(panelType string) map[string]interface{} {
 func generatePanelFieldConfig(panelType string, panelTitle string) map[string]interface{} {
 	switch panelType {
 	case "stat":
-		if panelTitle == "HTTP Write Requests Count" || panelTitle == "HTTP Query Requests Count" || panelTitle == "Bucket Cardinality" || panelTitle == "BoltDb Writes"{
+		if panelTitle == "HTTP Write Requests Count" || panelTitle == "HTTP Query Requests Count" || panelTitle == "Bucket Cardinality" || panelTitle == "BoltDb Writes" {
 			return map[string]interface{}{
 				"defaults": map[string]interface{}{
 					"mappings": []string{},

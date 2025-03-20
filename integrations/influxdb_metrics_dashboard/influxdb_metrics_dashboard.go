@@ -294,8 +294,9 @@ func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, data
 			"DatabaseName":             jsii.String(databaseName),
 		},
 		Code: awslambda.Code_FromCustomCommand(jsii.String("lambda/upload_dashboard/lambda.zip"), &[]*string{
-			jsii.String("bash"),
-			jsii.String("lambda/upload_dashboard/bundle.sh"),
+			jsii.String("go"),
+			jsii.String("run"),
+			jsii.String("lambda/upload_dashboard/bundle.go"),
 		}, nil),
 		Timeout: awscdk.Duration_Seconds(&lambdaTimeout),
 		InitialPolicy: &[]awsiam.PolicyStatement{
