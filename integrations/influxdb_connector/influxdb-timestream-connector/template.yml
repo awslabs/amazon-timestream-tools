@@ -111,8 +111,9 @@ Parameters:
     Default: influxdb-timestream-connector-lambda
   RestApiGatewayTimeoutInMillis:
     Type: Number
-    MinValue: 2
-    Default: 30000
+    Default: 29000
+    MinValue: 50
+    MaxValue: 29000
     Description: The maximum amount of time in milliseconds an API Gateway event will wait before timing out.
   RustLog:
     Type: String
@@ -120,8 +121,8 @@ Parameters:
     Description: The log level to use for the Lambda function. Typical values are error, warn, info, debug, trace, and off. Use trace in order to log the execution time of each function. Defaults to INFO.
   LambdaTimeoutInSeconds:
     Type: Number
+    Default: 60
     MinValue: 3
-    Default: 30
     Description: The amount of time in seconds to run the connector on AWS Lambda before timing out.
   WriteThrottlingBurstLimit:
     Type: Number
@@ -173,6 +174,7 @@ Resources:
       HttpMethod: POST
       ApiKeyRequired: false
       Integration:
+        TimeoutInMillis: !Ref RestApiGatewayTimeoutInMillis
         IntegrationHttpMethod: POST
         Type: AWS_PROXY
         Uri: !Sub
@@ -209,6 +211,7 @@ Resources:
       HttpMethod: POST
       ApiKeyRequired: false
       Integration:
+        TimeoutInMillis: !Ref RestApiGatewayTimeoutInMillis
         IntegrationHttpMethod: POST
         Type: AWS
         PassthroughBehavior: WHEN_NO_MATCH

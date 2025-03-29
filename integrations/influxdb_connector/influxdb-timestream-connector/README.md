@@ -98,6 +98,7 @@ The following parameters are available when deploying the connector as part of a
 | `KmsKey`  | AWS KMS key to encrypt the database on creation. If the KMS key is not specified, the database will be encrypted with a Timestream managed KMS key created under your account. | |
 | `DatabaseTags`  | A comma-separated string of key-value pairs to label the database. For example, `example_key1=example_value1,example_key2=example_value2` | |
 | `TableTags`  | A comma-separated string of key-value pairs to label the table(s). For example, `example_key1=example_value1,example_key2=example_value2` | |
+| `EnableAsyncInvocation` | Whether to use asynchronous invocation, in which clients are returned a response indicating that their request is being processed. The size of requests with asynchronous invocation can be a maximum of 256 KB. With synchronous invocation, the maximum size of a request is 6 MB. | `true` |
 | `EnableDatabaseCreation` | Whether to allow database creation upon ingestion of records. | `true` |
 | `EnableTableCreation` | Whether to allow table creation upon ingestion of records. When using multi-table multi measure schema, each unique line protocol measurement in a request will result in the creation of a new table with the same name as the measurement. | `true` |
 | `EnableMagStoreWrites` | if `EnableTableCreation` is `true`, whether to enable mag store writes. | `true` |
@@ -518,10 +519,21 @@ To configure the sample application and ingest all line protocol data contained 
 
 ### All Tests
 
-To run all tests, including integration tests and unit tests, use the following command:
+To run all tests, including integration, unit, and doc tests, use the following command:
 
 ```shell
 cargo test -- --test-threads=1
+```
+
+`-- --test-threads=1` is required since integration tests change environment variables and `cargo test` uses a single process for testing. To run tests, except doc tests, with any number of threads, use [`nextest`](https://nexte.st/):
+
+```shell
+cargo nextest run --test-threads=16 # Any thread number
+```
+
+`nextest` can be installed with the command:
+```shell
+cargo install --locked cargo-nextest
 ```
 
 ### Integration Tests
@@ -532,7 +544,7 @@ To run all integration tests, use the following command, from the project root:
 cargo test --test '*' -- --test-threads=1
 ```
 
-> **NOTE**: It is important to use the flag `--test-threads=1` in order to avoid throttling errors, as the integration tests will create and delete tables.
+> **NOTE**: It is important to use the flag `--test-threads=1` in order to avoid issues with environment variables, as integration tests set and remove environment variables.
 
 To run a specific integration test, use the following command:
 
@@ -552,6 +564,14 @@ To run a single unit test, use the following command:
 
 ```shell
 cargo test <unit test name>
+```
+
+### Doc Tests
+
+To run all doc tests, use the following command:
+
+```shell
+cargo test --doc
 ```
 
 ## Limitations
@@ -649,9 +669,9 @@ The following is an overview of how the costs are calculated for each deployed r
 
 The following are some approaches that can reduce stack costs:
 
-- The REST API Gateway incurs the highest costs for the stack. Reduce REST API Gateway costs by including as many line protocol points in a request as possible. 5,000-20,000 line protocol points in each request is ideal. The Lambda memory size, Lambda timeout, REST API Gateway timeout, and client timeout may have to be increased in order to accommodate larger requests.
+- The REST API Gateway incurs the highest costs for the stack. Reduce REST API Gateway costs by including as many line protocol points in a request as possible. 2,000-10,000 line protocol points in each request is ideal. The Lambda memory size, Lambda timeout, REST API Gateway timeout, and client timeout may have to be increased in order to accommodate larger requests.
+    - NOTE: [the maximum total size of a request with asynchronous invocation is 256 KB while with synchronous invocation it is 6 MB](https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html#function-configuration-deployment-and-execution). For batches with more than 2,000 line protocol points, consider using synchronous invocation by setting the parameter `EnableAsyncInvocation` to `false`. For line protocol batches with 10,000 line protocol points, we recommend using a Lambda memory size of 518 MB by setting the parameter `LambdaMemorySize` to `518`.
     - NOTE: if requests contain only a single line protocol point, the ratio of REST API Gateway requests to ingested records would be 1:1 and costs would be much higher than including multiple line protocol points in each request.
-- If possible, create the necessary tables in advance, to reduce the time the connector will take to create tables. The connector adds a one second delay for table or database creation in order to avoid throttling.
 - Reduce the amount of memory the connector uses as a Lambda function. The default, and smallest possible value, is 128 MB.
 - Set the `EnableDatabaseCreation` or `EnableTableCreation` parameter to `false` to skip checks for existing databases or tables, if unnecessary.
 
@@ -668,3 +688,16 @@ The connector expects query string parameters to be included as `queryParameters
 ### Lack of Local Gzip Support
 
 The connector, when deployed as part of a CloudFormation stack, supports requests sent with Content-Type and Accept-Encoding headers set to `gzip`. However, when run locally with either Cargo Lambda or the SAM CLI, gzip compression is not supported.
+
+### Timeouts
+
+REST API Gateways have a [minimum timeout of 50 milliseconds and a maximum timeout of 29,000 milliseconds (29 seconds)](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-apigateway-method-integration.html#cfn-apigateway-method-integration-timeoutinmillis). This can complicate writes with synchronous invocation. If you experience timeouts when writing large amounts of data with synchronous invocation, consider increasing the Lambda function's memory size or using smaller batch sizes.
+
+### Duplicate Timestamps
+
+Line protocol points that are identical except for their fields are unsupported. This means that the following line protocol points cause an error:
+```
+machinery,stationID=g1 oil_temp=39.1 1627776000000000000
+machinery,stationID=g1 pressure=110.2617 1627776000000000000
+```
+Because the measurement (`machinery`), tags (`stationID=g1`), and timestamp (`1627776000000000000`) are the same, but the fields are different, in any way, Timestream for LiveAnalytics will ingest the first record and treat the second record as an attempt to update the same record.

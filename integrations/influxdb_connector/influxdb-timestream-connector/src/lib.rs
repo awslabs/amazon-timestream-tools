@@ -4,20 +4,21 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use lambda_runtime::LambdaEvent;
 use line_protocol_parser::parse_line_protocol;
-use log::{error, info, trace};
-use records_builder::{
-    build_records, database_creation_enabled, env_var_to_bool, get_builder, SchemaType,
-};
+use log::{error, trace};
+use once_cell::sync::OnceCell;
+use records_builder::{build_records, get_builder, AttributeGroupedRecords, SchemaType};
 use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Instant;
-use std::{str, thread, time};
+use std::{
+    collections::{HashMap, HashSet},
+    str,
+    sync::Arc,
+    time::Instant,
+};
 use timestream_utils::{
     create_database, create_table, database_exists, get_table_config, ingest_records,
-    parse_tags_from_str, table_exists,
+    TimestreamEnvConfig,
 };
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Semaphore};
 use tokio::task;
 
 pub mod line_protocol_parser;
@@ -25,22 +26,105 @@ pub mod metric;
 pub mod records_builder;
 pub mod timestream_utils;
 
-// The maximum number of database/table creation/delete API calls
-// that can be made per second is 1.
-pub static TIMESTREAM_API_WAIT_SECONDS: u64 = 1;
-
-// The number of batches processed at the same time.
-// For multi-table multi measure schema, batches are a combination of
-// a table name and a Vec of records bound for that table
+/// The number of batches processed at the same time.
+/// For multi-table multi measure schema, batches are a combination of
+/// a table name and a Vec of records bound for that table
 pub static NUM_BATCH_THREADS: usize = 16;
 
+/// Environment variables common to all inputs and outputs.
+#[derive(Debug, Clone)]
+pub struct LibEnvConfig {
+    /// Whether the connector is being invoked locally, not as a Lambda function.
+    pub local_invocation: bool,
+}
+
+impl LibEnvConfig {
+    fn new() -> Result<Self, Error> {
+        Ok(Self {
+            local_invocation: std::env::var("local_invocation")
+                .map(|val| matches!(val.to_lowercase().as_str(), "true" | "t" | "1"))
+                .unwrap_or(false),
+        })
+    }
+
+    /// Gets LIB_ENV_CONFIG.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use influxdb_timestream_connector::LibEnvConfig;
+    /// # use tokio_test::block_on;
+    ///
+    /// # block_on(async {
+    /// let lib_env_config_result = LibEnvConfig::get().await;
+    /// assert!(lib_env_config_result.is_ok());
+    /// # })
+    /// ```
+    pub async fn get() -> Result<LibEnvConfig, Error> {
+        let config_lock = LIB_ENV_CONFIG.get_or_init(|| Mutex::new(None));
+        let mut config = config_lock.lock().await;
+
+        if config.is_none() {
+            *config = Some(LibEnvConfig::new());
+        }
+
+        match config.take() {
+            Some(Ok(env_config)) => Ok(env_config),
+            Some(Err(err)) => Err(anyhow!("{}", err)),
+            None => Err(anyhow!(
+                "Retryable error: LibEnvConfig configuration has not been initialized"
+            )),
+        }
+    }
+
+    /// Resets LIB_ENV_CONFIG, requiring it to be reinitialized for any future use.
+    /// This function may return an Err, if a lock cannot be acquired on
+    /// LIB_ENV_CONFIG.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use influxdb_timestream_connector::LibEnvConfig;
+    /// use std::env;
+    /// # use tokio_test::block_on;
+    ///
+    /// // Here, reset_lib_env_config is used to reset environment variables during
+    /// // testing.
+    /// // Changes to environment variables are only picked up by the connector after
+    /// // reset_lib_env_config is called
+    /// # block_on(async {
+    /// env::remove_var("some_environment_variable_removed_for_test");
+    ///
+    /// // . . . test code
+    ///
+    /// // Reset LibEnvConfig so that the next test has its environment variables
+    /// // picked up
+    /// LibEnvConfig::reset();
+    /// # })
+    /// ```
+    pub async fn reset() {
+        if let Some(config_lock) = LIB_ENV_CONFIG.get() {
+            let mut config = config_lock.lock().await;
+            *config = None;
+        }
+    }
+}
+
+/// Library environment variable configuration, making sure that environment
+/// variables are read once.
+/// This being a OnceCell<Mutex<Option<Result<LibEnvConfig, Error>>>> means
+/// that it can handle checking for required environment variables and is
+/// thread safe.
+static LIB_ENV_CONFIG: OnceCell<Mutex<Option<Result<LibEnvConfig, Error>>>> = OnceCell::new();
+
+/// Handles parsing body in request.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 async fn handle_body(
     client: &Arc<timestream_write::Client>,
     body: &[u8],
     precision: &timestream_write::types::TimeUnit,
 ) -> Result<(), Error> {
-    // Handle parsing body in request
+    let timestream_env_config = TimestreamEnvConfig::get().await?;
 
     let line_protocol = match str::from_utf8(body) {
         Ok(line_protocol) => line_protocol,
@@ -51,57 +135,61 @@ async fn handle_body(
     };
     let metric_data = parse_line_protocol(line_protocol)?;
 
-    let multi_measure_builder = match std::env::var("table_mapping")?.to_lowercase().as_str() {
-        "multi-table" => get_builder(
-            SchemaType::MultiTableMultiMeasure,
-            std::env::var("measure_name_for_multi_measure_records")?,
-        ),
-        _ => get_builder(
-            SchemaType::SingleTableMultiMeasure,
-            std::env::var("single_table_name")?,
-        ),
+    let multi_measure_builder = match timestream_env_config.table_mapping.as_str() {
+        "multi-table" => {
+            let measure_name_for_multi_measure_records = match &timestream_env_config
+                .measure_name_for_multi_measure_records
+            {
+                Some(val) => val.clone(),
+                None => {
+                    let err_message = "Non-retryable error: measure_name_for_multi_measure_records is not defined";
+                    error!("{}", err_message);
+                    return Err(anyhow!(err_message));
+                }
+            };
+            get_builder(
+                SchemaType::MultiTableMultiMeasure,
+                measure_name_for_multi_measure_records,
+            )
+        }
+        _ => {
+            let single_table_name = match &timestream_env_config.single_table_name {
+                Some(val) => val.clone(),
+                None => {
+                    let err_message = "Non-retryable error: single_table_name is not defined";
+                    error!("{}", err_message);
+                    return Err(anyhow!(err_message));
+                }
+            };
+            get_builder(SchemaType::SingleTableMultiMeasure, single_table_name)
+        }
     };
 
     // Only currently supports multi-measure
-    let multi_table_batch = build_records(&multi_measure_builder, &metric_data, precision)?;
+    let multi_table_batch = build_records(&multi_measure_builder, &metric_data, precision).await?;
     handle_ingestion(client, multi_table_batch).await?;
     Ok(())
 }
 
+/// Ingests records for multi-measure schema type.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 async fn handle_ingestion(
     client: &Arc<timestream_write::Client>,
-    records: HashMap<String, Vec<timestream_write::types::Record>>,
+    records: HashMap<String, Vec<AttributeGroupedRecords>>,
 ) -> Result<(), Error> {
-    // Ingestion for multi-measure schema type
+    let timestream_env_config = TimestreamEnvConfig::get().await?;
 
-    let database_name = std::env::var("database_name")?;
+    let database_name = timestream_env_config.database_name.clone();
+    let kms_key_id = timestream_env_config.kms_key_id.clone();
+    let database_tags = timestream_env_config.database_tags.clone();
     let database_name = Arc::new(database_name);
 
-    let kms_key_id = std::env::var("kms_key_id").ok();
-
-    let database_tags = match std::env::var("database_tags") {
-        Ok(database_tags_str) => match parse_tags_from_str(&database_tags_str) {
-            Ok(tags) => Some(tags),
-            Err(_) => None,
-        },
-        Err(_) => None,
-    };
-
-    if let Ok(true) = std::env::var("enable_database_creation").map(env_var_to_bool) {
+    if timestream_env_config.enable_database_creation {
         match database_exists(client, &database_name).await {
             Ok(true) => (),
             Ok(false) => {
-                if database_creation_enabled()? {
-                    thread::sleep(time::Duration::from_secs(TIMESTREAM_API_WAIT_SECONDS));
-                    create_database(client, &database_name, kms_key_id.as_deref(), database_tags)
-                        .await?;
-                } else {
-                    return Err(anyhow!(
-                        "Database {} does not exist and database creation is not enabled",
-                        database_name
-                    ));
-                }
+                create_database(client, &database_name, kms_key_id.as_deref(), database_tags)
+                    .await?;
             }
             Err(error) => return Err(anyhow!(error)),
         }
@@ -111,36 +199,68 @@ async fn handle_ingestion(
     let ingestion_semaphore = Arc::new(Semaphore::new(NUM_BATCH_THREADS));
     let mut batch_ingestion_futures = FuturesUnordered::new();
 
-    // Track total time taken to check existence of tables and ingest records
+    // Keep track of created tables to avoid unnecessary API calls to verify tables exist
+    let created_table_names = Arc::new(Mutex::new(HashSet::<String>::new()));
+
+    // Track total time taken to create tables and ingest records
     let ingestion_start = Instant::now();
 
     // Ingest records for each table, in parallel
-    for (table_name, records) in records {
-        let permit = ingestion_semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("Failed to get semaphore permit");
+    for (table_name, attribute_grouped_records_vec) in records {
+        for attribute_grouped_records in attribute_grouped_records_vec {
+            let created_table_names_clone = Arc::clone(&created_table_names);
 
-        // Use Arc::clone to create a shallow clone of the client
-        let client_clone = Arc::clone(client);
-        let database_name_clone = Arc::clone(&database_name);
+            let permit = ingestion_semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("Retryable error: Failed to get semaphore permit");
 
-        // Create a future for ingesting to the current table
-        let future = task::spawn(async move {
-            if let Ok(true) = std::env::var("enable_table_creation").map(env_var_to_bool) {
-                let _ =
-                    create_table_if_non_existent(&client_clone, &database_name_clone, &table_name)
-                        .await;
-            }
+            // Use Arc::clone to create a shallow clone of the client
+            let client_clone = Arc::clone(client);
+            let database_name_clone = Arc::clone(&database_name);
+            let table_name_clone = table_name.clone();
+            let table_tags = timestream_env_config.table_tags.clone();
 
-            // Ingest the data to the table
-            let result =
-                ingest_records(client_clone, database_name_clone, table_name, records).await;
-            drop(permit);
-            result
-        });
-        batch_ingestion_futures.push(future);
+            // Create a future for ingesting to the current table
+            let future = task::spawn(async move {
+                if timestream_env_config.enable_table_creation {
+                    let mut created_table_names = created_table_names_clone.lock().await;
+
+                    // If the table name wasn't in the created_table_names HashSet, create the table.
+                    if created_table_names.insert(table_name_clone.to_string()) {
+                        create_table(
+                            &client_clone,
+                            &database_name_clone,
+                            &table_name_clone,
+                            get_table_config().await?,
+                            table_tags,
+                        )
+                        .await?;
+                    }
+                }
+
+                // Destructuring common_attributes_grouped_records in order to
+                // use it for ingestion without cloning
+                let AttributeGroupedRecords {
+                    common_attributes,
+                    records,
+                } = attribute_grouped_records;
+
+                // Ingest the data to the table
+                let result = ingest_records(
+                    client_clone,
+                    database_name_clone,
+                    table_name_clone,
+                    common_attributes,
+                    records,
+                )
+                .await;
+                drop(permit);
+                result
+            });
+            batch_ingestion_futures.push(future);
+        }
     }
 
     while let Some(result) = batch_ingestion_futures.next().await {
@@ -164,42 +284,9 @@ async fn handle_ingestion(
     Ok(())
 }
 
-#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-pub async fn create_table_if_non_existent(
-    client: &Arc<timestream_write::Client>,
-    database_name: &Arc<String>,
-    table_name: &str,
-) -> Result<(), Error> {
-    let table_tags = match std::env::var("table_tags") {
-        Ok(table_tags_str) => match parse_tags_from_str(&table_tags_str) {
-            Ok(tags) => Some(tags),
-            Err(_) => None,
-        },
-        Err(_) => None,
-    };
-    match table_exists(client, database_name, table_name).await {
-        Ok(true) => (),
-        Ok(false) => {
-            thread::sleep(time::Duration::from_secs(TIMESTREAM_API_WAIT_SECONDS));
-            create_table(
-                client,
-                database_name,
-                table_name,
-                get_table_config()?,
-                table_tags,
-            )
-            .await?
-        }
-        Err(error) => info!("error checking table exists: {:?}", error),
-    }
-
-    Ok(())
-}
-
+/// Retrieves the optional "precision" query string parameter from a serde_json::Value.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub fn get_precision(event: &Value) -> Option<&str> {
-    // Retrieves the optional "precision" query string parameter from a serde_json::Value
-
     // Query string parameters may be included as "queryStringParameters"
     if let Some(precision) = event
         .get("queryStringParameters")
@@ -222,12 +309,13 @@ pub fn get_precision(event: &Value) -> Option<&str> {
     None
 }
 
+/// Handler for lambda runtime.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn lambda_handler(
     client: &Arc<timestream_write::Client>,
     event: LambdaEvent<Value>,
 ) -> Result<Value, Error> {
-    // Handler for lambda runtime
+    let lib_env_config = LibEnvConfig::get().await?;
 
     let (event, _context) = event.into_parts();
 
@@ -240,9 +328,9 @@ pub async fn lambda_handler(
 
     let data = event
         .get("body")
-        .expect("No body was included in the request")
+        .expect("Non-retryable error: No body was included in the request")
         .as_str()
-        .expect("Failed to convert body to &str")
+        .expect("Non-retryable error: Failed to convert body to &str")
         .as_bytes();
 
     match handle_body(client, data, &precision).await {
@@ -262,7 +350,7 @@ pub async fn lambda_handler(
             // If this "cookies" array is present and the connector is deployed
             // with synchronous invocation in a stack, users will receive a
             // 502 error
-            if std::env::var("local_invocation").is_ok() {
+            if lib_env_config.local_invocation {
                 response["cookies"] = json!([]);
             }
             Ok(response)
@@ -350,106 +438,4 @@ pub fn test_get_precision_incorrect_precision_key() -> Result<(), Error> {
     let fake_event_value = json!({ "queryStringParameters": { "nomatch": "ms" } });
     assert!(get_precision(&fake_event_value).is_none());
     Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_empty_string() -> Result<(), Error> {
-    let tags_str = "";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert!(tags.is_empty());
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_whitespace_only() -> Result<(), Error> {
-    let tags_str = "   ";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert!(tags.is_empty());
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_tag_with_no_value() -> Result<(), Error> {
-    let tags_str = "key1";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert_eq!(tags.len(), 1);
-    assert_eq!(tags[0].key, "key1");
-    assert_eq!(tags[0].value, "");
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_multiple_tags() -> Result<(), Error> {
-    let tags_str = "key1=value1, key2=value2, key3=value3";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert_eq!(tags.len(), 3);
-    assert_eq!(tags[0].key, "key1");
-    assert_eq!(tags[0].value, "value1");
-    assert_eq!(tags[1].key, "key2");
-    assert_eq!(tags[1].value, "value2");
-    assert_eq!(tags[2].key, "key3");
-    assert_eq!(tags[2].value, "value3");
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_extra_commas() -> Result<(), Error> {
-    let tags_str = "key1=value1, , key2=value2,";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert_eq!(tags.len(), 2);
-    assert_eq!(tags[0].key, "key1");
-    assert_eq!(tags[0].value, "value1");
-    assert_eq!(tags[1].key, "key2");
-    assert_eq!(tags[1].value, "value2");
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_multiple_equals() -> Result<(), Error> {
-    let tags_str = "key1=value=with=equals";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert_eq!(tags.len(), 1);
-    assert_eq!(tags[0].key, "key1");
-    assert_eq!(tags[0].value, "value=with=equals");
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_trimming_whitespace() -> Result<(), Error> {
-    let tags_str = "  key1  =  value1  ,   key2=   value2  ";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert_eq!(tags.len(), 2);
-    assert_eq!(tags[0].key, "key1");
-    assert_eq!(tags[0].value, "value1");
-    assert_eq!(tags[1].key, "key2");
-    assert_eq!(tags[1].value, "value2");
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_tag_with_empty_value_explicit() -> Result<(), Error> {
-    let tags_str = "key1=,key2=2,key3";
-    let tags = parse_tags_from_str(tags_str)?;
-    assert_eq!(tags.len(), 3);
-    assert_eq!(tags[0].key, "key1");
-    assert_eq!(tags[0].value, "");
-    assert_eq!(tags[1].key, "key2");
-    assert_eq!(tags[1].value, "2");
-    assert_eq!(tags[2].key, "key3");
-    assert_eq!(tags[2].value, "");
-    Ok(())
-}
-
-#[test]
-pub fn test_parse_tags_from_str_error_empty_key() {
-    let tags_str = "=value";
-    let err = parse_tags_from_str(tags_str).unwrap_err();
-    assert!(err.to_string().contains("Tag key must not be empty"));
-}
-
-#[test]
-pub fn test_parse_tags_from_str_error_only_equals() {
-    let tags_str = "   =   ";
-    let err = parse_tags_from_str(tags_str).unwrap_err();
-    assert!(err.to_string().contains("Tag key must not be empty"));
 }

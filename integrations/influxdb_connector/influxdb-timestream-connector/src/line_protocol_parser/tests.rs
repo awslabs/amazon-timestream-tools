@@ -1,8 +1,8 @@
 use super::parse_line_protocol;
 use crate::metric::{self, Metric};
 
+/// Determines whether two Metric structs have equal values for all struct fields.
 fn metrics_are_equal(actual_metric: &Metric, expected_metric: &Metric) -> bool {
-    // Determines whether two Metric structs have equal values for all struct fields.
     if actual_metric.name() != expected_metric.name() {
         println!("Metric names are not equal");
         return false;
@@ -58,9 +58,9 @@ fn metrics_are_equal(actual_metric: &Metric, expected_metric: &Metric) -> bool {
     true
 }
 
+/// Tests parsing a single valid line with an integer field value.
 #[test]
 fn test_parse_field_integer() -> Result<(), String> {
-    // Tests parsing a single valid line with an integer field value.
     let lp = String::from("readings incline=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -76,9 +76,9 @@ fn test_parse_field_integer() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with a float field value.
 #[test]
 fn test_parse_field_float() -> Result<(), String> {
-    // Tests parsing a single valid line with a float field value.
     let lp = String::from("readings incline=125 1577836800000");
 
     let expected_metric = Metric::new(
@@ -94,9 +94,9 @@ fn test_parse_field_float() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with a string field value using double quotes.
 #[test]
 fn test_parse_field_string_double_quote() -> Result<(), String> {
-    // Tests parsing a single valid line with a string field value using double quotes.
     let lp = String::from("readings incline=\"125\" 1577836800000");
 
     let expected_metric = Metric::new(
@@ -115,9 +115,9 @@ fn test_parse_field_string_double_quote() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with a string field value using single quotes.
 #[test]
 fn test_parse_field_string_single_quote() -> Result<(), String> {
-    // Tests parsing a single valid line with a string field value using single quotes.
     let lp = String::from("readings incline=\"\'125\'\" 1577836800000");
 
     let expected_metric = Metric::new(
@@ -136,9 +136,9 @@ fn test_parse_field_string_single_quote() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with a boolean field value.
 #[test]
 fn test_parse_field_boolean() -> Result<(), String> {
-    // Tests parsing a single valid line with a boolean field value.
     let lp = String::from("readings incline=true 1577836800000");
 
     let expected_metric = Metric::new(
@@ -154,9 +154,9 @@ fn test_parse_field_boolean() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line with an invalid boolean field value.
 #[test]
 fn test_parse_field_boolean_invalid() -> Result<(), String> {
-    // Tests parsing a single invalid line with an invalid boolean field value.
     let lp = String::from("readings incline=tree 1577836800000");
 
     let output_metrics = parse_line_protocol(&lp);
@@ -165,9 +165,9 @@ fn test_parse_field_boolean_invalid() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line where the measurement name includes an unescaped equals sign.
 #[test]
 fn test_parse_measurement_unescaped_equals() -> Result<(), String> {
-    // Tests parsing a single valid line where the measurement name includes an unescaped equals sign.
     let lp = String::from("read=ings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000");
 
     let expected_metric = Metric::new(
@@ -186,9 +186,9 @@ fn test_parse_measurement_unescaped_equals() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line where the measurement name begins with an underscore.
 #[test]
 fn test_parse_measurement_underscore_begin() -> Result<(), String> {
-    // Tests parsing a single valid line where the measurement name begins with an underscore.
     let lp = String::from("_readings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000");
     let expected_metric = Metric::new(
         "_readings".to_string(),
@@ -206,9 +206,9 @@ fn test_parse_measurement_underscore_begin() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line where fields are missing.
 #[test]
 fn test_parse_no_fields() -> Result<(), String> {
-    // Tests parsing a single invalid line where fields are missing.
     let lp = String::from("readings,fleet=Alberta 1577836800000");
 
     let output_metrics = parse_line_protocol(&lp);
@@ -217,9 +217,9 @@ fn test_parse_no_fields() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with multiple fields.
 #[test]
 fn test_parse_multiple_fields() -> Result<(), String> {
-    // Tests parsing a single valid line with multiple fields.
     let lp = String::from("readings incline=125i,fuel_usage=21.30 1577836800000");
 
     let expected_metric = Metric::new(
@@ -238,10 +238,10 @@ fn test_parse_multiple_fields() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line with multiple measurement names.
 #[ignore]
 #[test]
 fn test_parse_multiple_measurements() -> Result<(), String> {
-    // Tests parsing a single invalid line with multiple measurement names.
     let lp = String::from(
         "readings,readings2,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000",
     );
@@ -252,9 +252,9 @@ fn test_parse_multiple_measurements() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line without a timestamp.
 #[test]
 fn test_parse_no_timestamp() -> Result<(), String> {
-    // Tests parsing a single invalid line without a timestamp.
     let lp = String::from("readings,fleet=Alberta incline=125i,fuel_usage=21.30");
 
     let output_metrics = parse_line_protocol(&lp);
@@ -263,9 +263,9 @@ fn test_parse_no_timestamp() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line with a non-unix timestamp.
 #[test]
 fn test_parse_non_unix_timestamp() -> Result<(), String> {
-    // Tests parsing a single invalid line with a non-unix timestamp.
     let lp =
         String::from("readings,fleet=Alberta incline=125i,fuel_usage=21.30 2020-01-01T00:00:00Z");
 
@@ -275,9 +275,9 @@ fn test_parse_non_unix_timestamp() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line with the timestamp in double quotes.
 #[test]
 fn test_parse_timestamp_with_quotes() -> Result<(), String> {
-    // Tests parsing a single invalid line with the timestamp in double quotes.
     let lp = String::from("readings,fleet=Alberta incline=125i,fuel_usage=21.30 \"1577836800000\"");
 
     let output_metrics = parse_line_protocol(&lp);
@@ -285,9 +285,9 @@ fn test_parse_timestamp_with_quotes() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line with no whitespace between components.
 #[test]
 fn test_parse_no_whitespace() -> Result<(), String> {
-    // Tests parsing a single invalid line with no whitespace between components.
     let lp = String::from("readings,fuel_usage=21.30,2020-01-01T00:00:00Z");
 
     let output_metrics = parse_line_protocol(&lp);
@@ -296,9 +296,9 @@ fn test_parse_no_whitespace() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line with multiple timestamps.
 #[test]
 fn test_parse_multiple_timestamps() -> Result<(), String> {
-    // Tests parsing a single invalid line with multiple timestamps.
     let lp = String::from("readings incline=125i 1577836800000000000 1577836800000");
 
     let output_metrics = parse_line_protocol(&lp);
@@ -306,9 +306,9 @@ fn test_parse_multiple_timestamps() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing multiple valid lines with integer field values.
 #[test]
 fn test_parse_batch() -> Result<(), String> {
-    // Tests parsing multiple valid lines with integer field values.
     let lp = String::from(
         "readings incline=125i 1577836800000
         readings incline=125i 1577836800000
@@ -333,10 +333,10 @@ fn test_parse_batch() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with emojis included in the measurement name, tag key,
+/// tag value, field key, and field value.
 #[test]
 fn test_parse_emojis() -> Result<(), String> {
-    // Tests parsing a single valid line with emojis included in the measurement name, tag key,
-    // tag value, field key, and field value.
     let lp = String::from("re😎dings,fl☕️et=🤙 in🤠line=\"😀\" 1577836800000");
 
     let expected_metric = Metric::new(
@@ -355,10 +355,10 @@ fn test_parse_emojis() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with escaped commas in the measurement name, tag key,
+/// tag value, and field key.
 #[test]
 fn test_parse_escaped_comma() -> Result<(), String> {
-    // Tests parsing a single valid line with escaped commas in the measurement name, tag key,
-    // tag value, and field key.
     let lp = String::from(r"\,readings,fleet\,=A\,lberta inc\,line=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -374,10 +374,10 @@ fn test_parse_escaped_comma() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with escaped equals signs in the tag key, tag value,
+/// and field key.
 #[test]
 fn test_parse_escaped_equals() -> Result<(), String> {
-    // Tests parsing a single valid line with escaped equals signs in the tag key, tag value,
-    // and field key.
     let lp = String::from(r"readings,fleet\==A\=lberta inc\=line=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -393,9 +393,9 @@ fn test_parse_escaped_equals() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with an unescaped equals sign in the measurement name.
 #[test]
 fn test_parse_unescaped_equals_measurement() -> Result<(), String> {
-    // Tests parsing a single valid line with an unescaped equals sign in the measurement name.
     let lp = String::from(r"rea=dings,fleet=Alberta incline=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -411,9 +411,9 @@ fn test_parse_unescaped_equals_measurement() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with an escaped equals sign in the measurement name.
 #[test]
 fn test_parse_escaped_equals_measurement() -> Result<(), String> {
-    // Tests parsing a single valid line with an escaped equals sign in the measurement name.
     let lp = String::from(r"rea\=dings,fleet=Alberta incline=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -429,10 +429,10 @@ fn test_parse_escaped_equals_measurement() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with an escaped space in the tag key, tag value,
+/// and field key.
 #[test]
 fn test_parse_escaped_space() -> Result<(), String> {
-    // Tests parsing a single valid line with an escaped space in the tag key, tag value,
-    // and field key.
     let lp = String::from(r"readings,fleet\ =A\ lberta inc\ line=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -448,9 +448,9 @@ fn test_parse_escaped_space() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with an escaped space in measurement name.
 #[test]
 fn test_parse_measurement_escaped_space() -> Result<(), String> {
-    // Tests parsing a single valid line with an escaped space in measurement name.
     let lp = String::from(r"read\ ings,fleet=Alberta incline=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -466,9 +466,9 @@ fn test_parse_measurement_escaped_space() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with escaped quotes in the field value.
 #[test]
 fn test_parse_escaped_double_quote_field_value() -> Result<(), String> {
-    // Tests parsing a single valid line with escaped quotes in the field value.
     let lp = String::from("readings,fleet=Alberta incline=\"\\\"test\\\"\" 1577836800000");
 
     let expected_metric = Metric::new(
@@ -487,9 +487,9 @@ fn test_parse_escaped_double_quote_field_value() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single invalid line with unescaped quotes in the field value.
 #[test]
 fn test_parse_non_escaped_double_quote_field_value() -> Result<(), String> {
-    // Tests parsing a single invalid line with unescaped quotes in the field value.
     let lp = String::from("readings,fleet=Alberta incline=\"\"test\"\" 1577836800000");
 
     let output_metrics = parse_line_protocol(&lp);
@@ -498,9 +498,9 @@ fn test_parse_non_escaped_double_quote_field_value() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with escaped backslashes in the field value.
 #[test]
 fn test_parse_escaped_backslash_field_value() -> Result<(), String> {
-    // Tests parsing a single valid line with escaped backslashes in the field value.
     let lp = String::from("readings,fleet=Alberta incline=\"\\\\test\\\\\" 1577836800000");
 
     let expected_metric = Metric::new(
@@ -519,10 +519,10 @@ fn test_parse_escaped_backslash_field_value() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with escaped backslashes in the measurement name, tag key,
+/// tag value, and field key.
 #[test]
 fn test_parse_escaped_backslash_not_field_value() -> Result<(), String> {
-    // Tests parsing a single valid line with escaped backslashes in the measurement name, tag key,
-    // tag value, and field key.
     let lp = String::from("read\\\\ings,fl\\\\eet=Al\\\\berta inc\\\\line=125i 1577836800000");
 
     let expected_metric = Metric::new(
@@ -538,9 +538,9 @@ fn test_parse_escaped_backslash_not_field_value() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with one comment included.
 #[test]
 fn test_parse_single_point_single_comment() -> Result<(), String> {
-    // Tests parsing a single valid line with one comment included.
     let lp = String::from(
         "# This is a comment
         readings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000",
@@ -562,9 +562,9 @@ fn test_parse_single_point_single_comment() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing a single valid line with two comments included.
 #[test]
 fn test_parse_single_point_multiple_comments() -> Result<(), String> {
-    // Tests parsing a single valid line with two comments included.
     let lp = String::from(
         "# This is a comment
         # This is another comment
@@ -587,9 +587,9 @@ fn test_parse_single_point_multiple_comments() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing two valid lines with one comment included.
 #[test]
 fn test_parse_multiple_points_single_comment() -> Result<(), String> {
-    // Tests parsing two valid lines with one comment included.
     let lp = String::from(
         "# This is a comment
         readings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000
@@ -614,9 +614,9 @@ fn test_parse_multiple_points_single_comment() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing two valid lines with two comments included.
 #[test]
 fn test_parse_multiple_points_multiple_comments() -> Result<(), String> {
-    // Tests parsing two valid lines with two comments included.
     let lp = String::from(
         "# This is a comment
         # This is another comment
@@ -642,9 +642,9 @@ fn test_parse_multiple_points_multiple_comments() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing one valid line with a nanosecond timestamp.
 #[test]
 fn test_parse_nanoseconds_timestamp() -> Result<(), String> {
-    // Tests parsing one valid line with a nanosecond timestamp.
     let lp =
         String::from("readings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000000000");
 
@@ -666,9 +666,9 @@ fn test_parse_nanoseconds_timestamp() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing one valid line with a microsecond timestamp.
 #[test]
 fn test_parse_microseconds_timestamp() -> Result<(), String> {
-    // Tests parsing one valid line with a microsecond timestamp.
     let lp = String::from("readings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000000");
 
     let expected_metric = Metric::new(
@@ -689,9 +689,9 @@ fn test_parse_microseconds_timestamp() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing one valid line with a millisecond timestamp.
 #[test]
 fn test_parse_milliseconds_timestamp() -> Result<(), String> {
-    // Tests parsing one valid line with a millisecond timestamp.
     let lp = String::from("readings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800000");
 
     let expected_metric = Metric::new(
@@ -712,9 +712,9 @@ fn test_parse_milliseconds_timestamp() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing one valid line with a second timestamp.
 #[test]
 fn test_parse_seconds_timestamp() -> Result<(), String> {
-    // Tests parsing one valid line with a second timestamp.
     let lp = String::from("readings,fleet=Alberta incline=125i,fuel_usage=21.30 1577836800");
 
     let expected_metric = Metric::new(
@@ -735,9 +735,9 @@ fn test_parse_seconds_timestamp() -> Result<(), String> {
     Ok(())
 }
 
+/// Tests parsing empty line protocol.
 #[test]
 fn test_parse_empty() -> Result<(), String> {
-    // Tests parsing empty line protocol.
     let lp = String::new();
 
     let output_metrics = parse_line_protocol(&lp).expect("Failed to parse line protocol");

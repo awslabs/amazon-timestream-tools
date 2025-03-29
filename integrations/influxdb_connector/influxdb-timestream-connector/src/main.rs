@@ -1,5 +1,6 @@
 use influxdb_timestream_connector::{
-    lambda_handler, records_builder::validate_env_variables, timestream_utils::get_connection,
+    lambda_handler,
+    timestream_utils::{get_connection, TimestreamEnvConfig},
 };
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use serde_json::Value;
@@ -9,9 +10,9 @@ use tracing_subscriber::{
     fmt::{self, format::FmtSpan},
 };
 
-// The number of threads to use to chunk Vecs in parallel
-// using rayon
-// Lambda functions have a maximum of 1024 threads
+/// The number of threads to use to chunk Vecs in parallel
+/// using rayon.
+/// Lambda functions have a maximum of 1024 threads.
 pub static NUM_RAYON_THREADS: usize = 32;
 
 #[tokio::main]
@@ -36,8 +37,10 @@ async fn main() -> Result<(), Error> {
         .build_global()
         .unwrap();
 
-    validate_env_variables()?;
-    let region = std::env::var("region")?;
+    // Get Timestream environment variables
+    let timestream_env_config = TimestreamEnvConfig::get().await?;
+
+    let region = timestream_env_config.region.clone();
     let timestream_client = get_connection(&region).await?;
     let timestream_client = Arc::new(timestream_client);
     run(service_fn(|event: LambdaEvent<Value>| {

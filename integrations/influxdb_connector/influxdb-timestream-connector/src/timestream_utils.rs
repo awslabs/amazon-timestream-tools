@@ -1,20 +1,331 @@
 use anyhow::{anyhow, Error, Result};
+use aws_sdk_s3::error::SdkError;
 use aws_sdk_timestreamwrite as timestream_write;
+use aws_sdk_timestreamwrite::operation::create_database::CreateDatabaseError;
+use aws_sdk_timestreamwrite::operation::create_table::CreateTableError;
 use aws_types::region::Region;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use log::info;
+use log::{error, info};
+use once_cell::sync::OnceCell;
+use rand::Rng;
 use rayon::prelude::{ParallelIterator, ParallelSlice};
 use std::sync::Arc;
-use tokio::sync::Semaphore;
+use std::thread;
+use std::time::Duration;
+use tokio::sync::{Mutex, Semaphore};
 use tokio::task;
 
-// The maximum number of threads to use for ingesting
-// batches of records to Timestream in parallel
+/// The maximum number of threads to use for ingesting
+/// batches of records to Timestream in parallel.
 static NUM_TIMESTREAM_INGEST_THREADS: usize = 12;
+
+/// The maximum number of database/table creation/delete API calls
+/// that can be made per second is 1.
+pub static TIMESTREAM_API_BASE_WAIT_SECONDS: u64 = 1;
+
+/// The maximum number of retries for any Timestream API call.
+static MAX_RETRIES: u32 = 7;
 
 pub const DIMENSION_PARTITION_KEY_TYPE: &str = "dimension";
 pub const MEASURE_PARTITION_KEY_TYPE: &str = "measure";
+
+/// Environment variables for Timestream for LiveAnalytics.
+#[derive(Debug, Clone)]
+pub struct TimestreamEnvConfig {
+    // Required environment variables
+    /// The Timestream for LiveAnalytics database name to use.
+    pub database_name: String,
+    /// Whether to allow database creation upon ingestion of records.
+    pub enable_database_creation: bool,
+    /// Whether to allow table creation upon ingestion of records. When using
+    // multi-table multi measure schema, each unique line protocol measurement
+    /// in a request will result in the creation of a new table with the same
+    /// name as the measurement.
+    pub enable_table_creation: bool,
+    /// Whether to enable magnetic storage writes for the Timestream table.
+    pub enable_mag_store_writes: bool,
+    /// Whether to only allow the ingestion of records that contain the custom
+    /// partition key.
+    pub enforce_custom_partition_key: bool,
+    /// The AWS region to use, for example, us-west-2.
+    pub region: String,
+    /// Maps records ingested to a single table or multiple tables.
+    /// Valid options are single-table or multi-table.
+    pub table_mapping: String,
+
+    // Optional environment variables
+    /// The dimension to use as the partition key. This environment variable is
+    /// required if the custom_partition_key_type environment variable is set
+    /// to 'dimension'.
+    pub custom_partition_key_dimension: Option<String>,
+    /// The type of custom partition key to use. Valid options are 'dimension'
+    /// or 'measure'. The 'dimension' option requires the
+    /// custom_partition_key_dimension environment variable to also be set. If
+    /// this parameter is not provided, newly-created tables will use default
+    // partitioning and none of the parameters relating to custom partition
+    /// keys will be used.
+    pub custom_partition_key_type: Option<String>,
+    /// A comma-separated string of key-value pairs to label the database.
+    ///
+    /// # Examples
+    ///
+    /// ```bash
+    /// export database_tags='example_key1=example_value1,example_key2=example_value2'
+    /// ```
+    pub database_tags: Option<Vec<timestream_write::types::Tag>>,
+    /// AWS KMS key for the database. If the KMS key is not specified, the
+    /// database will be encrypted with a Timestream-managed KMS key located in
+    /// your account.
+    pub kms_key_id: Option<String>,
+    /// The number of days to retain data in magnetic storage in Timestream.
+    pub mag_store_retention_period: Option<i64>,
+    /// The measure name to use for multi-measure records, when table_mapping
+    /// is set to 'multi-table'.
+    pub measure_name_for_multi_measure_records: Option<String>,
+    /// The number of hours to retain data in memory in Timestream.
+    pub mem_store_retention_period: Option<i64>,
+    /// Name of the table when table_mapping is set to single-table.
+    pub single_table_name: Option<String>,
+    /// A comma-separated string of key-value pairs to label the table(s).
+    ///
+    /// # Examples
+    ///
+    /// ```bash
+    /// export table_tags='example_key1=example_value1,example_key2=example_value2'
+    /// ```
+    pub table_tags: Option<Vec<timestream_write::types::Tag>>,
+}
+
+impl TimestreamEnvConfig {
+    fn new() -> Result<Self, Error> {
+        let region = match std::env::var("region") {
+            Ok(val) => val,
+            Err(_) => {
+                let err_message = "Non-retryable error: region environment variable is not defined";
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            }
+        };
+
+        let database_name = match std::env::var("database_name") {
+            Ok(val) => val,
+            Err(_) => {
+                let err_message =
+                    "Non-retryable error: database_name environment variable is not defined";
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            }
+        };
+
+        let enable_table_creation = std::env::var("enable_table_creation")
+            .map(env_var_to_bool)
+            .unwrap_or(false);
+
+        let enable_mag_store_writes = std::env::var("enable_mag_store_writes")
+            .map(env_var_to_bool)
+            .unwrap_or(false);
+
+        let mag_store_retention_period = std::env::var("mag_store_retention_period")
+            .ok()
+            .and_then(|val| val.parse::<i64>().ok());
+
+        let mem_store_retention_period = std::env::var("mem_store_retention_period")
+            .ok()
+            .and_then(|val| val.parse::<i64>().ok());
+
+        if enable_table_creation {
+            if mag_store_retention_period.is_none() {
+                return Err(anyhow!(
+                    "Non-retryable error: mag_store_retention_period environment variable is not defined"
+                ));
+            }
+            if mem_store_retention_period.is_none() {
+                return Err(anyhow!(
+                    "Non-retryable error: mem_store_retention_period environment variable is not defined"
+                ));
+            }
+        }
+
+        let table_mapping = match std::env::var("table_mapping") {
+            Ok(val) => val.to_lowercase(),
+            Err(_) => {
+                let err_message =
+                    "Non-retryable error: table_mapping environment variable is not defined";
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            }
+        };
+
+        let single_table_name = std::env::var("single_table_name").ok();
+        let measure_name_for_multi_measure_records =
+            std::env::var("measure_name_for_multi_measure_records").ok();
+
+        // Validate environment variables for table mapping
+        match table_mapping.as_str() {
+            "single-table" => {
+                if single_table_name.is_none() {
+                    return Err(anyhow!(
+                        "Non-retryable error: single_table_name environment variable is not defined"
+                    ));
+                }
+            }
+            "multi-table" => {
+                if measure_name_for_multi_measure_records.is_none() {
+                    return Err(anyhow!(
+                    "Non-retryable error: measure_name_for_multi_measure_records environment variable is not defined"
+                ));
+                }
+            }
+            table_mapping => {
+                return Err(anyhow!(
+                    "Non-retryable error: {:?} is an invalid value for the table_mapping environment variable",
+                    table_mapping
+                ))
+            }
+        }
+
+        // Customer-defined partition key environment variables
+        let custom_partition_key_type = std::env::var("custom_partition_key_type").ok();
+        let custom_partition_key_dimension = std::env::var("custom_partition_key_dimension").ok();
+        let enforce_custom_partition_key = std::env::var("enforce_custom_partition_key")
+            .map(env_var_to_bool)
+            .unwrap_or(false);
+
+        if custom_partition_key_type.is_some() {
+            // Check required environment variables for when custom partition key type is "dimension." If it is "measure,"
+            // no other environment variables are necessary.
+            let custom_partition_key_type_value = match custom_partition_key_type.clone() {
+                Some(val) => val,
+                None => {
+                    let err_message =
+                        "Non-retryable error: Failed to get custom_partition_key_type value";
+                    error!("{}", err_message);
+                    return Err(anyhow!(err_message));
+                }
+            };
+
+            if custom_partition_key_type_value == DIMENSION_PARTITION_KEY_TYPE
+                && custom_partition_key_dimension.is_none()
+            {
+                return Err(anyhow!(
+                format!("Non-retryable error: If custom_partition_key_type is {DIMENSION_PARTITION_KEY_TYPE}, then custom_partition_key_dimension must be defined")
+            ));
+            }
+        }
+
+        let database_tags = std::env::var("database_tags")
+            .ok()
+            .and_then(|database_tags| parse_tags_from_str(&database_tags).ok());
+
+        let table_tags = std::env::var("table_tags")
+            .ok()
+            .and_then(|table_tags| parse_tags_from_str(&table_tags).ok());
+
+        let enable_database_creation = std::env::var("enable_database_creation")
+            .map(env_var_to_bool)
+            .unwrap_or(false);
+
+        let kms_key_id = std::env::var("kms_key_id").ok();
+
+        Ok(Self {
+            custom_partition_key_dimension,
+            custom_partition_key_type,
+            database_name,
+            database_tags,
+            enable_database_creation,
+            enable_mag_store_writes,
+            enable_table_creation,
+            enforce_custom_partition_key,
+            kms_key_id,
+            mag_store_retention_period,
+            measure_name_for_multi_measure_records,
+            mem_store_retention_period,
+            region,
+            single_table_name,
+            table_mapping,
+            table_tags,
+        })
+    }
+
+    /// Gets TIMESTREAM_ENV_CONFIG. All fields of TimestreamEnvConfig that are
+    /// not an Option must be defined.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use influxdb_timestream_connector::timestream_utils::TimestreamEnvConfig;
+    /// use std::env;
+    /// # use tokio_test::block_on;
+    ///
+    /// # block_on(async {
+    /// let mut timestream_env_config_result = TimestreamEnvConfig::get().await;
+    /// // Required environment variables must be defined
+    /// assert!(timestream_env_config_result.is_err());
+    ///
+    /// env::set_var("database_name", "fake_database");
+    /// env::set_var("enable_database_creation", "true");
+    /// env::set_var("enable_table_creation", "true");
+    /// env::set_var("mag_store_retention_period", "10000");
+    /// env::set_var("mem_store_retention_period", "24");
+    /// env::set_var("enable_mag_store_writes", "true");
+    /// env::set_var("enforce_custom_partition_key", "false");
+    /// env::set_var("measure_name_for_multi_measure_records", "fake_measure_name");
+    /// env::set_var("region", "fake_region");
+    /// env::set_var("table_mapping", "multi-table");
+    /// timestream_env_config_result = TimestreamEnvConfig::get().await;
+    /// assert!(timestream_env_config_result.is_ok());
+    /// # })
+    /// ```
+    pub async fn get() -> Result<TimestreamEnvConfig, Error> {
+        let config_lock = TIMESTREAM_ENV_CONFIG.get_or_init(|| Mutex::new(None));
+        let mut config = config_lock.lock().await;
+
+        if config.is_none() {
+            *config = Some(TimestreamEnvConfig::new());
+        }
+
+        match config.take() {
+            Some(Ok(env_config)) => Ok(env_config),
+            Some(Err(err)) => Err(anyhow!("{}", err)),
+            None => Err(anyhow!(
+                "Retryable error: TimestreamEnvConfig configuration has not been initialized"
+            )),
+        }
+    }
+
+    /// Resets TIMESTREAM_ENV_CONFIG, requiring it to be reinitialized for any future use.
+    /// This function may return an Err, if a lock cannot be acquired on
+    /// TIMESTREAM_ENV_CONFIG.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Here, reset_timestream_env_config is used to reset environment variables during
+    /// // testing.
+    /// // Changes to environment variables are only picked up by the connector after
+    /// // reset_timestream_env_config is called
+    /// #[tokio::test]
+    /// async fn test_example() -> Result<(), Error> {
+    ///    env::remove_var("some_environment_variable_removed_for_test");
+    ///    TimestreamEnvConfig::reset();
+    /// }
+    /// ```
+    pub async fn reset() {
+        if let Some(config_lock) = TIMESTREAM_ENV_CONFIG.get() {
+            let mut config = config_lock.lock().await;
+            *config = None;
+        }
+    }
+}
+
+/// Timestream environment variable configuration, making sure that environment
+/// variables are read once.
+/// This being a OnceLock<Mutex<Option<Result<TimestreamEnvConfig, Error>>>>
+/// means that it can handle checking for required environment variables and is
+/// thread safe.
+static TIMESTREAM_ENV_CONFIG: OnceCell<Mutex<Option<Result<TimestreamEnvConfig, Error>>>> =
+    OnceCell::new();
 
 #[derive(Debug)]
 pub struct TableConfig {
@@ -26,12 +337,17 @@ pub struct TableConfig {
     pub custom_partition_key_dimension: Option<String>,
 }
 
+/// Converts an environment variable to a boolean value.
+#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
+pub fn env_var_to_bool(env_var: String) -> bool {
+    matches!(env_var.to_lowercase().as_str(), "true" | "t" | "1")
+}
+
+/// Gets a connection to Timestream.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn get_connection(
     region: &str,
 ) -> Result<timestream_write::Client, timestream_write::Error> {
-    // Get a connection to Timestream
-
     let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
         .region(Region::new(region.to_owned()))
         .load()
@@ -46,14 +362,14 @@ pub async fn get_connection(
     Ok(client)
 }
 
+/// Creates a new Timestream database.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn create_database(
     client: &Arc<timestream_write::Client>,
     database_name: &str,
     kms_key_id: Option<&str>,
     tags: Option<Vec<timestream_write::types::Tag>>,
-) -> Result<(), timestream_write::Error> {
-    // Create a new Timestream database
+) -> Result<(), Error> {
     info!("Creating new database: {}", database_name);
 
     let mut create_db_builder = client
@@ -78,12 +394,40 @@ pub async fn create_database(
         info!("No tags provided for the database.");
     }
 
-    create_db_builder.send().await?;
+    let create_db_result = retry_with_backoff(|| create_db_builder.clone().send()).await;
 
-    info!("Database '{}' created successfully.", database_name);
-    Ok(())
+    match create_db_result {
+        Ok(_) => {
+            info!("Database '{}' created successfully.", database_name);
+            Ok(())
+        }
+        Err(error) => {
+            if let Some(sdk_error) = error.downcast_ref::<SdkError<CreateDatabaseError>>() {
+                let status_code = sdk_error.raw_response().unwrap().status().as_u16();
+                let service_error = sdk_error
+                    .as_service_error()
+                    .ok_or(anyhow!("Failed to get service error"))?;
+                let retryable_message = match is_retryable_status_code(status_code) {
+                    true => "retryable",
+                    false => "non-retryable",
+                };
+                let err_message = format!(
+                    "Failed to create database '{}': {}: {:#?}",
+                    database_name, retryable_message, service_error
+                );
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            } else {
+                let err_message =
+                    format!("Failed to create database '{}': {:?}", database_name, error);
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            }
+        }
+    }
 }
 
+/// Creates a new Timestream table.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn create_table(
     client: &Arc<timestream_write::Client>,
@@ -91,8 +435,7 @@ pub async fn create_table(
     table_name: &str,
     table_config: TableConfig,
     tags: Option<Vec<timestream_write::types::Tag>>,
-) -> Result<(), timestream_write::Error> {
-    // Create a new Timestream table
+) -> Result<(), Error> {
     info!(
         "Creating new table {} for database {}",
         table_name, database_name
@@ -144,23 +487,51 @@ pub async fn create_table(
         info!("No tags provided for the table.");
     }
 
-    create_table_builder.send().await?;
+    let create_table_result = retry_with_backoff(|| create_table_builder.clone().send()).await;
 
-    info!(
-        "Table '{}' created successfully in database '{}'.",
-        table_name, database_name
-    );
-    Ok(())
+    match create_table_result {
+        Ok(_) => {
+            info!(
+                "Table '{}' created successfully in database '{}'.",
+                table_name, database_name
+            );
+            return Ok(());
+        }
+        Err(error) => {
+            if let Some(sdk_error) = error.downcast_ref::<SdkError<CreateTableError>>() {
+                let status_code = sdk_error.raw_response().unwrap().status().as_u16();
+                let service_error = sdk_error
+                    .as_service_error()
+                    .ok_or(anyhow!("Failed to get service error"))?;
+                let retryable_message = match is_retryable_status_code(status_code) {
+                    true => "retryable",
+                    false => "non-retryable",
+                };
+                let err_message = format!(
+                    "Failed to create table '{}'.'{}': {}: {:#?}",
+                    database_name, table_name, retryable_message, service_error
+                );
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            } else {
+                let err_message = format!(
+                    "Failed to create table '{}'.'{}': {:?}",
+                    database_name, table_name, error
+                );
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            }
+        }
+    }
 }
 
+/// Checks if a table already exists.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn table_exists(
     client: &Arc<timestream_write::Client>,
     database_name: &str,
     table_name: &str,
 ) -> Result<bool, Error> {
-    // Check if table already exists
-
     match client
         .describe_table()
         .table_name(table_name)
@@ -174,18 +545,30 @@ pub async fn table_exists(
             .map(|e| e.is_resource_not_found_exception())
         {
             Some(true) => Ok(false),
-            _ => Err(anyhow!(error)),
+            _ => {
+                let status_code = error.raw_response().unwrap().status().as_u16();
+                let service_error = error.into_service_error();
+                let retryable_message = match is_retryable_status_code(status_code) {
+                    true => "retryable",
+                    false => "non-retryable",
+                };
+                let err_message = format!(
+                    "Describe table error for table '{}'.'{}': {}: {:#?}",
+                    database_name, table_name, retryable_message, service_error
+                );
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            }
         },
     }
 }
 
+/// Checks if a database already exists.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn database_exists(
     client: &Arc<timestream_write::Client>,
     database_name: &str,
 ) -> Result<bool, Error> {
-    // Check if database already exists
-
     match client
         .describe_database()
         .database_name(database_name)
@@ -198,9 +581,101 @@ pub async fn database_exists(
             .map(|e| e.is_resource_not_found_exception())
         {
             Some(true) => Ok(false),
-            _ => Err(anyhow!(error)),
+            _ => {
+                let status_code = error.raw_response().unwrap().status().as_u16();
+                let service_error = error.into_service_error();
+                let retryable_message = match is_retryable_status_code(status_code) {
+                    true => "retryable",
+                    false => "non-retryable",
+                };
+                let err_message = format!(
+                    "Describe database error: {}: {:#?}",
+                    retryable_message, service_error
+                );
+                error!("{}", err_message);
+                return Err(anyhow!(err_message));
+            }
         },
     }
+}
+
+/// Retries a Timestream operation with exponential backoff and jitter.
+/// The operation F must return a Future where the output of the Future is a Result<T, E>,
+/// where T is any successful output, and E is an error that can be translated
+/// into an anyhow::Error. This is tailored for Timestream Write API calls.
+///
+/// # Examples
+///
+/// ```
+/// use influxdb_timestream_connector::timestream_utils::{get_connection, retry_with_backoff};
+/// # use tokio_test::block_on;
+///
+/// # block_on(async {
+/// let timestream_client = get_connection("us-west-2")
+///     .await
+///     .expect("Failed to get a Timestream client connection");
+///
+/// let list_databases_result = retry_with_backoff(|| {
+///     timestream_client.list_databases().set_max_results(Some(1)).send()
+/// }).await;
+///
+/// assert!(list_databases_result.is_ok());
+/// # })
+/// ```
+#[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
+pub async fn retry_with_backoff<F, Fut, T, E>(mut operation: F) -> Result<(), Error>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, E>>,
+    E: Into<Error> + std::fmt::Debug,
+{
+    for attempt in 0..MAX_RETRIES {
+        match operation().await {
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(err) => {
+                let anyhow_err = err.into();
+
+                if let Some(sdk_err) = anyhow_err.downcast_ref::<SdkError<CreateDatabaseError>>() {
+                    if let Some(service_error) = sdk_err.as_service_error() {
+                        if matches!(service_error, CreateDatabaseError::ConflictException(_)) {
+                            info!("Database already exists");
+                            return Ok(());
+                        }
+                    }
+                }
+
+                if let Some(sdk_err) = anyhow_err.downcast_ref::<SdkError<CreateTableError>>() {
+                    if let Some(service_error) = sdk_err.as_service_error() {
+                        if matches!(service_error, CreateTableError::ConflictException(_)) {
+                            info!("Table already exists");
+                            return Ok(());
+                        }
+                    }
+                }
+
+                if attempt == MAX_RETRIES - 1 {
+                    return Err(anyhow_err);
+                }
+
+                let exp_backoff =
+                    Duration::from_secs(TIMESTREAM_API_BASE_WAIT_SECONDS * u64::pow(2, attempt));
+                let jitter = Duration::from_millis(rand::thread_rng().gen_range(0, 1000));
+                let delay = exp_backoff + jitter;
+
+                info!(
+                    "Attempt {}/{} failed. Retrying in {}s",
+                    attempt + 1,
+                    MAX_RETRIES,
+                    delay.as_secs()
+                );
+
+                thread::sleep(delay);
+            }
+        }
+    }
+    unreachable!()
 }
 
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
@@ -215,12 +690,15 @@ pub fn parse_tags_from_str(tags_str: &str) -> Result<Vec<timestream_write::types
         let mut parts = tag.splitn(2, '=');
         let key = parts
             .next()
-            .ok_or_else(|| anyhow!("Missing key in tag '{}'", tag))?
+            .ok_or_else(|| anyhow!("Non-retryable error: Missing key in tag '{}'", tag))?
             .trim();
 
         // ensure key is not empty
         if key.is_empty() {
-            return Err(anyhow!("Tag key must not be empty in tag '{}'", tag));
+            return Err(anyhow!(
+                "Non-retryable error: Tag key must not be empty in tag '{}'",
+                tag
+            ));
         }
         let key = key.to_string();
 
@@ -237,12 +715,13 @@ pub fn parse_tags_from_str(tags_str: &str) -> Result<Vec<timestream_write::types
     Ok(tags)
 }
 
+/// Gets a populated table_config struct.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-pub fn get_table_config() -> Result<TableConfig, Error> {
-    // Get the populated table_config struct
+pub async fn get_table_config() -> Result<TableConfig, Error> {
+    let timestream_env_config = TimestreamEnvConfig::get().await?;
 
-    let custom_partition_key_type = match std::env::var("custom_partition_key_type") {
-        Ok(custom_partition_key_type_value) => {
+    let custom_partition_key_type = match &timestream_env_config.custom_partition_key_type {
+        Some(custom_partition_key_type_value) => {
             match custom_partition_key_type_value.to_lowercase().as_str() {
                 DIMENSION_PARTITION_KEY_TYPE => {
                     Some(timestream_write::types::PartitionKeyType::Dimension)
@@ -263,17 +742,9 @@ pub fn get_table_config() -> Result<TableConfig, Error> {
     let enforce_custom_partition_key = match custom_partition_key_type {
         Some(timestream_write::types::PartitionKeyType::Dimension) => {
             // enforce_custom_partition_key value (true or false) is required if custom_partition_key_type is PartitionKeyType::Dimension
-            match std::env::var("enforce_custom_partition_key")?
-                .to_lowercase()
-                .as_str()
-            {
-                "true" | "t" | "1" => {
-                    Some(timestream_write::types::PartitionKeyEnforcementLevel::Required)
-                }
-                "false" | "f" | "0" => {
-                    Some(timestream_write::types::PartitionKeyEnforcementLevel::Optional)
-                }
-                _ => None,
+            match timestream_env_config.enforce_custom_partition_key {
+                true => Some(timestream_write::types::PartitionKeyEnforcementLevel::Required),
+                false => Some(timestream_write::types::PartitionKeyEnforcementLevel::Optional),
             }
         }
         _ => None,
@@ -284,36 +755,49 @@ pub fn get_table_config() -> Result<TableConfig, Error> {
     // any value is specified for custom_partition_key_dimension
     let custom_partition_key_dimension = match custom_partition_key_type {
         Some(timestream_write::types::PartitionKeyType::Dimension) => {
-            Some(std::env::var("custom_partition_key_dimension")?)
+            timestream_env_config.custom_partition_key_dimension.clone()
         }
         _ => None,
     };
 
+    let mag_store_retention_period = match timestream_env_config.mag_store_retention_period {
+        Some(val) => val,
+        None => {
+            let err_message = "Non-retryable error: Failed to retrieve mag_store_retention_period environment variable i64 value";
+            error!("{}", err_message);
+            return Err(anyhow!(err_message));
+        }
+    };
+
+    let mem_store_retention_period = match timestream_env_config.mem_store_retention_period {
+        Some(val) => val,
+        None => {
+            let err_message = "Non-retryable error: Failed to retrieve mem_store_retention_period environment variable i64 value";
+            error!("{}", err_message);
+            return Err(anyhow!(err_message));
+        }
+    };
+
     Ok(TableConfig {
-        mag_store_retention_period: std::env::var("mag_store_retention_period")?.parse()?,
-        mem_store_retention_period: std::env::var("mem_store_retention_period")?.parse()?,
-        enable_mag_store_writes: matches!(
-            std::env::var("enable_mag_store_writes")?
-                .to_lowercase()
-                .as_str(),
-            "true" | "t" | "1"
-        ),
+        mag_store_retention_period,
+        mem_store_retention_period,
+        enable_mag_store_writes: timestream_env_config.enable_mag_store_writes,
         enforce_custom_partition_key,
         custom_partition_key_type,
         custom_partition_key_dimension,
     })
 }
 
+/// Ingests records to Timestream in batches of 100 (max supported Timestream batch size)
+/// in parallel.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub async fn ingest_records(
     client: Arc<timestream_write::Client>,
     database_name: Arc<String>,
     table_name: String,
+    common_attributes: timestream_write::types::Record,
     records: Vec<timestream_write::types::Record>,
 ) -> Result<(), Error> {
-    // Ingest records to Timestream in batches of 100 (Max supported Timestream batch size)
-    // in parallel
-
     let mut records_ingested: usize = 0;
     const MAX_TIMESTREAM_BATCH_SIZE: usize = 100;
 
@@ -338,11 +822,17 @@ pub async fn ingest_records(
         let client_clone = Arc::clone(&client);
         let table_name_clone = table_name.clone();
         let database_name_clone = Arc::clone(&database_name).to_string();
+        let common_attributes_clone = common_attributes.clone();
 
         let future = task::spawn(async move {
-            let result =
-                ingest_record_batch(client_clone, database_name_clone, table_name_clone, chunk)
-                    .await;
+            let result = ingest_record_batch(
+                client_clone,
+                database_name_clone,
+                table_name_clone,
+                common_attributes_clone,
+                chunk,
+            )
+            .await;
             drop(permit);
             result
         });
@@ -376,6 +866,7 @@ pub async fn ingest_record_batch(
     client: Arc<timestream_write::Client>,
     database_name: String,
     table_name: String,
+    common_attributes: timestream_write::types::Record,
     chunk: Vec<timestream_write::types::Record>,
 ) -> Result<(), Error> {
     match client
@@ -383,15 +874,133 @@ pub async fn ingest_record_batch(
         .database_name(database_name)
         .table_name(table_name)
         .set_records(Some(chunk))
+        .set_common_attributes(Some(common_attributes))
         .send()
         .await
     {
         Ok(_) => {}
         Err(error) => {
-            info!("SdkError: {:?}", error.raw_response().unwrap());
-            return Err(anyhow!(error));
+            let status_code = error.raw_response().unwrap().status().as_u16();
+            let service_error = error.into_service_error();
+            let retryable_message = match is_retryable_status_code(status_code) {
+                true => "retryable",
+                false => "non-retryable",
+            };
+            let err_message = format!(
+                "Record batch write error: {}: {:#?}",
+                retryable_message, service_error
+            );
+            error!("{}", err_message);
+            return Err(anyhow!(err_message));
         }
     };
 
     Ok(())
+}
+
+pub fn is_retryable_status_code(status_code: u16) -> bool {
+    matches!(status_code, 408 | 425 | 429 | 500 | 502 | 503 | 504 | 509)
+}
+
+#[cfg(test)]
+#[test]
+pub fn test_parse_tags_from_str_empty_string() -> Result<(), Error> {
+    let tags_str = "";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert!(tags.is_empty());
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_whitespace_only() -> Result<(), Error> {
+    let tags_str = "   ";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert!(tags.is_empty());
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_tag_with_no_value() -> Result<(), Error> {
+    let tags_str = "key1";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0].key, "key1");
+    assert_eq!(tags[0].value, "");
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_multiple_tags() -> Result<(), Error> {
+    let tags_str = "key1=value1, key2=value2, key3=value3";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert_eq!(tags.len(), 3);
+    assert_eq!(tags[0].key, "key1");
+    assert_eq!(tags[0].value, "value1");
+    assert_eq!(tags[1].key, "key2");
+    assert_eq!(tags[1].value, "value2");
+    assert_eq!(tags[2].key, "key3");
+    assert_eq!(tags[2].value, "value3");
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_extra_commas() -> Result<(), Error> {
+    let tags_str = "key1=value1, , key2=value2,";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert_eq!(tags.len(), 2);
+    assert_eq!(tags[0].key, "key1");
+    assert_eq!(tags[0].value, "value1");
+    assert_eq!(tags[1].key, "key2");
+    assert_eq!(tags[1].value, "value2");
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_multiple_equals() -> Result<(), Error> {
+    let tags_str = "key1=value=with=equals";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0].key, "key1");
+    assert_eq!(tags[0].value, "value=with=equals");
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_trimming_whitespace() -> Result<(), Error> {
+    let tags_str = "  key1  =  value1  ,   key2=   value2  ";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert_eq!(tags.len(), 2);
+    assert_eq!(tags[0].key, "key1");
+    assert_eq!(tags[0].value, "value1");
+    assert_eq!(tags[1].key, "key2");
+    assert_eq!(tags[1].value, "value2");
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_tag_with_empty_value_explicit() -> Result<(), Error> {
+    let tags_str = "key1=,key2=2,key3";
+    let tags = parse_tags_from_str(tags_str)?;
+    assert_eq!(tags.len(), 3);
+    assert_eq!(tags[0].key, "key1");
+    assert_eq!(tags[0].value, "");
+    assert_eq!(tags[1].key, "key2");
+    assert_eq!(tags[1].value, "2");
+    assert_eq!(tags[2].key, "key3");
+    assert_eq!(tags[2].value, "");
+    Ok(())
+}
+
+#[test]
+pub fn test_parse_tags_from_str_error_empty_key() {
+    let tags_str = "=value";
+    let err = parse_tags_from_str(tags_str).unwrap_err();
+    assert!(err.to_string().contains("Tag key must not be empty"));
+}
+
+#[test]
+pub fn test_parse_tags_from_str_error_only_equals() {
+    let tags_str = "   =   ";
+    let err = parse_tags_from_str(tags_str).unwrap_err();
+    assert!(err.to_string().contains("Tag key must not be empty"));
 }

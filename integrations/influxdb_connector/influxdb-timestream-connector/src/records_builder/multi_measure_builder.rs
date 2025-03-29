@@ -1,10 +1,12 @@
-use super::{validate_env_variables, BuildRecords};
+use super::{AttributeGroupedRecords, BuildRecords, RecordPair};
 use crate::{
     metric::{FieldValue, Metric},
+    timestream_utils::TimestreamEnvConfig,
     SchemaType,
 };
-use anyhow::{Error, Result};
-use aws_sdk_timestreamwrite as timestream_write;
+use anyhow::{anyhow, Error, Result};
+use async_trait::async_trait;
+use aws_sdk_timestreamwrite::{self as timestream_write};
 use std::collections::HashMap;
 
 pub struct MultiMeasureBuilder {
@@ -12,19 +14,19 @@ pub struct MultiMeasureBuilder {
     pub schema_type: SchemaType,
 }
 
+/// Trait implementation to support multi-measure records Timestream.
+#[async_trait]
 impl BuildRecords for MultiMeasureBuilder {
-    // trait implementation to support multi-measure records Timestream
-
     #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-    fn build_records(
+    async fn build_records(
         &self,
         metrics: &[Metric],
         precision: &timestream_write::types::TimeUnit,
-    ) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error> {
-        validate_env_variables()?;
+    ) -> Result<HashMap<String, Vec<AttributeGroupedRecords>>, Error> {
         match self.schema_type {
             SchemaType::SingleTableMultiMeasure => {
-                return build_single_table_multi_measure_records(metrics, precision)
+                let records = build_single_table_multi_measure_records(metrics, precision).await;
+                return records;
             }
             SchemaType::MultiTableMultiMeasure => {
                 return build_multi_table_multi_measure_records(
@@ -44,69 +46,169 @@ impl std::fmt::Debug for MultiMeasureBuilder {
             "{}",
             self.measure_name
                 .as_deref()
-                .expect("Failed to unwrap")
+                .expect("Non-retryable error: Failed to unwrap MultiMeasureBuilder.measure_name")
                 .to_owned()
         )
     }
 }
 
+/// Builds multi-measure records HashMap to be ingested to one table.
+/// The HashMap's key is the table name and its value is a Vec where each entry
+/// is an AttributeGroupedRecords struct, comprised of a common attribute record
+/// and another Vec containing records that share that common attribute.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-fn build_single_table_multi_measure_records(
+async fn build_single_table_multi_measure_records(
     metrics: &[Metric],
     precision: &timestream_write::types::TimeUnit,
-) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error> {
-    // Builds multi-measure records hashmap to be ingested to one table
+) -> Result<HashMap<String, Vec<AttributeGroupedRecords>>, Error> {
+    let timestream_env_config = TimestreamEnvConfig::get().await?;
 
-    let mut records_batch: HashMap<String, Vec<aws_sdk_timestreamwrite::types::Record>> =
-        HashMap::new();
-    let table_name = std::env::var("single_table_name")?;
+    // Records grouped according to table name
+    let mut records_batch: HashMap<String, Vec<AttributeGroupedRecords>> = HashMap::new();
+    // Records grouped according to common attributes.
+    // Key: a common attribute Record as a String, value: index of an existing AttributeGroupedRecords in
+    // records_batch
+    let mut group_indices_map: HashMap<String, usize> = HashMap::new();
+
+    let table_name = timestream_env_config.single_table_name.ok_or(anyhow!(
+        "Non-retryable error: Failed to get single_table_name"
+    ))?;
+
     for metric in metrics.iter() {
-        let new_record = metric_to_timestream_record(metric.name(), metric, precision)?;
-        if let Some(record_vec) = records_batch.get_mut(&table_name) {
-            record_vec.push(new_record);
+        let record_pair = metric_to_timestream_record_pair(metric.name(), metric, precision)?;
+        // Check for existing table entry
+        if let Some(table_group) = records_batch.get_mut(table_name.as_str()) {
+            // Check for existing AttributeGroupedRecords
+            if let Some(attribute_grouped_records_index) =
+                group_indices_map.get(format!("{:#?}", record_pair.common_attributes).as_str())
+            {
+                if let Some(attribute_grouped_records) =
+                    table_group.get_mut(*attribute_grouped_records_index)
+                {
+                    // Add record to group of records with the same common attributes
+                    attribute_grouped_records.records.push(record_pair.record);
+                } else {
+                    // Index was incorrect. Add a new AttributeGroupedRecords and update the incorrect index
+                    // .insert will update the value for the existing entry
+                    group_indices_map.insert(
+                        format!("{:#?}", record_pair.common_attributes),
+                        table_group.len(),
+                    );
+                    table_group.push(AttributeGroupedRecords {
+                        common_attributes: record_pair.common_attributes,
+                        records: vec![record_pair.record],
+                    });
+                }
+            } else {
+                // AttributeGroupedRecords doesn't exist, create it
+                group_indices_map.insert(
+                    format!("{:#?}", record_pair.common_attributes),
+                    table_group.len(),
+                );
+                table_group.push(AttributeGroupedRecords {
+                    common_attributes: record_pair.common_attributes,
+                    records: vec![record_pair.record],
+                });
+            }
         } else {
-            records_batch.insert(table_name.to_string(), vec![new_record]);
+            // Table entry doesn't exist, create it
+            group_indices_map.insert(format!("{:#?}", record_pair.common_attributes), 0);
+            records_batch.insert(
+                table_name.clone(),
+                vec![AttributeGroupedRecords {
+                    common_attributes: record_pair.common_attributes,
+                    records: vec![record_pair.record],
+                }],
+            );
         }
     }
 
     Ok(records_batch)
 }
 
+/// Builds multi-measure records HashMap to be ingested to multiple tables.
+/// The HashMap's key is the table name and its value is a Vec where each entry
+/// is an AttributeGroupedRecords struct, comprised of a common attribute record
+/// and another Vec containing records that share that common attribute.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 fn build_multi_table_multi_measure_records(
     metrics: &[Metric],
     measure_name: Option<&str>,
     precision: &timestream_write::types::TimeUnit,
-) -> Result<HashMap<String, Vec<timestream_write::types::Record>>, Error> {
-    // Builds multi-measure records hashmap to be ingested to multiple tables
+) -> Result<HashMap<String, Vec<AttributeGroupedRecords>>, Error> {
+    // Records grouped according to table name
+    let mut records_batch: HashMap<String, Vec<AttributeGroupedRecords>> = HashMap::new();
+    // Records grouped according to common attributes.
+    // Key: a common attribute Record as a String, value: index of an existing AttributeGroupedRecords in
+    // records_batch
+    let mut group_indices_map: HashMap<String, usize> = HashMap::new();
 
-    let mut records_batch: HashMap<String, Vec<aws_sdk_timestreamwrite::types::Record>> =
-        HashMap::new();
     for metric in metrics.iter() {
-        let new_record = metric_to_timestream_record(
-            measure_name.expect("Failed to unwrap"),
+        let record_pair = metric_to_timestream_record_pair(
+            measure_name.expect("Non-retryable error: Failed to unwrap measure_name"),
             metric,
             precision,
         )?;
         let table_name = metric.name();
-        if let Some(record_vec) = records_batch.get_mut(table_name) {
-            record_vec.push(new_record);
+
+        // Check for existing table entry
+        if let Some(table_group) = records_batch.get_mut(table_name) {
+            // Check for existing AttributeGroupedRecords
+            if let Some(attribute_grouped_records_index) =
+                group_indices_map.get(format!("{:#?}", record_pair.common_attributes).as_str())
+            {
+                if let Some(attribute_grouped_records) =
+                    table_group.get_mut(*attribute_grouped_records_index)
+                {
+                    // Add record to group of records with the same common attributes
+                    attribute_grouped_records.records.push(record_pair.record);
+                } else {
+                    // Index was incorrect. Add a new AttributeGroupedRecords and update the incorrect index
+                    // .insert will update the value for the existing entry
+                    group_indices_map.insert(
+                        format!("{:#?}", record_pair.common_attributes),
+                        table_group.len(),
+                    );
+                    table_group.push(AttributeGroupedRecords {
+                        common_attributes: record_pair.common_attributes,
+                        records: vec![record_pair.record],
+                    });
+                }
+            } else {
+                // AttributeGroupedRecords doesn't exist, create it
+                group_indices_map.insert(
+                    format!("{:#?}", record_pair.common_attributes),
+                    table_group.len(),
+                );
+                table_group.push(AttributeGroupedRecords {
+                    common_attributes: record_pair.common_attributes,
+                    records: vec![record_pair.record],
+                });
+            }
         } else {
-            records_batch.insert(table_name.to_string(), vec![new_record]);
+            // Table entry doesn't exist, create it
+            group_indices_map.insert(format!("{:#?}", record_pair.common_attributes), 0);
+            records_batch.insert(
+                table_name.to_string(),
+                vec![AttributeGroupedRecords {
+                    common_attributes: record_pair.common_attributes,
+                    records: vec![record_pair.record],
+                }],
+            );
         }
     }
 
     Ok(records_batch)
 }
 
+/// Converts a Metric struct to a tuple containing a timestream multi-measure Record and its
+/// common attribute, comprised of the record's dimensions, measure name, and timestamp precision.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
-pub fn metric_to_timestream_record(
+pub fn metric_to_timestream_record_pair(
     measure_name: &str,
     metric: &Metric,
     precision: &timestream_write::types::TimeUnit,
-) -> Result<timestream_write::types::Record, Error> {
-    // Converts the metric struct to a timestream multi-measure record
-
+) -> Result<RecordPair, Error> {
     let mut dimensions: Vec<timestream_write::types::Dimension> = Vec::new();
     for tag in metric.tags().iter().flatten() {
         dimensions.push(
@@ -114,7 +216,7 @@ pub fn metric_to_timestream_record(
                 .name(tag.0.to_owned())
                 .value(tag.1.to_owned())
                 .build()
-                .expect("Failed to build dimension"),
+                .expect("Non-retryable error: Failed to build dimension"),
         )
     }
 
@@ -127,28 +229,33 @@ pub fn metric_to_timestream_record(
                 .value(field.1.to_string())
                 .r#type(measure_type)
                 .build()
-                .expect("Failed to build measure"),
+                .expect("Non-retryable error: Failed to build measure"),
         );
     }
 
-    let new_record = timestream_write::types::Record::builder()
+    let common_attributes = timestream_write::types::Record::builder()
         .measure_name(measure_name)
-        .set_measure_values(Some(measure_values))
+        .set_dimensions(Some(dimensions))
         .set_measure_value_type(Some(timestream_write::types::MeasureValueType::Multi))
         .set_time_unit(Some(precision.clone()))
-        .time(metric.timestamp().to_string())
-        .set_dimensions(Some(dimensions))
         .build();
 
-    Ok(new_record)
+    let record = timestream_write::types::Record::builder()
+        .set_measure_values(Some(measure_values))
+        .time(metric.timestamp().to_string())
+        .build();
+
+    Ok(RecordPair {
+        common_attributes,
+        record,
+    })
 }
 
+/// Converts a Metric struct type to a timestream MeasureValue type.
 #[tracing::instrument(skip_all, level = tracing::Level::TRACE)]
 pub fn get_timestream_measure_type(
     field_value: &FieldValue,
 ) -> Result<timestream_write::types::MeasureValueType, Error> {
-    // Converts a metric struct type to a timestream measure value type
-
     match field_value {
         FieldValue::Boolean(_) => Ok(timestream_write::types::MeasureValueType::Boolean),
         FieldValue::I64(_) => Ok(timestream_write::types::MeasureValueType::Bigint),
