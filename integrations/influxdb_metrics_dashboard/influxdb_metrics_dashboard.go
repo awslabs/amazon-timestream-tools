@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -14,10 +14,14 @@ import (
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/customresources"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb"
 	"github.com/aws/jsii-runtime-go"
 )
 
-func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackProps, databaseName string, vpcID string, influxDBEndpoints string) (awscdk.Stack, error) {
+func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackProps, databaseName string, influxDBIds string) (awscdk.Stack, error) {
 	instanceRole := awsiam.NewRole(stack, jsii.String("influxdb-dashboard-ec2-role"), &awsiam.RoleProps{
 		AssumedBy: awsiam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), nil),
 	})
@@ -45,6 +49,8 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 			awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 				Actions: &[]*string{
 					jsii.String("timestream:DescribeEndpoints"),
+					jsii.String("cloudwatch:ListMetrics"),
+					jsii.String("cloudwatch:GetMetricData"),
 				},
 				Resources: &[]*string{
 					jsii.String("*"),
@@ -55,15 +61,55 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 
 	timestreamPolicy.AttachToRole(instanceRole)
 
-	// Split the comma separated list of uris and create a map of instance ids and uris
-	influxDBEndpointsArr := strings.Split(influxDBEndpoints, ",")
-	influxDBInstances := make(map[string]string)
-	for _, instanceEndpoint := range influxDBEndpointsArr {
-		influxDBInstances[strings.Split(strings.Split(instanceEndpoint, "https://")[1], "-")[0]] = instanceEndpoint + "/metrics"
+	ctx := context.Background()
+	var awsCredentials aws.CredentialsProvider
+	awsConfig, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Printf("Error loading AWS config: " + err.Error())
+		os.Exit(1)
 	}
+	awsCredentials = awsConfig.Credentials
+	svc := timestreaminfluxdb.New(timestreaminfluxdb.Options{
+		Credentials: awsCredentials,
+		Region:      *stack.Region(),
+	})
+	ec2svc := ec2.New(ec2.Options{
+		Credentials: awsCredentials,
+		Region:      *stack.Region(),
+	})
 
+	vpcId := ""
 	telegrafInputOutputConfig := ""
-	for instanceId, instanceUri := range influxDBInstances {
+	instanceEndpoint := ""
+
+	// Split the comma separated list of Ids
+	influxDBIdArr := strings.Split(influxDBIds, ",")
+	for _, instanceId := range influxDBIdArr {
+
+		influxDBInstance, err := svc.GetDbInstance(ctx, &timestreaminfluxdb.GetDbInstanceInput{
+			Identifier: &instanceId,
+		})
+		if err != nil {
+			log.Printf("Error describing InfluxDB instance: %s", err)
+			os.Exit(1)
+		}
+		instanceEndpoint = fmt.Sprintf("https://%s:%d", *influxDBInstance.Endpoint, *influxDBInstance.Port)
+
+		vpc, err := ec2svc.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+			SubnetIds: influxDBInstance.VpcSubnetIds,
+		})
+		if err != nil {
+			log.Printf("Failed to describe subnets for InfluxDB instance: %s", err)
+			os.Exit(1)
+		}
+
+		if vpcId == "" {
+			vpcId = *vpc.Subnets[0].VpcId
+		} else if vpcId != *vpc.Subnets[0].VpcId {
+			log.Printf("Error: all InfluxDB instances must be in the same VPC.")
+			os.Exit(1)
+		}
+
 		telegrafInputOutputConfig += fmt.Sprintf(`
 [[outputs.timestream]]
   region = "%s"
@@ -80,7 +126,20 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 [[inputs.prometheus]]
   urls = ["%s"]
   tags = { influxDBInstance = "%s" }
-`, *stackProps.Env.Region, databaseName, instanceId, instanceUri, instanceId)
+[[inputs.cloudwatch]]
+  region = "%s"
+  period = "5m"
+  delay = "5m"
+  interval = "5m"
+  namespaces = ["AWS/Timestream/InfluxDB"]
+  tags = { influxDBInstance = "%s" }
+  [[inputs.cloudwatch.metrics]]
+    names = ["DiskUtilization", "CPUUtilization", "MemoryUtilization"]
+    [[inputs.cloudwatch.metrics.dimensions]]
+      name = "DbInstanceName"
+      value = "%s"
+
+      `, *stackProps.Env.Region, databaseName, instanceId, instanceEndpoint, instanceId, *stackProps.Env.Region, instanceId, *influxDBInstance.Name)
 	}
 
 	userDataScript :=
@@ -191,11 +250,11 @@ sudo chkconfig telegraf on
 
 # Start Telegraf Service
 service telegraf start
-`, *stackProps.Env.Region, telegrafInputOutputConfig, *stackProps.Env.Region, databaseName, influxDBEndpoints)
+`, *stackProps.Env.Region, telegrafInputOutputConfig)
 
 	vpc := awsec2.Vpc_FromLookup(stack, jsii.String("InfluxDBMetricsDashboardVpc"), &awsec2.VpcLookupOptions{
 		Region: jsii.String(*stackProps.Env.Region),
-		VpcId:  jsii.String(vpcID),
+		VpcId:  jsii.String(vpcId),
 	})
 	ec2SecurityGroup := awsec2.NewSecurityGroup(stack, jsii.String("TelegrafEC2SG"), &awsec2.SecurityGroupProps{
 		Vpc:               vpc,
@@ -224,7 +283,7 @@ service telegraf start
 		SecurityGroup: ec2SecurityGroup,
 	})
 
-	awscdk.NewCfnOutput(stack, jsii.String("EC2InstanceID"), &awscdk.CfnOutputProps{
+	awscdk.NewCfnOutput(stack, jsii.String("EC2 Instance ID"), &awscdk.CfnOutputProps{
 		Value:       ec2Instance.InstanceId(),
 		Description: jsii.String("The instance ID of the EC2 instance running Telegraf"),
 	})
@@ -270,7 +329,7 @@ func addGrafanaWorkspaceToStack(stack awscdk.Stack, stackProps awscdk.StackProps
 	})
 
 	workspaceUri := "https://" + *grafanaWorkspace.AttrEndpoint()
-	awscdk.NewCfnOutput(stack, jsii.String("GrafanaWorkspaceID"), &awscdk.CfnOutputProps{
+	awscdk.NewCfnOutput(stack, jsii.String("Grafana Workspace URL"), &awscdk.CfnOutputProps{
 		Value:       &workspaceUri,
 		Description: jsii.String("The URI of the Grafana workspace"),
 	})
@@ -282,7 +341,7 @@ func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, data
 	var lambdaTimeout float64 = 200.0
 
 	lambdaHandler := awslambda.NewFunction(stack, jsii.String("influxDBMetricDashboardLambdaHandler"), &awslambda.FunctionProps{
-		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2023(),
 		Architecture: awslambda.Architecture_ARM_64(),
 		Handler:      jsii.String("main"),
 		Environment: &map[string]*string{
@@ -348,23 +407,12 @@ func main() {
 	stackId := "InfluxDBMetricsDashboard"
 	var stackProps awscdk.StackProps = awscdk.StackProps{Env: env()}
 	stack := awscdk.NewStack(app, &stackId, &stackProps)
-	endpointsPattern := `^https://([a-zA-Z0-9-\.]+):(\d+)(,https://([a-zA-Z0-9-\.]+):(\d+))*$`
-	endpointsRegex := regexp.MustCompile(endpointsPattern)
 
 	// Need to use context to access variables at time of App Synthesization
 	// Required context
-	vpcIDContext := stack.Node().TryGetContext(jsii.String("VpcId"))
-	if vpcIDContext == nil {
-		log.Printf("VpcId context is required for Telegraf instance")
-		os.Exit(1)
-	}
-	influxDBEndpointsContext := stack.Node().TryGetContext(jsii.String("InfluxDBEndpoints"))
-	if influxDBEndpointsContext == nil {
-		log.Printf("InfluxDBEndpoints context is required to scrape metric endpoints")
-		os.Exit(1)
-	}
-	if !endpointsRegex.MatchString(influxDBEndpointsContext.(string)) {
-		log.Printf("InfluxDB Endpoints context does not fit the format https://<influxdb-endpoint-url>:<port-number>. Additional instances are separated by commas.")
+	influxDBIdContext := stack.Node().TryGetContext(jsii.String("InfluxDBIds"))
+	if influxDBIdContext == nil {
+		log.Printf("InfluxDBIds context is required to scrape metric endpoints")
 		os.Exit(1)
 	}
 
@@ -390,7 +438,7 @@ func main() {
 		databaseName = databaseNameContext.(string)
 	}
 
-	stack, err := addTelegrafEC2InstanceToStack(stack, stackProps, databaseName, vpcIDContext.(string), influxDBEndpointsContext.(string))
+	stack, err := addTelegrafEC2InstanceToStack(stack, stackProps, databaseName, influxDBIdContext.(string))
 	if err != nil {
 		log.Printf("Error adding Telegraf instance to stack: %s", err)
 		return

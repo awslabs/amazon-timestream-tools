@@ -17,8 +17,7 @@ The InfluxDB Metrics Dashboard creates a Grafana dashboard to visualize existing
 
 The following context options are required when deploying the CDK application:
 
-1. **InfluxDBEndpoints**: The comma separated list of URL(s) for Timestream for InfluxDB endpoints, for example `https://example-1234567890.timestream-influxdb.us-east-1.on.aws:8086`.
-4. **VpcId**: The ID for the VPC in which the Timestream for InfluxDB instance has been deployed.
+1. **InfluxDBIds**: The comma separated list of Id(s) for Timestream for InfluxDB instances.
 
 The following context options are optional when deploying the CDK application:
 
@@ -31,13 +30,15 @@ The following context options are optional when deploying the CDK application:
 
 To deploy the InfluxDB Metrics Dashboard application, use the following CDK commands, and populate all required context options in the deploy command:
 
+**note**: To deploy the stack in another region other than the default configured in your `~/.aws/credentials` file, set the environment variable `AWS_REGION` to the target deployment region.
+
 1. Provision AWS environment with the following command:
 ```shell
-cdk bootstrap --context InfluxDBEndpoints="{influxdb_endpoints}" --context VpcId="{vpc_id}"
+cdk bootstrap --context InfluxDBIds="{influxdb_ids}"
 ```
 2. Deploy the application with the following command:
 ```shell
-cdk deploy --context InfluxDBEndpoints="{influxdb_endpoints}"  --context VpcId="{vpc_id}"
+cdk deploy --context InfluxDBIds="{influxdb_ids}"
 ```
 ## Viewing the dashboard
 
@@ -75,5 +76,5 @@ Now that the dashboard has been deployed, you will need to add your AWS IAM Iden
 To cleanup AWS resources created by the application during deployment, execute the following command:
 
 ```shell
-cdk destroy --context InfluxDBEndpoints="{influxdb_endpoints}" --context VpcId="{vpc_id}"
+cdk destroy --context InfluxDBIds="{influxdb_ids}"
 ```
