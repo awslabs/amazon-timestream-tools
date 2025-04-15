@@ -4,10 +4,6 @@
 bin/
 obj/
 
-# Ignore common go files
-go.mod
-go.sum
-
 # Ignore common Java files
 .idea/
 *.iml

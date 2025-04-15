@@ -1,0 +1,10 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+profile = "default"
+region = "us-east-1"
+stack_name = "InfluxDBTimestreamConnector"
+resolve_s3 = true

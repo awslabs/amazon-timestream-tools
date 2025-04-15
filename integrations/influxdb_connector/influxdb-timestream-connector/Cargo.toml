@@ -1,0 +1,46 @@
+[package]
+name = "influxdb-timestream-connector"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies.lambda_runtime]
+version = "0.13.0"
+default-features = false
+features = ["anyhow"]
+
+[dependencies]
+anyhow = "1.0.86"
+async-trait = "0.1.88"
+aws-config = { version = "1.5.5", features = ["behavior-version-latest"] }
+aws-credential-types = "1.2.1"
+aws-runtime = "1.4.2"
+aws-sdk-s3 = "1.46.0"
+aws-sdk-timestreamwrite = "1.39.0"
+aws-types = "1.3.3"
+chrono = "0.4.38"
+env_logger = "0.11.5"
+futures = "0.3.31"
+influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }
+log = "0.4.22"
+once_cell = "1.21.1"
+rand = "0.5.0"
+rayon = "1.10.0"
+serde = { version = "1.0.208", features = ["derive"] }
+serde_json = "1.0.1"
+tokio = { version = "1.39.3", features = ["full"] }
+tokio-test = "0.4.4"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+[package.metadata.lambda.env]
+region = "us-east-1"
+database_name = "influxdb-line-protocol"
+table_mapping = "multi-table"
+single_table_name = "influxdb-measures"
+measure_name_for_multi_measure_records = "influxdb-measure"
+enable_database_creation = "true"
+enable_table_creation = "true"
+enable_mag_store_writes = "true"
+mag_store_retention_period = "8000"
+mem_store_retention_period = "12"
+local_invocation = "true"
