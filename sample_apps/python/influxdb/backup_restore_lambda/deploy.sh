@@ -69,6 +69,20 @@ if [[ -z "$BACKUP_URL" ]]; then
     read -p "Enter Timestream for InfluxDB backup endpoint (e.g., https://example.com:8086): " BACKUP_URL
 fi
 
+if [[ -z "$BACKUP_PORT" ]]; then
+    if [[ $BACKUP_URL =~ :[0-9]+$ ]]; then
+        BACKUP_PORT=$(echo $BACKUP_URL | sed -e 's,^.*:,:,g' -e 's,.*:\([0-9]*\).*,\1,g' -e 's,[^0-9],,g')
+    else
+        echo "${BACKUP_URL} is missing a port. URL must use the format scheme://influxdb_endpoint:port. For example, https://example.com:8086"
+        exit 1
+    fi
+fi
+
+if [[ ! "$BACKUP_PORT" =~ ^[0-9]+$ ]]; then
+    echo "Port ${BACKUP_PORT} was incorrectly parsed from ${BACKUP_URL}"
+    exit 1
+fi
+
 if [[ -z "$BACKUP_ORG" ]]; then
     read -p "Enter Timestream for InfluxDB backup organization: " BACKUP_ORG
 fi
@@ -77,8 +91,27 @@ if [[ -z "$RESTORE_URL" ]]; then
     read -p "Enter Timestream for InfluxDB restore endpoint (e.g., https://influxdb-endpoint:8086): " RESTORE_URL
 fi
 
+if [[ -z "$RESTORE_PORT" ]]; then
+    if [[ $RESTORE_URL =~ :[0-9]+$ ]]; then
+        RESTORE_PORT=$(echo $RESTORE_URL | sed -e 's,^.*:,:,g' -e 's,.*:\([0-9]*\).*,\1,g' -e 's,[^0-9],,g')
+    else
+        echo "${RESTORE_URL} is missing a port. URL must use the format scheme://influxdb_endpoint:port. For example, https://example.com:8086"
+        exit 1
+    fi
+fi
+
+if [[ ! "$RESTORE_PORT" =~ ^[0-9]+$ ]]; then
+    echo "Port ${RESTORE_PORT} was incorrectly parsed from ${RESTORE_URL}"
+    exit 1
+fi
+
 if [[ -z "$RESTORE_ORG" ]]; then
     read -p "Enter Timestream for InfluxDB restore organization: " RESTORE_ORG
+fi
+
+if [[ -z "$RESTORE_PORT" ]]; then
+    read -p "Enter the port that the Timestream for InfluxDB restore instance uses (8086): " RESTORE_PORT
+    RESTORE_PORT=${RESTORE_PORT:8086}
 fi
 
 if [[ -z "$BUCKET_NAME" ]]; then
@@ -138,8 +171,10 @@ sam deploy \
     BackupUrl=$BACKUP_URL \
     TokensSecretName=$TOKENS_SECRET_NAME \
     BackupOrg=$BACKUP_ORG \
+    BackupPort=$BACKUP_PORT \
     RestoreUrl=$RESTORE_URL \
     RestoreOrg=$RESTORE_ORG \
+    RestorePort=$RESTORE_PORT \
     BucketName=$BUCKET_NAME \
     S3BackupBucketName=$S3_BACKUP_BUCKET_NAME \
     BackupSchedule="\"$BACKUP_SCHEDULE\"" \

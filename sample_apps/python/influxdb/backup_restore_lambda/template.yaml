@@ -16,6 +16,11 @@ Parameters:
     Type: String
     Description: Organization that the bucket resides in for backup
 
+  BackupPort:
+    Type: Number
+    Description: The port that the backup instance listens on. Defaults to 8086
+    Default: 8086
+
   RestoreUrl:
     Type: String
     Description: The full URL of the Timestream for InfluxDB instance to restore to
@@ -23,6 +28,11 @@ Parameters:
   RestoreOrg:
     Type: String
     Description: Organization that the restored bucket will reside in
+
+  RestorePort:
+    Type: Number
+    Description: The port that the restore instance listens on. Defaults to 8086
+    Default: 8086
 
   BucketName:
     Type: String
@@ -159,8 +169,12 @@ Resources:
           ToPort: 443
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
-          FromPort: 8086
-          ToPort: 8086
+          FromPort: !Ref BackupPort # The port that the backup instance listens on
+          ToPort: !Ref BackupPort
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref RestorePort # The port that the restore instance listens on
+          ToPort: !Ref RestorePort
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 2049 # Enable EFS access
