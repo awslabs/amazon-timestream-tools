@@ -236,6 +236,13 @@ def backup(
                     logger.info(f"Uploaded {file_count} files so far...")
             except ClientError as e:
                 logger.error(f"Failed to upload {local_file_path}: {e}")
+                logger.info(f"Attempting to delete partial backup directory {backup_prefix}")
+                try:
+                    s3_resource = boto3.resource('s3')
+                    bucket = s3_resource.Bucket(s3_backup_bucket_name)
+                    bucket.objects.filter(Prefix=backup_prefix).delete()
+                except Exception as deletion_error:
+                    logger.error(f"Error while attempting to clean up partial backup: {deletion_error}")
                 raise
 
     total_size_mb = total_size / (1024 * 1024)
