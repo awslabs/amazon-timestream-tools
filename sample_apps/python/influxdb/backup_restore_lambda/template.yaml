@@ -155,7 +155,7 @@ Resources:
       SecurityGroupIngress: []  # No inbound access needed for the task
       SecurityGroupEgress:
         - IpProtocol: tcp
-          FromPort: 443
+          FromPort: 443 # Enable outbound HTTPS traffic
           ToPort: 443
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
@@ -163,7 +163,7 @@ Resources:
           ToPort: 8086
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
-          FromPort: 2049
+          FromPort: 2049 # Enable EFS access
           ToPort: 2049
           CidrIp: !GetAtt VPC.CidrBlock
 
