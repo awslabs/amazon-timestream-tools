@@ -357,7 +357,7 @@ Resources:
       Volumes:
         - Name: data-volume
           EFSVolumeConfiguration:
-            FileSystemId: !Ref EFSFileSystem
+            FilesystemId: !Ref EFSFileSystem
             RootDirectory: "/"
             TransitEncryption: ENABLED
             AuthorizationConfig:
