@@ -58,6 +58,15 @@ Parameters:
     Description: The name of the ECR repository used to hold the ECS task image
     Default: influxdb-backup-restore
 
+  EFSFileSystemKMSKeyID:
+    Type: String
+    Description: The ID of the AWS key to be used to protect the encrypted EFS file system. Optional.
+    Default: ""
+    NoEcho: true
+
+Conditions:
+  UseCustomKMSKey: !Not [!Equals [!Ref EFSFileSystemKMSKeyID, ""]]
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -151,6 +160,10 @@ Resources:
     Type: AWS::EFS::FileSystem
     Properties:
       Encrypted: true
+      KmsKeyId: !If
+        - UseCustomKMSKey
+        - !Ref EFSFileSystemKMSKeyID
+        - !Ref AWS::NoValue
       PerformanceMode: generalPurpose
       ThroughputMode: bursting
       FileSystemTags:

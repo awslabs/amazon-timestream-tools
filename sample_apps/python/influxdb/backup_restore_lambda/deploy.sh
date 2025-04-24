@@ -142,6 +142,13 @@ if [[ -z "$RESTORE_TOKEN" ]]; then
     echo
 fi
 
+if [[ -z "$EFS_FILE_SYSTEM_KMS_KEY_ID" ]]; then
+    read -sp "Enter KMS key ID for EFS file system (no value): " EFS_FILE_SYSTEM_KMS_KEY_ID
+    # /aws/elasticfilesystem is the default KMS key ID used when an EFS file system is encrypted but no
+    # customer-defined KMS key ID is provided.
+    EFS_FILE_SYSTEM_KMS_KEY_ID=${EFS_FILE_SYSTEM_KMS_KEY_ID:-"\"\""}
+fi
+
 echo "Creating/updating tokens in AWS Secrets Manager..."
 SECRET_STRING="{\"BACKUP_TOKEN\":\"$BACKUP_TOKEN\",\"RESTORE_TOKEN\":\"$RESTORE_TOKEN\"}"
 
@@ -179,6 +186,7 @@ sam deploy \
     S3BackupBucketName=$S3_BACKUP_BUCKET_NAME \
     BackupSchedule="\"$BACKUP_SCHEDULE\"" \
     RestoreSchedule="\"$RESTORE_SCHEDULE\"" \
+    EFSFileSystemKMSKeyID=$EFS_FILE_SYSTEM_KMS_KEY_ID \
     ECRRepositoryName=$ECR_REPO_NAME
 
 echo "SAM deployment complete. Now pushing Docker image to the created ECR repository..."
