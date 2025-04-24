@@ -53,12 +53,15 @@ Use the following command to deploy the stack. Replace the following:
 - `<backup URL>` with the URL for your source Timestream for InfluxDB instance, including its scheme and port. For example, `https://example.com:8086`.
 - `<tokens secret name>` with the name of the secret you created in step 2.
 - `<backup org>` with the name of the organization your backup bucket belongs to in your source instance.
+- `<backup port>` with the port that the instance to backup from listens on. This defaults to `8086` if not provided.
 - `<restore URL>` with the URL of your destination Timestream for InfluxDB instance, including its scheme and port.
 - `<restore org>` with the name of the organization you want to restore your bucket to in the destination instance.
-- `<bucket name>` with the name of the bucket you want to backup in source instance.
+- `<restore port>` with the port that the instance to restore to listens on. This defaults to `8086` if not provided.
+- `<bucket name>` with the name of the bucket you want to back up in the source instance.
 - `<s3 backup bucket name>` with the name that you want to use for a newly-created S3 bucket that will be used to hold bucket data.
 - `<backup schedule>` with a [cron expression](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html) describing how often you want backups to occur. For example, `cron(0 12 ? * FRI *)` does a backup every Friday at noon, UTC.
 - `<restore schedule>` with a [cron expression](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html) describing how often you want restores to occur.
+- `<EFS file system KMS key ID>` with the ID of a KMS key that you want to use to encrypt the temporary EFS storage the ECS task uses during execution. If not provided, then the default KMS key for EFS, `/aws/elasticfilesystem`, will be used.
 - `<ECR repository name>` with the name that you want to use for a newly-created ECR repository.
 
 ```bash
@@ -70,12 +73,15 @@ sam deploy \
     BackupUrl=<backup URL> \
     TokensSecretName=<tokens secret name> \
     BackupOrg=<backup org> \
+    BackupPort=<backup port> \
     RestoreUrl=<restore URL> \
     RestoreOrg=<restore org> \
+    RestorePort=<restore port> \
     BucketName=<bucket name> \
     S3BackupBucketName=<s3 backup bucket name> \
     BackupSchedule="\"<backup schedule>\"" \
     RestoreSchedule="\"<restore schedule>\"" \
+    EFSFileSystemKMSKeyID=<EFS file system KMS key ID> \
     ECRRepositoryName=<ECR repository name>
 ```
 
