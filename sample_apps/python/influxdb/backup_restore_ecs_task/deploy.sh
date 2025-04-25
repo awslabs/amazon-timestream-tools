@@ -122,6 +122,28 @@ if [[ -z "$S3_BACKUP_BUCKET_NAME" ]]; then
     read -p "Enter S3 bucket name for storing backups (will be created if it doesn't exist): " S3_BACKUP_BUCKET_NAME
 fi
 
+if [[ -z "$DELETE_S3_BACKUP_BUCKET" ]]; then
+    read -p "Delete backup S3 bucket after a configurable amount of time? true/false (false): " DELETE_S3_BACKUP_BUCKET
+    DELETE_S3_BACKUP_BUCKET=${DELETE_S3_BACKUP_BUCKET:-"false"}
+fi
+
+if [[ "$DELETE_S3_BACKUP_BUCKET" != "true" && "$DELETE_S3_BACKUP_BUCKET" != "false" ]]; then
+    echo "Invalid value ${DELETE_S3_BACKUP_BUCKET}: must be true or false"
+    exit 1
+fi
+
+if [[ -z "$S3_BACKUP_BUCKET_RETENTION_DAYS" ]]; then
+    read -p "Enter the number of days to retain the backup S3 bucket before deleting, if deletion is enabled (365): " S3_BACKUP_BUCKET_RETENTION_DAYS
+    S3_BACKUP_BUCKET_RETENTION_DAYS=${S3_BACKUP_BUCKET_RETENTION_DAYS:-"365"}
+fi
+
+S3_BACKUP_BUCKET_RETENTION_DAYS_REGEX="^[0-9]+$"
+
+if [[ ! "$S3_BACKUP_BUCKET_RETENTION_DAYS" =~ $S3_BACKUP_BUCKET_RETENTION_DAYS_REGEX ]]; then
+    echo "Invalid value ${S3_BACKUP_BUCKET_RETENTION_DAYS}: must be a positive integer"
+    exit 1
+fi
+
 if [[ -z "$BACKUP_SCHEDULE" ]]; then
     read -p "Enter backup schedule cron expression [cron(0 12 ? * FRI *)] (every Friday at noon): " BACKUP_SCHEDULE
     BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"cron(0 12 ? * FRI *)"}
@@ -186,6 +208,8 @@ sam deploy \
     S3BackupBucketName=$S3_BACKUP_BUCKET_NAME \
     BackupSchedule="\"$BACKUP_SCHEDULE\"" \
     RestoreSchedule="\"$RESTORE_SCHEDULE\"" \
+    DeleteS3BackupBucket=$DELETE_S3_BACKUP_BUCKET \
+    S3BackupBucketRetentionDays=$S3_BACKUP_BUCKET_RETENTION_DAYS \
     EFSFileSystemKMSKeyID=$EFS_FILE_SYSTEM_KMS_KEY_ID \
     ECRRepositoryName=$ECR_REPO_NAME
 

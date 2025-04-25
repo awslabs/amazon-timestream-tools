@@ -43,6 +43,11 @@ Parameters:
     Description: Name of the S3 bucket to store backup data in
     Default: influxdb-backup-data
 
+  S3BackupBucketRetentionDays:
+    Type: Number
+    Description: The number of days to keep the S3 backup bucket before deleting, if DeleteS3BackupBucket is true. Defaults to 365.
+    Default: 365
+
   BackupSchedule:
     Type: String
     Description: Schedule expression for backup (default is every 7 days)
@@ -64,8 +69,17 @@ Parameters:
     Default: ""
     NoEcho: true
 
+  DeleteS3BackupBucket:
+    Type: String
+    Description: Whether to delete the S3 backup bucket after a configurable amount of time. Defaults to false.
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
 Conditions:
   UseCustomKMSKey: !Not [!Equals [!Ref EFSFileSystemKMSKeyID, ""]]
+  DeleteBackupS3BucketCondition: !Equals [!Ref DeleteS3BackupBucket, "true"]
 
 Resources:
   VPC:
@@ -153,8 +167,8 @@ Resources:
       LifecycleConfiguration:
         Rules:
           - Id: DeleteOldBackups
-            Status: Enabled
-            ExpirationInDays: 365
+            Status: !If [DeleteBackupS3BucketCondition, "Enabled", "Disabled"]
+            ExpirationInDays: !Ref S3BackupBucketRetentionDays
 
   EFSFileSystem:
     Type: AWS::EFS::FileSystem
