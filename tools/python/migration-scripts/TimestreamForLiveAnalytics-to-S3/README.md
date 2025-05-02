@@ -238,7 +238,7 @@ botocore</code></pre>
 <li>Script logs the output on terminal</li>
 <img src="./images/Terminal-Logging.png" alt="Terminal Logging">
 <li>If you enabled DynamoDB, you can query for tracking or validation purpose from Console. Example below (SELECT * FROM "timestream_unload_tracker" where MigrationTag='unload-2025-05-02 21:10:00')</li>
-<img src="./images/DynamoDB-Logger.png" alt="DynamoDB Logger Example">
+<img src="./images/DynamoDB-Logging.png" alt="DynamoDB Logger Example">
 </ol>
 </div>
 
