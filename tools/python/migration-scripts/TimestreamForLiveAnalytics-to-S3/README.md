@@ -119,8 +119,8 @@ botocore</code></pre>
 </div>
 
 <div style="border: 1px solid #ddd; padding: 15px; margin: 20px 0; border-radius: 5px; background-color: #f8f9fa;">
-<h4>Advanced Export Example</h4>
-<pre><code>python unload.py --export_table --database MyDB --table MyTable --start_time '2024-01-01 00:00:00'--end_time '2024-02-01 00:00:00' --partition day --export_format PARQUET --compression GZIP --region us-east-1 --s3_uri s3://my-bucket --enable_dynamodb_logger --sns_topic_arn arn:aws:sns:region:account-id:topic-name</code></pre>
+<h4>Export Example with end time, parition, s3_uri, dynamodb logging and sns notification </h4>
+<pre><code>python unload.py --export_table --database MyDB --table MyTable --start_time '2024-01-01 00:00:00'--end_time '2024-02-01 00:00:00' --partition month --export_format PARQUET --compression GZIP --region us-east-1 --s3_uri s3://my-bucket --enable_dynamodb_logger --sns_topic_arn arn:aws:sns:region:account-id:topic-name</code></pre>
 </div>
 </div>
 
@@ -166,7 +166,7 @@ botocore</code></pre>
 </tr>
 <tr>
 <td><code>-s, --s3_uri</code></td>
-<td>S3 Bucket URI<br><i>Default: timestream-dump-{account_id}-{region}</i></td>
+<td>S3 Bucket URI<br><i>Default: Bucket will be created if not provided,s3://timestream-dump-{account_id}-{region} </i></td>
 <td><code>s3://my-bucket</code></td>
 </tr>
 <tr>
@@ -217,7 +217,7 @@ botocore</code></pre>
 <tr>
 <td><code>-ms, --max_file_size</code></td>
 <td>Maximum file size in GB<br><i>Default: 78GB</i></td>
-<td><code>50</code></td>
+<td><code>50GB</code></td>
 </tr>
 <tr>
 <td><code>--field_delimiter</code></td>
