@@ -102,7 +102,7 @@ class timestreamUtility:
             if partition_by == 'hour':
                 next_time = current + timedelta(hours=partition_count)
             if partition_by == 'day':
-                next_time = current + timedelta(days=parition_count)
+                next_time = current + timedelta(days=partition_count)
             elif partition_by == 'month':
                 next_time = current + relativedelta(months=partition_count)
             elif partition_by == 'year':
