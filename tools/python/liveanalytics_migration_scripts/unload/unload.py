@@ -4,15 +4,17 @@ import argparse
 import boto3
 import json
 from botocore.config import Config
-from utils.logger_utils import create_logger
-from utils.timestream_utils import *
-from utils.s3_utils import s3Utility
 from datetime import timezone
 import sys
 import os
-   
-if __name__ == '__main__':
 
+sys.path.append("./utils/")
+
+from logger_utils import create_logger
+from timestream_utils import *
+from s3_utils import S3Utility
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument("-r", "--region", help="AWS region of your Timestream table to be unloaded",default=None,required=False)
@@ -72,10 +74,9 @@ if __name__ == '__main__':
     custom_partition_count = args.custom_partition_count
     order_by_asc = args.order_by_asc 
 
-    sts_client = boto3.client('sts')
+    sts_client = boto3.client("sts")
     region = args.region if args.region else sts_client.meta.region_name
-    partition = args.partition if args.partition is not None else 'day'
-
+    partition = args.partition if args.partition is not None else "day"
 
     # Check that exactly one export option is selected
     export_options_count = sum([args.export_database, args.export_table, args.export_all_databases])
@@ -84,14 +85,17 @@ if __name__ == '__main__':
     elif export_options_count > 1:
         raise ValueError("Only one of --export_database, --export_table, or --export_all_databases can be specified at a time.")
     else:
-        unload_type = 'database' if args.export_database else 'table' if args.export_table else 'all_databases'
+        unload_type = (
+            "database"
+            if args.export_database
+            else "table"
+            if args.export_table
+            else "all_databases"
+        )
 
-    # #create logger
-    # logger = create_logger("Unload Logger")
-
-    #parse bucket
+    # parse bucket
     bucket_s3_uri = args.s3_uri
-    s3_utility = s3Utility(region)
+    s3_utility = S3Utility(region)
 
     #parse sns 
     sns_topic_arn=args.sns_topic_arn
@@ -108,19 +112,17 @@ if __name__ == '__main__':
         bucket_s3_uri = s3_utility.create_s3_bucket(bucket_name)
     else:
         logger.info(f"Using provided S3 URI: {bucket_s3_uri}")
-    
 
-    #Validations
+    # Validations
     timestream_utility.validate_timestamp(start_time)
 
-    if (end_time):
+    if end_time:
         timestream_utility.validate_timestamp(end_time)
     else:
-         end_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        end_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-    if (start_time >= end_time):
+    if start_time >= end_time:
         raise ValueError("start_time must be less than end_time")
-    
 
     #log inputs
     logger.info(f'bucket_s3_uri {bucket_s3_uri}')
@@ -165,39 +167,47 @@ if __name__ == '__main__':
         'order_by_asc' : order_by_asc
     }
 
-     #Create dynamodb logging table if dynamodb logging is enabled
-    timestream_utility.create_dynamodb_logger_table(table_name='timestream_unload_tracker',partition_key='DatabaseName.TableName', sort_key='timestamp_epoch')
-    logging_params = {**unload_params, 'unload_type': unload_type}
-    timestream_utility.log_unload(configuration=logging_params,migration_tag=migration_tag)
+    # Create dynamodb logging table if dynamodb logging is enabled
+    timestream_utility.create_dynamodb_logger_table(
+        table_name="timestream_unload_tracker",
+        partition_key="DatabaseName.TableName",
+        sort_key="timestamp_epoch",
+    )
+    logging_params = {**unload_params, "unload_type": unload_type}
+    timestream_utility.log_unload(
+        configuration=logging_params, migration_tag=migration_tag
+    )
 
     # export database
-    if (args.export_table):
+    if args.export_table:
         assert args.database is not None, "Database name is required."
         assert args.table is not None, "Table name is required."
-        logger.info(f'unloading  {database}.{table}')
+        logger.info(f"unloading  {database}.{table}")
         timestream_utility.timestream_unload(**unload_params)
-     # export database 
-    elif (args.export_database):
+    # export database
+    elif args.export_database:
         assert args.database is not None, "Database name is required."
-        #table_list
-        logger.info(f'unloading database {database}')
+        # table_list
+        logger.info(f"unloading database {database}")
         tables = timestream_utility.get_all_tables(database)
-        logger.info(f'all tables {tables}')
-        logger.info(f'total count of tables is {len(tables)}')
+        logger.info(f"all tables {tables}")
+        logger.info(f"total count of tables is {len(tables)}")
         for table in tables:
-            unload_params.update({
-                    'table': table,
-            })
+            unload_params.update(
+                {
+                    "table": table,
+                }
+            )
             timestream_utility.timestream_unload(**unload_params)
-    #export all databases 
-    elif (args.export_all_databases): 
-        #database list 
+    # export all databases
+    elif args.export_all_databases:
+        # database list
         all_databases = timestream_utility.get_all_databases()
-        logger.info(f'all databases {all_databases}')
-        logger.info(f'total count of databases is {len(all_databases)}')
-        #table_list 
-        total_table_count=0
-        database_tables_map ={}
+        logger.info(f"All databases {all_databases}")
+        logger.info(f"Total count of databases is {len(all_databases)}")
+        # table_list
+        total_table_count = 0
+        database_tables_map = {}
         for database in all_databases:
             tables = timestream_utility.get_all_tables(database)
             count_tables = len(tables)
@@ -205,16 +215,17 @@ if __name__ == '__main__':
             database_tables_map[database] = tables
         for database, tables in database_tables_map.items():
             for table in tables:
-                unload_params.update({
-                    'database': database,
-                    'table': table,
-                })
+                unload_params.update(
+                    {
+                        "database": database,
+                        "table": table,
+                    }
+                )
                 timestream_utility.timestream_unload(**unload_params)
 
-
-    message = f'Unload script completed for {unload_type} with migration tag {migration_tag}'
+    message = (
+        f"Unload script completed for {unload_type} with migration tag {migration_tag}"
+    )
     if sns_topic_arn is not None:
-        timestream_utility.sns_publish_message(message,f"Unload Script Completed")
+        timestream_utility.sns_publish_message(message, "Unload Script Completed")
     logger.info(message)
-
-

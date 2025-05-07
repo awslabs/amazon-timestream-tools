@@ -1,10 +1,10 @@
 
 import boto3
-from utils.logger_utils import create_logger
+from logger_utils import create_logger
 import botocore
 import json
 
-class s3Utility:
+class S3Utility:
     def __init__(self, region):
         botocore_config = botocore.config.Config(
             max_pool_connections=5000, retries={'max_attempts': 10})
