@@ -6,9 +6,9 @@ The migration validation script compares **logical row/point counts** between a 
 
 The migration from Timestream for LiveAnalytics to Timestream for InfluxDB involves three stages:
 
-1. Timestream for LiveAnalytics -> Unload to S3 [[#README]](...)
-2. Load from S3 into Athena -> Transform to line protocol (LP)  [[#README]](...)
-3. Download transformed dataset and ingest to Timestream for InfluxDB  [[#README]](...)
+1. Timestream for LiveAnalytics -> Unload to S3 [[#README]](../../../unload/README.md)
+2. Load from S3 into Athena -> Transform to line protocol (LP)  [[#README]](../transform/README.md)
+3. Download transformed dataset and ingest to Timestream for InfluxDB  [[#README]](../ingestion/README.md)
 
 The validation script supports queries against either the exported dataset in Athena or the original Timestream database/table. Be aware that querying Timestream directly may lead to inaccurate comparisons if additional data has been written since the export.
 
@@ -16,7 +16,7 @@ The validation script can be run anytime after ingestion has begun. The script f
 
 - Executes count‑only queries over an identical time window  
 - Compares results and highlights matches or mismatches  
-- Supports optional schema/tag filtering for [transformed schemas](trevors_readme) 
+- Supports optional schema/tag filtering for [transformed schemas](../transform/README.md### Using Dimensions as Fields) 
 - Produces human‑readable timing and result summaries  
 
 
@@ -55,33 +55,33 @@ make build
 python validator.py [options]
 ```
 
-All settings can be supplied as CLI flags **or** environment variables. See [example.env](example.env) for reference.
+All settings can be supplied as CLI flags **or** environment variables. See [example.env](../example.env) for reference.
 
 ### Required arguments
 
-- `--engine` / `ENGINE` – Data source engine: `athena` *(default)* or `timestream`  
+- `--source-engine` / `SOURCE_ENGINE` – Data source engine: `athena` *(default)* or `timestream`  
 - **Athena‑specific**  
-  - `--athena-db` / `ATHENA_DB` – Database name  
-  - `--athena-table` / `ATHENA_TABLE` – Table name  
+  - `--athena-database-name` / `ATHENA_DATABASE_NAME` – Database name  
+  - `--athena-table-name` / `ATHENA_TABLE_NAME` – Table name  
   - `--athena-output` / `ATHENA_OUTPUT` – S3 output path for query results  
 - **Timestream‑specific**  
-  - `--timestream-db` / `TIMESTREAM_DB` – Database name  
-  - `--timestream-table` / `TIMESTREAM_TABLE` – Table name  
+  - `--timestream-database-name` / `TIMESTREAM_DATABASE_NAME` – Database name  
+  - `--timestream-table-name` / `TIMESTREAM_TABLE_NAME` – Table name  
 - **InfluxDB**  
-  - `--influx-url` / `INFLUX_URL` – e.g. `https://example.com:8086`  
-  - `--influx-token` / `INFLUX_TOKEN` – API token with read scope  
-  - `--influx-org` / `INFLUX_ORG` – Organisation  
-  - `--influx-bucket` / `INFLUX_BUCKET` – Bucket  
-  - `--influx-measurement` / `INFLUX_MEASUREMENT` – Measurement to validate  
+  - `--influxdb-v2-url` / `INFLUXDB_V2_URL` – e.g. `https://example.com:8086`  
+  - `--influxdb-v2-token` / `INFLUXDB_V2_TOKEN` – API token with read scope  
+  - `--influxdb-v2-org` / `INFLUXDB_V2_ORG` – Organisation  
+  - `--influxdb-v2-bucket` / `INFLUXDB_V2_BUCKET` – Bucket  
+  - `--influxdb-v2-measurement` / `INFLUXDB_V2_MEASUREMENT` – Measurement to validate  
 
 ### Optional arguments
 
 - `--schema-tags` / `SCHEMA_TAGS` – Comma‑separated dimension/tag list  
 - `--start-time` / `START_TIME` – Inclusive lower ISO‑8601 bound (e.g., `2024-08-01T00:00:00Z`) 
 - `--end-time` / `END_TIME` – Exclusive upper ISO‑8601 bound (e.g., `2024-08-04T00:00:00Z`) 
-- `--poll-metrics-interval` / `POLL_METRICS_INTERVAL` – Seconds between `/metrics` polls *(default: 30)*  
-- `--skip-wal-check` / `SKIP_WAL_CHECK` – Skip WAL‑flush wait *(default: false)*  
-- `--influx-only` / `INFLUX_ONLY` – Skip source query; return Influx count only *(default: false)*  
+- `--poll-metrics-interval` / `POLL_METRICS_INTERVAL` – Seconds between `/metrics` polls *(default: 30)*  
+- `--skip-wal-check` / `SKIP_WAL_CHECK` – Skip WAL‑flush wait *(default: false)*  
+- `--influx-only` / `INFLUX_ONLY` – Skip source query; return Influx count only *(default: false)*  
 
 #### With Docker
 
@@ -106,8 +106,8 @@ make track_influx
 |--------|---------|
 | Validate **entire** migration of `benchmark3.cpu` | `python validator.py` |
 | Validate migration for a **date partition** | `python validator.py --start-time 2025-01-01T00:00:00Z --end-time 2025-02-01T00:00:00Z` |
-| Validate migration against **Timestream** | `python validator.py --engine timestream` |
-| Validate migration for a **transformed table** | `python validator.py --schema-tags=service_environment,os,arch,service_version,team,region`<br/><br/>If changes were made to the original table schema during the transformation to Line Protocol (ie. using the [`--dimensions-to-fields` flag](link_to_athena_script)), pass the full list of tags from the new table schema to `--schema-tags` as a comma-separated list.|
+| Validate migration against **Timestream** | `python validator.py --source-engine timestream` |
+| Validate migration for a **transformed table** | `python validator.py --schema-tags=service_environment,os,arch,service_version,team,region`<br/><br/>If changes were made to the original table schema during the transformation to Line Protocol (ie. using the [`--dimensions-to-fields` flag](../transform/README.md#using-dimensions-as-fields)), pass the full list of tags from the new table schema to `--schema-tags` as a comma-separated list.|
 | Track an **ongoing migration** | `python validator.py --influx-only --skip-wal-check`<br/><br/>During active ingestion, the validation script allows you to check progress by displaying the current record count in InfluxDB without querying the source engine. This provides visibility into raw data ingestion but excludes any records that may still be undergoing post-ingestion processing.
 
 
@@ -171,7 +171,7 @@ Total records in default.cpu_usage (2025-03-01T00:00:00Z – 2025-03-02T00:00:00
 
 - If data is still being written to InfluxDB at time of validation (ie. simulataneous migrations to the same InfluxDB instance in different buckets or measurements), the WAL will remain non-empty until it has fully processed all ingested points. Ensure that ingestion is fully complete before running comparisons between a target database/table and bucket/measurement, or use the `--skip-wal-check` flag.
 
-- If the total row count exported from Timestream is known at time of validation (ie. unloaded with [DynamoDB logging enabled on export to S3](link_to_balwanth_readme)), avoid querying the source engine using the `--influx-only` flag.
+- If the total row count exported from Timestream is known at time of validation (ie. unloaded with [DynamoDB logging enabled on export to S3](../../../unload/README.md#export-with-dynamodb-logging-enabled)), avoid querying the source engine using the `--influx-only` flag.
 
 - For large datasets, consider using time range filters to validate in smaller chunks.
-- When validating transformed tables (with converted dimensions as fields), ensure you specify all schema tags for accurate comparison. See output of [the transformation script](trevor_athena_script) for the full list of tags.
+- When validating transformed tables (with converted dimensions as fields), ensure you specify all schema tags for accurate comparison. See output of [the transformation script](../transform/README.md#using-dimensions-as-fields) for the full list of tags.

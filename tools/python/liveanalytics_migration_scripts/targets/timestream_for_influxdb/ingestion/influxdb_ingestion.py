@@ -16,6 +16,7 @@ from multiprocessing import Pool, current_process, Value
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
 
+from dotenv import load_dotenv
 
 # Custom exceptions for better error handling
 class InfluxDBIngestionError(Exception):
@@ -416,6 +417,8 @@ def poll_for_result(result, failure_flag, continue_on_error, failed_log, file_na
                 sys.exit(1)
 
 def main():
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description='Process gzip files in a directory using multiple processes')
     parser.add_argument('bucket', help='InfluxDB bucket name')
     parser.add_argument('data_directory', help='Directory containing .gz files')

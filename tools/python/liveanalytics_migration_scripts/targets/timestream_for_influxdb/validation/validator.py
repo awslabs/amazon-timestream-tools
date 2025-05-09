@@ -5,14 +5,14 @@ bucket measurement, optionally within a specific time‑range.
 Example CLI usage:
 
     python validate.py \
-        --engine timestream \
+        --source-engine timestream \
         --timestream-db benchmark3 \
         --timestream-table cpu \
-        --influx-url https://example.com:8086 \
-        --influx-token MYTOKEN \
-        --influx-org my-org \
-        --influx-bucket bucket3 \
-        --influx-measurement cpu \
+        --influxdb-v2-url https://example.com:8086 \
+        --influxdb-v2-token MYTOKEN \
+        --influxdb-v2-org my-org \
+        --influxdb-v2-bucket bucket3 \
+        --influxdb-v2-measurement cpu \
         --schema-tags service_environment,os,arch \
         --start-time 2024-08-01T00:00:00Z \
         --end-time 2024-08-02T00:00:00Z
@@ -316,21 +316,21 @@ def parse_args() -> argparse.Namespace:
     """
     load_dotenv()
 
-    engine_arg = argparse.ArgumentParser(add_help=False)
-    engine_arg.add_argument(
-        "--engine",
+    source_engine_arg = argparse.ArgumentParser(add_help=False)
+    source_engine_arg.add_argument(
+        "--source-engine",
         choices=["timestream", "athena"],
-        default=os.getenv("ENGINE", "athena"),
+        default=os.getenv("SOURCE_ENGINE", "athena"),
         help="Data source engine, 'timestream' or 'athena'. (Defaults to 'athena')",
     )
 
-    prelim, remaining = engine_arg.parse_known_args()
+    prelim, remaining = source_engine_arg.parse_known_args()
 
     env = os.getenv
     missing = lambda var: env(var) is None
 
     parser = argparse.ArgumentParser(
-        parents=[engine_arg],
+        parents=[source_engine_arg],
         description=(
             "Validate that Timestream/Athena and InfluxDB have identical "
             "row/point counts, optionally within a time range."
@@ -340,67 +340,67 @@ def parse_args() -> argparse.Namespace:
 
     # – Timestream
     parser.add_argument(
-        "--timestream-db",
-        default=env("TIMESTREAM_DB"),
-        required=prelim.engine == "timestream" and missing("TIMESTREAM_DB"),
-        help="Timestream database name (required if ENGINE=timestream)",
+        "--timestream-database-name",
+        default=env("TIMESTREAM_DATABASE_NAME"),
+        required=prelim.source_engine == "timestream" and missing("TIMESTREAM_DATABASE_NAME"),
+        help="Timestream database name (required if SOURCE_ENGINE=timestream)",
     )
     parser.add_argument(
-        "--timestream-table",
-        default=env("TIMESTREAM_TABLE"),
-        required=prelim.engine == "timestream" and missing("TIMESTREAM_TABLE"),
-        help="Timestream table name (required if ENGINE=timestream)",
+        "--timestream-table-name",
+        default=env("TIMESTREAM_TABLE_NAME"),
+        required=prelim.source_engine == "timestream" and missing("TIMESTREAM_TABLE_NAME"),
+        help="Timestream table name (required if SOURCE_ENGINE=timestream)",
     )
 
     # – Athena
     parser.add_argument(
-        "--athena-db",
-        default=env("ATHENA_DB"),
-        required=prelim.engine == "athena" and missing("ATHENA_DB"),
-        help="Athena database name (required if ENGINE=athena)",
+        "--athena-database-name",
+        default=env("ATHENA_DATABASE_NAME"),
+        required=prelim.source_engine == "athena" and missing("ATHENA_DATABASE_NAME"),
+        help="Athena database name (required if SOURCE_ENGINE=athena)",
     )
     parser.add_argument(
-        "--athena-table",
-        default=env("ATHENA_TABLE"),
-        required=prelim.engine == "athena" and missing("ATHENA_TABLE"),
-        help="Athena table name (required if ENGINE=athena)",
+        "--athena-table-name",
+        default=env("ATHENA_TABLE_NAME"),
+        required=prelim.source_engine == "athena" and missing("ATHENA_TABLE_NAME"),
+        help="Athena table name (required if SOURCE_ENGINE=athena)",
     )
     parser.add_argument(
         "--athena-output",
         default=env("ATHENA_OUTPUT"),
-        required=prelim.engine == "athena" and missing("ATHENA_OUTPUT"),
-        help="Athena query results S3 output location (required if ENGINE=athena)",
+        required=prelim.source_engine == "athena" and missing("ATHENA_OUTPUT"),
+        help="Athena query results S3 output location (required if SOURCE_ENGINE=athena)",
     )
 
     # – InfluxDB
     parser.add_argument(
-        "--influx-url",
-        default=env("INFLUX_URL"),
-        required=missing("INFLUX_URL"),
+        "--influxdb-v2-url",
+        default=env("INFLUXDB_V2_URL"),
+        required=missing("INFLUXDB_V2_URL"),
         help="InfluxDB URL (e.g., 'https://example.com:8086')",
     )
     parser.add_argument(
-        "--influx-token",
-        default=env("INFLUX_TOKEN"),
-        required=missing("INFLUX_TOKEN"),
+        "--influxdb-v2-token",
+        default=env("INFLUXDB_V2_TOKEN"),
+        required=missing("INFLUXDB_V2_TOKEN"),
         help="InfluxDB API token",
     )
     parser.add_argument(
-        "--influx-org",
-        default=env("INFLUX_ORG"),
-        required=missing("INFLUX_ORG"),
+        "--influxdb-v2-org",
+        default=env("INFLUXDB_V2_ORG"),
+        required=missing("INFLUXDB_V2_ORG"),
         help="InfluxDB organization name",
     )
     parser.add_argument(
-        "--influx-bucket",
-        default=env("INFLUX_BUCKET"),
-        required=missing("INFLUX_BUCKET"),
+        "--influxdb-v2-bucket",
+        default=env("INFLUXDB_V2_BUCKET"),
+        required=missing("INFLUXDB_V2_BUCKET"),
         help="InfluxDB bucket name",
     )
     parser.add_argument(
-        "--influx-measurement",
-        default=env("INFLUX_MEASUREMENT"),
-        required=missing("INFLUX_MEASUREMENT"),
+        "--influxdb-v2-measurement",
+        default=env("INFLUXDB_V2_MEASUREMENT"),
+        required=missing("INFLUXDB_V2_MEASUREMENT"),
         help="InfluxDB measurement to validate",
     )
 
@@ -453,15 +453,15 @@ def main() -> None:
 
     # First, check WAL across shards to ensure post-ingestion
     # is complete
-    poll_interval = args.poll_metrics_interval
+    poll_interval = int(args.poll_metrics_interval)
     session = requests.Session()
 
     if not args.skip_wal_check:
-        print(f"\nPolling {args.influx_url}/metrics to wait for WAL to complete flushing ... \n")
+        print(f"\nPolling {args.influxdb_v2_url}/metrics to wait for WAL to complete flushing ... \n")
         while True:
             timestamp = dt.datetime.now().isoformat(sep=" ", timespec="seconds")
             try:
-                nz_wals = poll_metrics(session=session, url=args.influx_url)
+                nz_wals = poll_metrics(session=session, url=args.influxdb_v2_url)
             except requests.RequestException as exc:
                 print(f"{timestamp}  request failed ({exc}); retrying in {poll_interval}s")
                 time.sleep(poll_interval)
@@ -486,11 +486,11 @@ def main() -> None:
         fut_influx = pool.submit(
             timed,
             count_influx_rows,
-            args.influx_url,
-            args.influx_token,
-            args.influx_org,
-            args.influx_bucket,
-            args.influx_measurement,
+            args.influxdb_v2_url,
+            args.influxdb_v2_token,
+            args.influxdb_v2_org,
+            args.influxdb_v2_bucket,
+            args.influxdb_v2_measurement,
             "la_unload",
             args.start_time,
             args.end_time,
@@ -500,7 +500,7 @@ def main() -> None:
         # Check Influx result first
         infl_count, infl_elapsed = fut_influx.result()
         if infl_count == 0:
-            print(f"❗ InfluxDB returned 0 points in {args.influx_bucket}.")
+            print(f"❗ InfluxDB returned 0 points in {args.influxdb_v2_bucket}.")
             sys.exit(1)
 
         if args.influx_only:
@@ -509,13 +509,13 @@ def main() -> None:
             print(f"InfluxDB row count: {infl_count}\n")
             return 
 
-        if args.engine == "athena":
+        if args.source_engine == "athena":
             fut_source = pool.submit(
                 timed,
                 count_athena_rows,
                 boto3_session,
-                args.athena_db,
-                args.athena_table,
+                args.athena_database_name,
+                args.athena_table_name,
                 args.athena_output,
                 schema_tags,
                 args.start_time,
@@ -526,8 +526,8 @@ def main() -> None:
                 timed,
                 count_timestream_rows,
                 boto3_session,
-                args.timestream_db,
-                args.timestream_table,
+                args.timestream_database_name,
+                args.timestream_table_name,
                 schema_tags,
                 args.start_time,
                 args.end_time,
@@ -536,7 +536,7 @@ def main() -> None:
         src_count,  src_elapsed  = fut_source.result()
 
     # ─ Timings ─
-    src_label = args.engine.title()
+    src_label = args.source_engine.title()
     print(f"⏱ {src_label} query time: {src_elapsed:.2f} s")
     print(f"⏱ InfluxDB query time:   {infl_elapsed:.2f} s\n")
 

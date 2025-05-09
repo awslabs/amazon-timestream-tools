@@ -7,10 +7,10 @@ Migration tooling for Timestream for InfluxDB allows you to easily transform you
 Migrating to Timestream for InfluxDB takes multiple steps as the data models differ in how the data model is represented. See the Influx documentation for [getting started](https://docs.influxdata.com/influxdb/v2/get-started/) with InfluxDB V2 for an overview of the database key concepts.
 
 The workflow for completing a migration is separated into four stages:
-- **Unload**: Export your Timestream for LiveAnalytics dataset to S3
-- **Data transformation**: Convert your Timestream for LiveAnalytics data to line protocol format (Based on the schema defined after the cardinality assessment)
-- **Data ingestion**: Ingest the line protocol dataset to your Timestream for InfluxDB instance
-- **Validation**: Optionally you can validate that every line protocol point has been ingested (Requires hard-coded field during transformation)
+- [**Unload**](../../unload/README.md): Export your Timestream for LiveAnalytics dataset to S3
+- [**Data transformation**](./transform/README.md): Convert your Timestream for LiveAnalytics data to line protocol format (Based on the schema defined after the cardinality assessment)
+- [**Data ingestion**](./ingestion/README.md): Ingest the line protocol dataset to your Timestream for InfluxDB instance
+- [**Validation**](./validation/README.md): Optionally you can validate that every line protocol point has been ingested (Requires `--add-validation-field true` during transformation)
 
 See [End to end migration](#end-to-end-migration) for additional details on each step, and the migration diagram below for a visual workflow.
 
@@ -69,45 +69,39 @@ direction LR
 
 ## End-to-end Migration
 
-###  1. Unload and transform data from Timestream
+The following is an end-to-end example for migrating from a Timestream for LiveAnalytics database `benchmark` and table `cpu` to bucket `benchmark-bucket` in Timestream for InfluxDB (as defined in [example.env](example.env)).
 
-Run `unload_and_transform.py` to export data from Timestream to S3 and transform it to line protocol (LP) using Athena.
+###  1. Transform data from Timestream
+
+Transform the unloaded data from Timestream for LiveAnalytics to line protocol (LP) using Athena.
 
 ```
-python transorm/transform.py --database-name benchmark12 --athena-database-name mig3  --tables cpu --s3-bucket-name migration-002-tmp --add-validation-field true
+cd transform
+python transform.py --database-name benchmark --tables cpu --s3-bucket-name <s3_bucket_name> --add-validation-field true
 ```
 
-- If end-to-end validation is not required (comparing row counts between source and destination databases), set `--add-validation-field` flag to `false`.
+- If end-to-end validation (comparing row counts between source and destination databases) is not required, set `--add-validation-field` flag to `false`.
 - To convert dimensions to fields during transformation, use the `--dimensions-to-fields` flag.
-
-The output LP dataset can be found in `s3://<bucket_name>/<database_name>/<table_name>/line_protocol_output`
 
 ### 2. Ingest line protocol to Timestream for InfluxDB
 
-Define the following environment variables:
-```
-INFLUXDB_V2_URL
-INFLUXDB_V2_TOKEN
-INFLUXDB_V2_ORG
-```
-
 Download transformed LP dataset from S3:
 ```
-aws s3 sync s3://migration-002-tmp/benchmark12/cpu/line-protocol-output/ ./line-protocol-output
+aws s3 sync s3://<s3_bucket_name>/benchmark/cpu/unload-<%Y-%m-%d-%H-%M-%S>/line-protocol-output ./line-protocol-output
 ```
 
 Run the ingestion script with the target Timestream for InfluxDB bucket and path to your downloaded LP dataset:
 ```
-python3 ingestion/influxdb_ingestion.py smol ./line-protocol-output
+python3 ingestion/influxdb_ingestion.py benchmark-bucket ./line-protocol-output
 ```
 
-You can optionally run ingestion with the `--continue-on-error` flag to continue ingesting remaining files even if one fails.
+- You can optionally run ingestion with the `--continue-on-error` flag to continue ingesting remaining files even if one fails.
 
-On failure or disruption to ingestion, you can resume from a previous run by using the `--resume-from` flag. Specify the path to the tracking directory from a previous run to skip already ingested files.
+- On failure or disruption to ingestion, you can resume from a previous run by using the `--resume-from` flag. Specify the path to the tracking directory from a previous run to skip already ingested files.
 
-```
-python3 ingestion/influxdb_ingestion.py smol ./line-protocol-output --resume-from  ./influxdb-ingestion-logs/tracking_<run_id>
-```
+    ```
+    python3 ingestion/influxdb_ingestion.py benchmark-bucket ./line-protocol-output --resume-from  ./influxdb-ingestion-logs/tracking_<run_id>
+    ```
 
 
 #### 3. Validation
@@ -117,13 +111,13 @@ Using the validation script, you can verify that all records have been ingested 
 python3 validation/validator.py
 ```
 
-If any dimensions were converted to fields during transformation to LP, provide the full list of tags from the new schema. Refer to the output of `unload_and_transform.py` (Step 1) to retrieve tags from the transformed schema.
+- If any dimensions were converted to fields during transformation to LP, provide the full list of tags from the new schema. Refer to the output of the [transform stage](transform/README.md#using-dimensions-as-fields) to retrieve tags from the transformed schema.
 
-To check current ingestion progress without impacting the migration, use the validator with `--influx-only` and `--skip-wal-check` flags. This provides a real-time count of points in Timestream for InfluxDB without querying the source database (Athena/Timestream for LiveAnalytics) but excludes records still in post-processing.
+- To check current ingestion progress without impacting the migration, use the validator with `--influx-only` and `--skip-wal-check` flags. This provides a real-time count of points in Timestream for InfluxDB without querying the source database (Athena/Timestream for LiveAnalytics) but excludes records still in post-processing.
 
-```
-python3 validation/validator.py --skip-wal-check --influx-only
-```
+    ```
+    python3 validation/validator.py --skip-wal-check --influx-only
+    ```
 
 ## Troubleshooting
 
@@ -147,4 +141,3 @@ hash -r
 ```bash
 which python
 ```
-

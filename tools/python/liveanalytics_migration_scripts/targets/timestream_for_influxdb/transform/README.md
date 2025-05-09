@@ -125,7 +125,15 @@ python3 transform.py \
     --s3-bucket-name example_s3_bucket \
     --dimensions-to-fields example_table1=dimension_1,dimension_2 \
     --dimensions-to-fields example_table2=dimension_3,dimension_4 \
-    --add-validation-field false
+    --add-validation-field true
+```
+
+The following is an example output for a transformed table with `hostname` and `region` dimensions converted to fields.
+```
+Tags:
+    rack,service_environment,os,service,datacenter,arch,service_version,team,measure_name
+Fields:
+    hostname,region,usage_nice,usage_system,usage_irq,usage_guest,usage_user,usage_guest_nice,usage_idle,usage_steal,usage_iowait,usage_softirq,la_unload
 ```
 
 ### Adding a Field for Validation
