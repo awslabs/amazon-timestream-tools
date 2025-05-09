@@ -103,6 +103,8 @@ Optionally, a [Python virtual environment](https://docs.python.org/3/library/ven
 - `--table-name TABLE_NAME`: The Timestream for LiveAnalytics table to determine the cardinality of.
 - `--database-name DATABASE_NAME`: The Timestream for LiveAnalytics database that your table resides in.
 - `--exclude-dimensions EXCLUDE_DIMENSIONS`: Optional. A list of dimension names to exclude from the cardinality calculation separated by commas. In a real-world scenario, changing Timestream for LiveAnalytics dimensions to InfluxDB fields rather than InfluxDB tags when translating Timestream for LiveAnalytics records to line protocol lowers the cardinality.
+- `--start-time START_TIME`: Optional. Inclusive lower time bound for cardinality check in ISO-8601 format (e.g., '2024-08-01T00:00:00Z').
+- `--end-time END_TIME`: Optional. Exclusive upper time bound for cardinality check in ISO-8601 format (e.g., '2024-08-02T00:00:00Z').
 
 ### Basic Usage
 
@@ -119,6 +121,20 @@ This produces the following output:
 ```console
 Cardinality of "example_database"."example_table": 160
 Your recommended Timestream for InfluxDB type is: db.influx.medium
+```
+
+### Using a Time Range
+
+If a time range of data reasonably represents the expected unique combinations of dimensions and measure name for your table, and you would like to avoid the cost of calculating **all** the combinations of dimensions and measure name in your table, use the `--start-time` and `--end-time` arguments which allow you to query a specific time range using timestamps in [ISO-8601 format](https://www.iso.org/iso-8601-date-and-time-format.html).
+
+For example:
+
+```shell
+python3 cardinality.py \
+    --table-name example_table \
+    --database-name example_database \
+    --start-time '2024-08-03T21:30:00Z' \
+    --end-time '2025-01-01T00:00:00Z'
 ```
 
 ### Excluding Dimensions

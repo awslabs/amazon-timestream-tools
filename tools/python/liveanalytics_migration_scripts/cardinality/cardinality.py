@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import sys
 
 sys.path.append("../unload/utils/")
@@ -40,6 +41,8 @@ def get_live_analytics_cardinality(
     database_name: str,
     table_name: str,
     excluded_dimension_names=[],
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> int:
     """
     Determines the cardinality of a Timestream for LiveAnalytics table, in accordance with
@@ -133,6 +136,16 @@ def get_live_analytics_cardinality(
         "database_name"."table_name"
     """
     cardinality_query = f'SELECT COUNT(DISTINCT(measure_name{dimensions_string})) AS cardinality FROM "{database_name}"."{table_name}"'
+
+    where_clauses = []
+    if start_time is not None:
+        where_clauses.append(f"time >= '{str(start_time)}'")
+    if end_time is not None:
+        where_clauses.append(f"time <= '{str(end_time)}'")
+
+    if where_clauses:
+        cardinality_query += " WHERE " + " AND ".join(where_clauses)
+
     cardinality_logger.info(f"Executing query: {cardinality_query}")
     try:
         query_response = timestream_utility.query(query_string=cardinality_query)
@@ -186,11 +199,33 @@ if __name__ == "__main__":
         required=False,
         type=TimestreamUtility.comma_separated_list,
     )
+    parser.add_argument(
+        "--start-time",
+        help="Optional. Inclusive lower time bound for cardinality check in "
+        "ISO-8601 format (e.g., '2024-08-01T00:00:00Z').",
+        required=False,
+    )
+    parser.add_argument(
+        "--end-time",
+        help="Optional. Exclusive upper time bound for cardinality check in "
+        "ISO-8601 format (e.g., '2024-08-02T00:00:00Z').",
+        required=False,
+    )
     args = parser.parse_args()
 
     database_name = args.database_name
     table_name = args.table_name
     excluded_dimension_names = args.exclude_dimensions
+    start_time = (
+        datetime.strptime(args.start_time, "%Y-%m-%dT%H:%M:%SZ")
+        if args.start_time
+        else None
+    )
+    end_time = (
+        datetime.strptime(args.end_time, "%Y-%m-%dT%H:%M:%SZ")
+        if args.end_time
+        else None
+    )
 
     timestream_utility = TimestreamUtility()
 
@@ -199,6 +234,8 @@ if __name__ == "__main__":
         timestream_utility=timestream_utility,
         database_name=database_name,
         table_name=table_name,
+        start_time=start_time,
+        end_time=end_time,
     )
     print(f'Cardinality of "{database_name}"."{table_name}": {table_cardinality}')
     print(
@@ -213,6 +250,8 @@ if __name__ == "__main__":
             database_name=database_name,
             table_name=table_name,
             excluded_dimension_names=excluded_dimension_names,
+            start_time=start_time,
+            end_time=end_time,
         )
         if len(excluded_dimension_names) == 1:
             print(
