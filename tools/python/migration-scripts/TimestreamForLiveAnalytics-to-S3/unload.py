@@ -96,8 +96,6 @@ if __name__ == '__main__':
         bucket_s3_uri = s3_utility.create_s3_bucket(bucket_name)
     else:
         logger.info(f"Using provided S3 URI: {bucket_s3_uri}")
-
-    #initiate timestream utility 
     
 
     #Validations
