@@ -238,7 +238,7 @@ class timestreamUtility:
         except Exception as err:
             self.logger.error(f"Error publishing message to SNS topic: {str(err)}", exc_info=True)
 
-    def timestream_unload(self, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, migration_tag, max_file_size, kms_key, encryption, escaped_by, field_delimiter, recent_first, custom_partition_count):
+    def timestream_unload(self, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, migration_tag, max_file_size, kms_key, encryption, escaped_by, field_delimiter, recent_first, custom_partition_count, order_by_asc):
         """
         Unload data from Timestream to S3
 
@@ -277,7 +277,7 @@ class timestreamUtility:
         for index,start_end_pair in enumerate(batches, start=1):
             batch_start_time = start_end_pair[0]  # Gets first timestamp (start time)
             batch_end_time = start_end_pair[1]    # Gets second timestamp (end time)
-            query = self.build_query(migration_tag, database, table, bucket_s3_uri, partition, export_format, batch_start_time, batch_end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter)
+            query = self.build_query(migration_tag, database, table, bucket_s3_uri, partition, export_format, batch_start_time, batch_end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter, order_by_asc)
             self.log_unload(database=database, table=table, migration_tag=migration_tag, time_range=f'start_time >= {batch_start_time} and end_time < {batch_end_time}', status=f"batch{index}_started")
             rows_exported = self.run_query(query, database, table, batch_start_time, batch_end_time, migration_tag,batch_number=index)
             self.log_unload(database=database, table=table, migration_tag=migration_tag, time_range=f'start_time >= {batch_start_time} and end_time < {batch_end_time}', rows_exported=rows_exported, status=f"batch{index}_completed")
@@ -287,7 +287,7 @@ class timestreamUtility:
         self.log_unload(database=database, table=table, migration_tag=migration_tag, time_range=f'start_time >= {start_time} and end_time < {end_time}',  rows_exported=total_rows_exported, status='unload_completed')
 
 
-    def build_query(self, migration_tag, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter):
+    def build_query(self, migration_tag, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter, order_by_asc):
         """
         Build the Timestream unload query with the given parameters
 
@@ -325,11 +325,12 @@ class timestreamUtility:
                 unload_query += ", DATE_FORMAT(time,'%Y') as partition_date"  
 
         unload_query += f' FROM "{database}"."{table}"'   
-        unload_query += f" WHERE time >= '{start_time}' AND time < '{end_time}')"
+        unload_query += f" WHERE time >= '{start_time}' AND time < '{end_time}'"
 
-        # unload_query += " ORDER BY "
-        # unload_query += " time asc )"
-            
+        if (order_by_asc):
+            unload_query += "ORDER BY time asc"
+        unload_query += f")"
+
         unload_query += f" TO '{bucket_s3_uri}/{database}/{table}/{migration_tag}'"
         unload_query += " WITH ("
 

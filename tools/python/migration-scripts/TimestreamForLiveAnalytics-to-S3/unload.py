@@ -40,6 +40,7 @@ if __name__ == '__main__':
     parser.add_argument("-en", "--encryption", help="Encryption type", default='SSE_S3', choices=['SSE_KMS', 'SSE_S3'], required=False)
     parser.add_argument("-rf", "--recent-first", default=False,type=lambda x: x.lower() in ['true', '1', 'yes'],help="Set to true to load data in reverse chronological order (most recent batch first)",required=False)
     parser.add_argument("-cp", "--custom-partition-count", help="Custom partition count", default=99, required=False)
+    parser.add_argument("-ob", "--order-by-asc", help="data order by ascending", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
 
     #assign arguments to args variable
     args = parser.parse_args()
@@ -57,6 +58,7 @@ if __name__ == '__main__':
     field_delimiter = args.field_delimiter
     recent_first = args.recent_first
     custom_partition_count = args.custom_partition_count
+    order_by_asc = args.order_by_asc 
 
     sts_client = boto3.client('sts')
     region = args.region if args.region else sts_client.meta.region_name
@@ -131,6 +133,7 @@ if __name__ == '__main__':
     logger.info(f'database {database}, it may print None if exporting all databases for specific region')
     logger.info(f'table {table}, it may print None if exporting a database or all databases')
     logger.info(f'custom_partition_count {custom_partition_count}')
+    logger.info(f'order_by_asc {order_by_asc}')
 
     unload_params = {
         'database': database,
@@ -148,7 +151,8 @@ if __name__ == '__main__':
         'escaped_by': escaped_by,
         'field_delimiter': field_delimiter,
         'recent_first' : recent_first,
-        'custom_partition_count' : custom_partition_count
+        'custom_partition_count' : custom_partition_count,
+        'order_by_asc' : order_by_asc
     }
 
      #Create dynamodb logging table if dynamodb logging is enabled
