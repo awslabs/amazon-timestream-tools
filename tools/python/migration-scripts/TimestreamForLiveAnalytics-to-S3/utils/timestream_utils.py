@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from utils.s3_utils import s3Utility
 import time
 from datetime import timezone
+import json
 
 
 
@@ -80,7 +81,7 @@ class timestreamUtility:
         assert isinstance(ts, str), f"Timestamp must be a string, got {type(ts)}"
         datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')  # Raises ValueError if format is invalid
 
-    def generate_time_partitions(self, start_time_str, end_time_str, partition_by):
+    def generate_time_partitions(self, start_time_str, end_time_str, partition_by, custom_partition_count):
         """
         Generate time partitions for a given time range and partition type.
         This method is used to generate time partitions for unloading data from Timestream to S3.
@@ -98,7 +99,7 @@ class timestreamUtility:
 
         while current < end_time:
             #You cannot have more than 100 partitions for single unload.
-            partition_count= 99 
+            partition_count= custom_partition_count 
             if partition_by == 'hour':
                 next_time = current + timedelta(hours=partition_count)
             if partition_by == 'day':
@@ -156,7 +157,68 @@ class timestreamUtility:
             return tables_list       
         except Exception as e:
             self.logger.error(f"Error getting tables: {str(e)}", exc_info=True)
-            raise       
+            raise   
+
+    def validate_sns_topic(self, sns_topic_arn):
+        """
+        Validates that the SNS topic exists and is accessible by sending a test message.
+        
+        Args:
+            sns_topic_arn (str): The ARN of the SNS topic to validate
+            
+        Returns:
+            bool: True if the topic is valid and accessible, False otherwise
+        """
+            
+        try:
+            # First, check if the topic exists
+            self.sns_client.get_topic_attributes(
+                TopicArn=sns_topic_arn
+            )
+            
+            # If we get here, the topic exists. Now try to publish a test message
+            test_message = {
+                "validation": "test",
+                "timestamp": datetime.now().isoformat(),
+                "message": "This is a test message to validate SNS topic permissions"
+            }
+            
+            response = self.sns_client.publish(
+                TopicArn=sns_topic_arn,
+                Message=json.dumps(test_message),
+                Subject="SNS Topic Validation Test",
+                MessageAttributes={
+                    'TestMessage': {
+                        'DataType': 'String',
+                        'StringValue': 'true'
+                    }
+                }
+            )
+            
+            # Check if we got a message ID, which indicates successful publishing
+            if 'MessageId' in response:
+                self.logger.info(f"Successfully validated SNS topic with test message: {sns_topic_arn} (Message ID: {response['MessageId']})")
+                return True
+            else:
+                self.logger.error(f"Failed to publish test message to SNS topic: {sns_topic_arn}")
+                return False
+            
+        except boto3.exceptions.botocore.exceptions.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+            
+            if error_code == 'AuthorizationErrorException':
+                self.logger.error(f"Authorization error accessing SNS topic {sns_topic_arn}: {error_message}")
+            elif error_code == 'NotFound':
+                self.logger.error(f"SNS topic {sns_topic_arn} not found: {error_message}")
+            else:
+                self.logger.error(f"Error validating SNS topic {sns_topic_arn}: {error_code} - {error_message}")
+            
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error validating SNS topic {sns_topic_arn}: {str(e)}")
+            return False
+
 
 
     def sns_publish_message(self, message, subject, message_structure='email'):
@@ -169,11 +231,14 @@ class timestreamUtility:
             message_structure: Message structure (default: 'email')
         """
         self.logger.info(f"Publishing message to SNS topic: {self.sns_topic_arn}")
-        response = self.sns_client.publish(
-            TopicArn=self.sns_topic_arn, Message=message, Subject=subject, MessageStructure=message_structure)
-        self.logger.info(response)
+        try:
+            response = self.sns_client.publish(
+                TopicArn=self.sns_topic_arn, Message=message, Subject=subject, MessageStructure=message_structure)
+            self.logger.info(response)
+        except Exception as err:
+            self.logger.error(f"Error publishing message to SNS topic: {str(err)}", exc_info=True)
 
-    def timestream_unload(self, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, migration_tag, max_file_size, kms_key, encryption, escaped_by, field_delimiter, recent_first):
+    def timestream_unload(self, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, migration_tag, max_file_size, kms_key, encryption, escaped_by, field_delimiter, recent_first, custom_partition_count):
         """
         Unload data from Timestream to S3
 
@@ -196,13 +261,13 @@ class timestreamUtility:
         self.logger.info(f"Starting unload for {database}.{table}")
         total_rows_exported = 0
         if partition == 'hour':
-            batches=self.generate_time_partitions(start_time, end_time, 'hour')
+            batches=self.generate_time_partitions(start_time, end_time, 'hour', custom_partition_count)
         elif partition == 'day':
-            batches=self.generate_time_partitions(start_time, end_time, 'day')
+            batches=self.generate_time_partitions(start_time, end_time, 'day', custom_partition_count)
         elif partition == 'month':
-            batches=self.generate_time_partitions(start_time, end_time, 'month')
+            batches=self.generate_time_partitions(start_time, end_time, 'month', custom_partition_count)
         else:
-            batches=self.generate_time_partitions(start_time, end_time, 'year')
+            batches=self.generate_time_partitions(start_time, end_time, 'year', custom_partition_count)
         #descend the batches if user chooses recent_time_first=true
         if (recent_first):
             batches.reverse()
@@ -259,17 +324,11 @@ class timestreamUtility:
             elif (partition == "year"):
                 unload_query += ", DATE_FORMAT(time,'%Y') as partition_date"  
 
-        unload_query += f' FROM "{database}"."{table}"'
+        unload_query += f' FROM "{database}"."{table}"'   
+        unload_query += f" WHERE time >= '{start_time}' AND time < '{end_time}')"
 
-        if (start_time and end_time):
-            unload_query += f" WHERE time >= '{start_time}' AND time < '{end_time}'"
-        elif (start_time):
-            unload_query += f" WHERE time >= '{start_time}'"
-        elif (end_time):
-            unload_query += f" WHERE time < '{end_time}'"
-
-        unload_query += " ORDER BY "
-        unload_query += " time asc )"
+        # unload_query += " ORDER BY "
+        # unload_query += " time asc )"
             
         unload_query += f" TO '{bucket_s3_uri}/{database}/{table}/{migration_tag}'"
         unload_query += " WITH ("
@@ -346,8 +405,13 @@ class timestreamUtility:
             file = "/".join(manifest_file.split("/")[3:])
             s3_manifest_bucket_name = manifest_file.split('s3://')[-1].split('/')[0]
             manifest_file_response = self.s3_utility.fetch_json_from_s3(s3_manifest_bucket_name, file)
-            self.logger.debug(manifest_file_response)
+            self.logger.info(manifest_file_response)
             exported_rows = manifest_file_response['query_metadata']['total_row_count']
+            export_files = {}
+            for file in manifest_file_response['result_files']:
+                export_file = file['url']
+                export_files[export_file] = file['file_metadata']['row_count']
+            self.logger.info(export_files)  
             self.logger.info(f"Rows exported for batch start_time >= {start_time} and end_time < {end_time} for {database}.{table}: {exported_rows}")
             return exported_rows
         except Exception as err:
