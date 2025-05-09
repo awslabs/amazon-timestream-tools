@@ -344,7 +344,7 @@ class TimestreamUtility:
             batch_end_time = start_end_pair[1]    # Gets second timestamp (end time)
             query = self.build_query(migration_tag, database, table, bucket_s3_uri, partition, export_format, batch_start_time, batch_end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter, order_by_asc)
             self.log_unload(database=database, table=table, migration_tag=migration_tag, time_range=f'start_time >= {batch_start_time} and end_time < {batch_end_time}', status=f"batch{index}_started")
-            rows_exported = self.run_query(query, database, table, batch_start_time, batch_end_time, migration_tag,batch_number=index)
+            rows_exported = self.run_unload_query(query, database, table, batch_start_time, batch_end_time, migration_tag,batch_number=index)
             self.log_unload(database=database, table=table, migration_tag=migration_tag, time_range=f'start_time >= {batch_start_time} and end_time < {batch_end_time}', rows_exported=rows_exported, status=f"batch{index}_completed")
             total_rows_exported += rows_exported
         self.logger.info(f"Unload completed for {database}.{table}")

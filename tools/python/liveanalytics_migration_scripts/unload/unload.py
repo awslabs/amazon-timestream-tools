@@ -4,14 +4,14 @@ import argparse
 import boto3
 import json
 from botocore.config import Config
-from datetime import timezone
+from datetime import datetime, timezone
 import sys
 import os
 
 sys.path.append("./utils/")
 
 from logger_utils import create_logger
-from timestream_utils import *
+from timestream_utils import TimestreamUtility
 from s3_utils import S3Utility
 
 if __name__ == "__main__":
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     #parse sns 
     sns_topic_arn=args.sns_topic_arn
-    timestream_utility = timestreamUtility(region, sns_topic_arn, args.enable_dynamodb_logger)
+    timestream_utility = TimestreamUtility(region, sns_topic_arn, args.enable_dynamodb_logger)
     if args.sns_topic_arn is not None:
         if not timestream_utility.validate_sns_topic(sns_topic_arn):
             sys.exit(1)
