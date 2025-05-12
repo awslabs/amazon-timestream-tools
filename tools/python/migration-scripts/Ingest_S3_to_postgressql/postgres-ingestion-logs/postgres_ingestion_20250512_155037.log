@@ -1,5 +1,0 @@
-2025-05-12 15:50:37,834 - postgres_ingestion - INFO - logging into /data/timestream-github-tools/tools/python/migration-scripts/Ingest_S3_to_postgressql/postgres-ingestion-logs/postgres_ingestion_20250512_155037.log
-2025-05-12 15:50:37,961 - postgres_ingestion - INFO - Connecting to database-1.cluster-ctxunyvlec9g.us-east-1.rds.amazonaws.com as user postgres for database postgres_testing_1
-2025-05-12 15:50:37,976 - postgres_ingestion - ERROR - Failed to create connection pool: connection to server at "database-1.cluster-ctxunyvlec9g.us-east-1.rds.amazonaws.com" (172.31.96.95), port 5432 failed: FATAL:  database "postgres_testing_1" does not exist
-
-2025-05-12 15:50:38,104 - postgres_ingestion - INFO - {'MessageId': 'def46337-5b37-5637-91e0-03ab4039d7df', 'ResponseMetadata': {'RequestId': '4c9a53c2-77e7-5246-968d-335e6ce903ae', 'HTTPStatusCode': 200, 'HTTPHeaders': {'x-amzn-requestid': '4c9a53c2-77e7-5246-968d-335e6ce903ae', 'date': 'Mon, 12 May 2025 15:50:38 GMT', 'content-type': 'text/xml', 'content-length': '294', 'connection': 'keep-alive'}, 'RetryAttempts': 0}}

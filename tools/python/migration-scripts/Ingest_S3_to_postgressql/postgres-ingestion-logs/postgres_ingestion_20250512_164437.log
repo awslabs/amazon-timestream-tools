@@ -1,2 +1,0 @@
-2025-05-12 16:44:37,142 - postgres_ingestion - INFO - logging into /data/timestream-github-tools/tools/python/migration-scripts/Ingest_S3_to_postgressql/postgres-ingestion-logs/postgres_ingestion_20250512_164437.log
-2025-05-12 16:44:37,142 - postgres_ingestion - ERROR - Invalid table name or schema. Must contain only alphanumeric characters and underscores.

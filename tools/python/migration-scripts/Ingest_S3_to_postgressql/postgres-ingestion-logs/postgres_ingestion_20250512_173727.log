@@ -1,8 +1,0 @@
-2025-05-12 17:37:27,015 - postgres_ingestion - INFO - logging into /data/timestream-github-tools/tools/python/migration-scripts/Ingest_S3_to_postgressql/postgres-ingestion-logs/postgres_ingestion_20250512_173727.log
-2025-05-12 17:37:27,127 - postgres_ingestion - INFO - Successfully validated SNS topic with test message: arn:aws:sns:us-east-1:900661324596:batchload_test (Message ID: 6c5dc756-3156-5348-9013-a7ca054184c3)
-2025-05-12 17:37:27,269 - postgres_ingestion - INFO - Connecting to database-1.cluster-ctxunyvlec9g.us-east-1.rds.amazonaws.com as user postgres for database postgres_testing
-2025-05-12 17:37:27,284 - postgres_ingestion - INFO - Successfully created database connection pool
-2025-05-12 17:37:27,287 - postgres_ingestion - INFO - Processed files will be moved to: /data/csv_files/processed_demolarge_restored_postgres_testing after processing
-2025-05-12 17:37:27,287 - postgres_ingestion - INFO - Created processed directory: /data/csv_files/processed_demolarge_restored_postgres_testing
-2025-05-12 17:37:27,288 - postgres_ingestion - INFO - Found 0 CSV files in /data/csv_files/demolarge_restored/*.csv
-2025-05-12 17:37:27,288 - postgres_ingestion - ERROR - No CSV files found in /data/csv_files/demolarge_restored/*.csv
