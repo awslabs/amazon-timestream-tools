@@ -230,6 +230,7 @@ class timestreamUtility:
             subject: Subject of the message
             message_structure: Message structure (default: 'email')
         """
+        subject =subject[:100]
         self.logger.info(f"Publishing message to SNS topic: {self.sns_topic_arn}")
         try:
             response = self.sns_client.publish(

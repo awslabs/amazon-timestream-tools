@@ -9,6 +9,7 @@ from utils.timestream_utils import *
 from utils.s3_utils import s3Utility
 from datetime import timezone
 import sys
+import os
    
 if __name__ == '__main__':
 
@@ -29,7 +30,7 @@ if __name__ == '__main__':
     parser.add_argument("-mt", "--migration-tag", help="Migration tag-used as sort key to store DynamoDB", default=None, required=False)
     parser.add_argument("-ef","--export-format", help="export format", default='PARQUET',choices=['PARQUET','CSV'], required=False)
     parser.add_argument("-c","--compression", help="Compress the export files", default='NONE',choices=['NONE','GZIP'], required=False)
-    parser.add_argument("-ms", "--max-file-size", help="Max individual file size in GB or MB for unload", default='78GB', required=False)
+    parser.add_argument("-ms", "--max-file-size", help="Max individual file size in GB or MB for unload", default='2GB', required=False)
     parser.add_argument("-eb", "--escaped-by", 
                    default="\\",
                    help="""Character used for escaping in CSV files. Examples:
@@ -41,9 +42,20 @@ if __name__ == '__main__':
     parser.add_argument("-rf", "--recent-first", default=False,type=lambda x: x.lower() in ['true', '1', 'yes'],help="Set to true to load data in reverse chronological order (most recent batch first)",required=False)
     parser.add_argument("-cp", "--custom-partition-count", help="Custom partition count", default=99, required=False)
     parser.add_argument("-ob", "--order-by-asc", help="data order by ascending", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
+    parser.add_argument("-ld", "--logs-dir", help='Directory for export logs (default: timestream-export-logs)', default = None, required = False)
 
     #assign arguments to args variable
     args = parser.parse_args()
+
+    log_dir = args.logs_dir
+
+    if log_dir is None:
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'timestream-export-logs')
+    os.makedirs(log_dir, exist_ok=True)
+    custom_logger_file = f"timestream_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    logger = create_logger('timestream_export', log_file=f"{log_dir}/{custom_logger_file}" )
+    logger.info(f"logging into {log_dir}/{custom_logger_file}")
+
     start_time= args.start_time 
     end_time= args.end_time
     migration_tag = args.migration_tag or f"unload-{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
@@ -74,8 +86,8 @@ if __name__ == '__main__':
     else:
         unload_type = 'database' if args.export_database else 'table' if args.export_table else 'all_databases'
 
-    #create logger
-    logger = create_logger("Unload Logger")
+    # #create logger
+    # logger = create_logger("Unload Logger")
 
     #parse bucket
     bucket_s3_uri = args.s3_uri

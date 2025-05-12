@@ -1,0 +1,37 @@
+2025-05-12 17:15:45,762 - postgres_ingestion - INFO - logging into /data/timestream-github-tools/tools/python/migration-scripts/Ingest_S3_to_postgressql/postgres-ingestion-logs/postgres_ingestion_20250512_171545.log
+2025-05-12 17:15:45,870 - postgres_ingestion - INFO - Successfully validated SNS topic with test message: arn:aws:sns:us-east-1:900661324596:batchload_test (Message ID: 33fe8415-c7f5-5a62-b89c-e489e8f4da07)
+2025-05-12 17:15:46,001 - postgres_ingestion - INFO - Connecting to database-1.cluster-ctxunyvlec9g.us-east-1.rds.amazonaws.com as user postgres for database postgres_testing
+2025-05-12 17:15:46,018 - postgres_ingestion - INFO - Successfully created database connection pool
+2025-05-12 17:15:46,021 - postgres_ingestion - INFO - Processed files will be moved to: /data/processed_demolarge_restored_postgres_testing after processing
+2025-05-12 17:15:46,021 - postgres_ingestion - INFO - Found 4 CSV files in /data/csv_files/*.csv
+2025-05-12 17:15:46,021 - postgres_ingestion - INFO - Starting ingestion of 4 files in {4} threads
+2025-05-12 17:15:46,021 - postgres_ingestion - INFO - Processing file: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_1HSV8IdQ8zMsgzdr.csv
+2025-05-12 17:15:46,022 - postgres_ingestion - INFO - COPY demolarge_restored (specs, rack, design, hypervisor, host, pid, data_center, model, region, type, make, capacity, measure_name, time, cpu_utilization, memory, network_out, cpu_node11, cpu_node3, network_in, cpu_node10, cpu_node4, cpu_node1, cpu_node13, cpu_node12, cpu_node2, cpu_node15, cpu_node7, cpu_node14, cpu_node8, cpu_node5, cpu_node16, cpu_node6, cpu_node9, network_mb) FROM STDIN WITH (FORMAT csv,HEADER true,NULL '');
+2025-05-12 17:15:46,023 - postgres_ingestion - INFO - Thread completed: Processed 0 files with 0 total rows
+2025-05-12 17:15:46,023 - postgres_ingestion - INFO - Thread completed: Processed 0 files with 0 total rows
+2025-05-12 17:15:46,023 - postgres_ingestion - INFO - Thread completed: Processed 0 files with 0 total rows
+2025-05-12 17:15:46,023 - postgres_ingestion - INFO - Thread completed: Processed 0 files with 0 total rows
+2025-05-12 17:15:46,024 - postgres_ingestion - INFO - Thread completed: Processed 0 files with 0 total rows
+2025-05-12 17:15:46,024 - postgres_ingestion - INFO - Thread completed: Processed 0 files with 0 total rows
+2025-05-12 17:15:46,033 - postgres_ingestion - INFO - Processing file: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_iY2TcR0xIEs2CFLA.csv
+2025-05-12 17:15:46,033 - postgres_ingestion - INFO - COPY demolarge_restored (specs, rack, design, hypervisor, host, pid, data_center, model, region, type, make, capacity, measure_name, time, cpu_utilization, memory, network_out, cpu_node11, cpu_node3, network_in, cpu_node10, cpu_node4, cpu_node1, cpu_node13, cpu_node12, cpu_node2, cpu_node15, cpu_node7, cpu_node14, cpu_node8, cpu_node5, cpu_node16, cpu_node6, cpu_node9, network_mb) FROM STDIN WITH (FORMAT csv,HEADER true,NULL '');
+2025-05-12 17:15:46,036 - postgres_ingestion - INFO - Processing file: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fgBFq23uHkDabYkE.csv
+2025-05-12 17:15:46,036 - postgres_ingestion - INFO - COPY demolarge_restored (specs, rack, design, hypervisor, host, pid, data_center, model, region, type, make, capacity, measure_name, time, cpu_utilization, memory, network_out, cpu_node11, cpu_node3, network_in, cpu_node10, cpu_node4, cpu_node1, cpu_node13, cpu_node12, cpu_node2, cpu_node15, cpu_node7, cpu_node14, cpu_node8, cpu_node5, cpu_node16, cpu_node6, cpu_node9, network_mb) FROM STDIN WITH (FORMAT csv,HEADER true,NULL '');
+2025-05-12 17:15:46,036 - postgres_ingestion - INFO - Processing file: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fNQsojgEcEKXR6gM.csv
+2025-05-12 17:15:46,036 - postgres_ingestion - INFO - COPY demolarge_restored (specs, rack, design, hypervisor, host, pid, data_center, model, region, type, make, capacity, measure_name, time, cpu_utilization, memory, network_out, cpu_node11, cpu_node3, network_in, cpu_node10, cpu_node4, cpu_node1, cpu_node13, cpu_node12, cpu_node2, cpu_node15, cpu_node7, cpu_node14, cpu_node8, cpu_node5, cpu_node16, cpu_node6, cpu_node9, network_mb) FROM STDIN WITH (FORMAT csv,HEADER true,NULL '');
+2025-05-12 17:15:47,482 - postgres_ingestion - INFO - Successfully Copied: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_iY2TcR0xIEs2CFLA.csv,Rows ingested: 140420, Time taken : 0 minutes and 1 seconds
+2025-05-12 17:15:47,482 - postgres_ingestion - INFO - Moved /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_iY2TcR0xIEs2CFLA.csv to /data/processed_demolarge_restored_postgres_testing/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_iY2TcR0xIEs2CFLA.csv
+2025-05-12 17:15:47,483 - postgres_ingestion - INFO - Thread completed: Processed 1 files with 140420 total rows
+2025-05-12 17:15:47,511 - postgres_ingestion - INFO - Successfully Copied: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fNQsojgEcEKXR6gM.csv,Rows ingested: 163745, Time taken : 0 minutes and 1 seconds
+2025-05-12 17:15:47,511 - postgres_ingestion - INFO - Successfully Copied: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fgBFq23uHkDabYkE.csv,Rows ingested: 158244, Time taken : 0 minutes and 1 seconds
+2025-05-12 17:15:47,512 - postgres_ingestion - INFO - Moved /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fNQsojgEcEKXR6gM.csv to /data/processed_demolarge_restored_postgres_testing/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fNQsojgEcEKXR6gM.csv
+2025-05-12 17:15:47,512 - postgres_ingestion - INFO - Moved /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fgBFq23uHkDabYkE.csv to /data/processed_demolarge_restored_postgres_testing/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_fgBFq23uHkDabYkE.csv
+2025-05-12 17:15:47,512 - postgres_ingestion - INFO - Thread completed: Processed 1 files with 163745 total rows
+2025-05-12 17:15:47,512 - postgres_ingestion - INFO - Thread completed: Processed 1 files with 158244 total rows
+2025-05-12 17:15:47,515 - postgres_ingestion - INFO - Successfully Copied: /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_1HSV8IdQ8zMsgzdr.csv,Rows ingested: 198091, Time taken : 0 minutes and 1 seconds
+2025-05-12 17:15:47,515 - postgres_ingestion - INFO - Moved /data/csv_files/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_1HSV8IdQ8zMsgzdr.csv to /data/processed_demolarge_restored_postgres_testing/AEBQEAN4F2Y4WO7URE67MCHF6SWM4ON66XGE7DJBRIFCSLXBY5VBJMSRJ5AWA4Y_0344000381_1HSV8IdQ8zMsgzdr.csv
+2025-05-12 17:15:47,515 - postgres_ingestion - INFO - Thread completed: Processed 1 files with 198091 total rows
+2025-05-12 17:15:47,515 - postgres_ingestion - INFO - Total rows ingested across all threads: 0
+2025-05-12 17:15:47,516 - postgres_ingestion - INFO - Start time: 2025-05-12 17:15:46.021311
+2025-05-12 17:15:47,516 - postgres_ingestion - INFO - End time: 2025-05-12 17:15:47.516200
+2025-05-12 17:15:47,516 - postgres_ingestion - INFO - Duration: 0:00:01.494889

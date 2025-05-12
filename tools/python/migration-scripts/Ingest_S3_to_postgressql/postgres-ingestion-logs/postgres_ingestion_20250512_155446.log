@@ -1,0 +1,2 @@
+2025-05-12 15:54:46,494 - postgres_ingestion - INFO - logging into /data/timestream-github-tools/tools/python/migration-scripts/Ingest_S3_to_postgressql/postgres-ingestion-logs/postgres_ingestion_20250512_155446.log
+2025-05-12 15:54:46,494 - postgres_ingestion - ERROR - Unexpected error validating SNS topic arn:aws:sns:us-east-1:900661324596:batchload_test: name 'sns_client' is not defined
