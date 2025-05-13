@@ -77,11 +77,14 @@ Transform the unloaded data from Timestream for LiveAnalytics to line protocol (
 
 ```
 cd transform
-python transform.py --database-name benchmark --tables cpu --s3-bucket-name <s3_bucket_name> --add-validation-field true
+python3 transform.py --database-name benchmark --tables cpu --s3-bucket-name <s3_bucket_name> --add-validation-field true
 ```
 
-- If end-to-end validation (comparing row counts between source and destination databases) is not required, set `--add-validation-field` flag to `false`.
+- To transform all tables, use the `--all-tables` flag.
+- If end-to-end validation (comparing logical row counts between source and destination) is not required, set `--add-validation-field` flag to `false`.
 - To convert dimensions to fields during transformation, use the `--dimensions-to-fields` flag.
+
+See [transform/README.md](./transform/README.md) for more details.
 
 ### 2. Ingest line protocol to Timestream for InfluxDB
 
@@ -95,49 +98,58 @@ Run the ingestion script with the target Timestream for InfluxDB bucket and path
 python3 ingestion/influxdb_ingestion.py benchmark-bucket ./line-protocol-output
 ```
 
-- You can optionally run ingestion with the `--continue-on-error` flag to continue ingesting remaining files even if one fails.
-
+- Optionally configure the number of workers (`-w`), batch size (`-l`), and I/O multiplier (`-m`) 
+- Run ingestion with the `--continue-on-error` flag to continue ingesting remaining files even if one fails.
 - On failure or disruption to ingestion, you can resume from a previous run by using the `--resume-from` flag. Specify the path to the tracking directory from a previous run to skip already ingested files.
-
     ```
     python3 ingestion/influxdb_ingestion.py benchmark-bucket ./line-protocol-output --resume-from  ./influxdb-ingestion-logs/tracking_<run_id>
     ```
 
+See [ingestion/README.md](./ingestion/README.md) for more details.
 
-#### 3. Validation
+### 3. Validation
 
-Using the validation script, you can verify that all records have been ingested to InfluxDB.
+Validate that all records have been ingested to InfluxDB:
 ```
 python3 validation/validator.py
 ```
 
-- If any dimensions were converted to fields during transformation to LP, provide the full list of tags from the new schema. Refer to the output of the [transform stage](transform/README.md#using-dimensions-as-fields) to retrieve tags from the transformed schema.
+- Optionally configure `--start-time` and `--end-time` to validate row counts in time ranges.
 
-- To check current ingestion progress without impacting the migration, use the validator with `--influx-only` and `--skip-wal-check` flags. This provides a real-time count of points in Timestream for InfluxDB without querying the source database (Athena/Timestream for LiveAnalytics) but excludes records still in post-processing.
+- If any dimensions were converted to fields during transformation to LP, provide the full list of tags from the new schema. Refer to the output of the [transformation](transform/README.md#using-dimensions-as-fields) to retrieve tags from the transformed schema.
+
+- To check current ingestion progress without impacting the migration, use the validator with `--influx-only` and `--skip-wal-check` flags. This provides a real-time count of points in Timestream for InfluxDB without querying the source database (Athena/Timestream for LiveAnalytics) and excludes records still in post-processing.
 
     ```
     python3 validation/validator.py --skip-wal-check --influx-only
     ```
 
+See [validation/README.md](./validation/README.md) for more details.
+
 ## Troubleshooting
 
-If you are experiencing unexpected Python errors, ensure your Python virtual environment is properly activated:
+- If you are experiencing unexpected Python errors, ensure your Python virtual environment is properly activated:
 
-1. Activate the virtual environment:
-```bash
-source venv/bin/activate
-```
+    1. Activate the virtual environment:
+    ```bash
+    source venv/bin/activate
+    ```
 
-You should see (venv)
-appear at the beginning of your command prompt.
+    You should see (venv)
+    appear at the beginning of your command prompt.
 
-2. If you're experiencing command path issues, refresh your shell's command hash table:
-```bash
-hash -r
-```
+    2. If you're experiencing command path issues, refresh your shell's command hash table:
+    ```bash
+    hash -r
+    ```
 
-3. Verify Python path points to the virtual environment directory:
+    3. Verify Python path points to the virtual environment directory:
 
-```bash
-which python
-```
+    ```bash
+    which python
+    ```
+
+- Ensure required environment variables are defined, or `.env` (see [example.env](example.env)) is present when running scripts in this directory. Note that ingestion  requires the following environment variables to be defined:
+    - `INFLUXDB_V2_URL`
+    - `INFLUXDB_V2_ORG`
+    - `INFLUXDB_V2_TOKEN`

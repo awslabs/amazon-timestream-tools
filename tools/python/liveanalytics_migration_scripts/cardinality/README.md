@@ -79,19 +79,11 @@ If you decide to migrate to Timestream for InfluxDB and decide to translate any 
 
 ## Prerequisites
 
-The following prerequisites must be met before running the script:
-1. [AWS credentials configured for use with boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file).
-2. A Timestream for LiveAnalytics table [created](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.table.using-console) and loaded with data.
-3. [Python 3.13 installed](https://www.python.org/downloads/).
+- A Timestream for LiveAnalytics table [created](https://docs.aws.amazon.com/timestream/latest/developerguide/console_timestream.html#console_timestream.table.using-console) and loaded with data.
 
 ## Installation
 
-Optionally, a [Python virtual environment](https://docs.python.org/3/library/venv.html), with all packages in `requirements.txt` installed. The following command can be used to create a virtual environment, activate it, and install all necessary packages:
-   ```shell
-   python3 -m venv env && \
-   source env/bin/activate && \
-   python3 -m pip install -r requirements.txt
-   ```
+See [../README.md#Installation](../README.md#installation).
 
 ## Usage
 

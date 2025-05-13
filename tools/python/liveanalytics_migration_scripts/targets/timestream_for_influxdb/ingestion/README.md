@@ -15,7 +15,7 @@ The `influxdb_ingestion.py` script is a Python utility that:
 
 Before running this script, complete the following:
 
-1. Complete the LiveAnalytics unload and Athena transformation scripts (see [../../../unload/README](../../../unload/README.md) and [../transform/README](../transform/README) for details)
+1. Complete the LiveAnalytics unload and Athena transformation scripts (see [../../../unload/README](../../../unload/README.md) and [../transform/README](../transform/README.md) for details)
 2. Set up the required environment variables:
    - `INFLUXDB_V2_URL`: The URL of your InfluxDB instance with the included scheme and port, for example `http://localhost:8086`
    - `INFLUXDB_V2_ORG`: Your InfluxDB organization name
@@ -23,20 +23,11 @@ Before running this script, complete the following:
 3. Create the target bucket in InfluxDB where data will be ingested
 4. Ensure sufficient storage space is allocated for the transformed dataset (EC2 instance recommended)
 
+
 ## Installation
 
-1. Create and activate a virtual environment:
+See [README.md#Installation](../../../README.md#installation).
 
-```bash
-python -m venv venv
-source venv/bin/activate
-```
-
-2. Install the required dependencies:
-
-```bash
-pip install -r requirements.txt
-```
 
 ## Data preparation
 
@@ -157,4 +148,4 @@ For information about testing the ingestion process, refer to [ingestion-tests/R
 
 ## Validation
 
-For information on validating ingestion data, refer to [../validator/README](../validator/README)
+For information on validating ingestion data, refer to [../validation/README.md](../validation/README.md)

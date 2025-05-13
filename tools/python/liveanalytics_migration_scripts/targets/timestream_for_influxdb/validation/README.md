@@ -16,31 +16,20 @@ The validation script can be run anytime after ingestion has begun. The script f
 
 - Executes count‑only queries over an identical time window  
 - Compares results and highlights matches or mismatches  
-- Supports optional schema/tag filtering for [transformed schemas](../transform/README.md### Using Dimensions as Fields) 
+- Supports optional schema/tag filtering for [transformed schemas](../transform/README.md#using-dimensions-as-fields)
 - Produces human‑readable timing and result summaries  
 
 
 ## Prerequisites
 
 1. Complete the previous migration stages as highlighted above. The validation script will exit early if there are no points ingested to the target InfluxDB instance.
-2. [AWS credentials configured for use with boto3.](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file)
-3. [An InfluxDB access token](https://docs.influxdata.com/influxdb/cloud/admin/tokens/create-token/) for the target Timestream for InfluxDB instance.
-3. One of:
-    - Python 3.8+
-    - Docker
+2. [An InfluxDB API token](https://docs.influxdata.com/influxdb/v2/admin/tokens/create-token/) for the target Timestream for InfluxDB instance.
+3. Optional: Docker
 
 ## Installation
 
-1. Create and activate a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate
-```
+See [README.md#Installation](../../../README.md#installation).
 
-2. Install the required dependencies:
-```bash
-pip install -r requirements.txt
-```
 
 #### With Docker
 
