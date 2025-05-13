@@ -56,25 +56,8 @@
 </div>
 
 <div>
-<h2>Prerequisites</h2>
-<ul>
-<li>Minimum Python 3.9</li>
-<li>AWS credentials configured</li>
-<li>Required Python packages:
-<pre><code>boto3
-botocore</code></pre>
-</li>
-</ul>
-</div>
-
-<div>
 <h2>Installation</h2>
-<ol>
-<li>Clone this source code project using git or download it manually</li>
-<li>Install dependencies:
-<pre><code>python3 -m pip install boto3 botocore</code></pre>
-</li>
-</ol>
+<p>See <a href="../README.md#installation">../README.md#Installation</a>.</p>
 </div>
 
 <div>
