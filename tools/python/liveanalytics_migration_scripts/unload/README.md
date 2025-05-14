@@ -184,7 +184,7 @@
 </tr>
 <tr>
 <td><code>-mt, --migration-tag</code></td>
-<td>Custom tag for tracking exports<br><i>Default:unload-{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}</i></td>
+<td>Custom tag for tracking exports<br><i>Default:unload-{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H:%M:%S')}</i></td>
 <td><code>production-export-jan122024</code></td>
 </tr>
 <tr>
