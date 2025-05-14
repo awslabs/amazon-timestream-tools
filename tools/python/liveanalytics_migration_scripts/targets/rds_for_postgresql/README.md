@@ -35,16 +35,16 @@ pip install boto3 psycopg2-binary
 python copy_postgres.py \
   --table TABLE_NAME \
   --database DATABASE_NAME \
-  --csv_files_dir "/path/to/csv/files/*.csv" \
+  --csv-files-dir "/path/to/csv/files/*.csv" \
   --host DATABASE_HOST \
-  --secret_name SECRET_NAME \
+  --secret-name secret-name \
   [--schema SCHEMA] \
   [--user USERNAME] \
   [--port PORT] \
-  [--parallel_threads THREADS] \
+  [--parallel-threads THREADS] \
   [--processed_dir PROCESSED_DIR] \
-  [--logs_dir LOGS_DIR] \
-  [--sns_topic_arn SNS_TOPIC_ARN]
+  [--logs-dir LOGS_DIR] \
+  [--sns-topic-arn sns-topic-arn]
 ```
 
 ## Parameters
@@ -53,19 +53,19 @@ python copy_postgres.py \
 
 - `--table`: Target PostgreSQL table name
 - `--database`: PostgreSQL database name
-- `--csv_files_dir`: Directory or glob pattern for CSV files
+- `--csv-files-dir`: Directory or glob pattern for CSV files
 - `--host`: Aurora/RDS Postgres cluster writer endpoint
-- `--secret_name`: AWS Secrets Manager secret containing database password
+- `--secret-name`: AWS Secrets Manager secret containing database password
 
 ### Optional Parameters
 
 - `--schema`: PostgreSQL schema (default: public)
 - `--user`: PostgreSQL username (default: postgres)
 - `--port`: PostgreSQL port (default: 5432)
-- `--parallel_threads`: Number of concurrent threads (default: 10)
-- `--processed_dir`: Directory for processed files (default: auto-generated)
-- `--logs_dir`: Directory for log files (default: ./postgres-ingestion-logs)
-- `--sns_topic_arn`: SNS topic ARN for failure notifications
+- `--parallel-threads`: Number of concurrent threads (default: 10)
+- `--processed-dir`: Directory for processed files (default: auto-generated)
+- `--logs-dir`: Directory for log files (default: ./postgres-ingestion-logs)
+- `--sns-topic-arn`: SNS topic ARN for failure notifications
 
 ## How It Works
 
@@ -88,11 +88,11 @@ python copy_postgres.py \
 python copy_postgres.py \
   --table customers \
   --database sales \
-  --csv_files_dir "/data/csv_files/*partition*/*.csv" \
+  --csv-files-dir "/data/csv_files/*partition*/*.csv" \
   --host database-1.cluster-123456789012.us-east-1.rds.amazonaws.com \
-  --secret_name  'arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!cluster-xxxxx-xx-xx-xx-xxxxxxxx-xxxxx' \
-  --parallel_threads 20 \
-  --sns_topic_arn "arn:aws:sns:us-east-1:123456789012:notifications"
+  --secret-name  'arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!cluster-xxxxx-xx-xx-xx-xxxxxxxx-xxxxx' \
+  --parallel-threads 20 \
+  --sns-topic-arn "arn:aws:sns:us-east-1:123456789012:notifications"
 ```
 
 ## Best Practices
@@ -113,3 +113,4 @@ python copy_postgres.py \
 ## Notes
 
 For production workloads with complex requirements, AWS Database Migration Service (DMS) offers a robust and scalable solution. For scenarios where AWS DMS may not be suitable for your specific requirements, we provide this supplementary Python-based PostgreSQL CSV Ingestion Tool for migrating CSV data from S3 to PostgreSQL.
+
