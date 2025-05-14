@@ -103,7 +103,7 @@
 
 <div style="border: 1px solid #ddd; padding: 15px; margin: 20px 0; border-radius: 5px; background-color: #f8f9fa;">
 <h4>Export Example with end time, parition, s3 uri, dynamodb logging and sns notification </h4>
-<pre><code>python unload.py --export-table --database MyDB --table MyTable --start-time '2024-01-01 00:00:00'--end-time '2024-02-01 00:00:00' --partition month --export-format PARQUET --compression GZIP --region us-east-1 --s3-uri s3://my-bucket --enable-dynamodb-logger --sns-topic-arn arn:aws:sns:region:account-id:topic-name</code></pre>
+<pre><code>python unload.py --export-table --database MyDB --table MyTable --start-time '2024-01-01 00:00:00' --end-time '2024-02-01 00:00:00' --partition month --export-format PARQUET --compression GZIP --region us-east-1 --s3-uri s3://my-bucket --enable-dynamodb-logger --sns-topic-arn arn:aws:sns:region:account-id:topic-name</code></pre>
 </div>
 </div>
 
