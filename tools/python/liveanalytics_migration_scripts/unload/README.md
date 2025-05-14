@@ -63,6 +63,7 @@
 <div>
 <h2>Recommendations and Best Practices</h2>
 <ol>
+<li> Use a <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingBucket.html" target="_blank" title="Learn more about general purpose S3 buckets">general purpose S3 bucket</a>. </li>
 <li> If your target is <strong>Timestream for InfluxDB</strong> export in <strong>Parquet format</strong> and <strong>no compression</strong> to meet the ingestion scripts requirements place_holder </li>
 <li>Enable DynamoDB logging for tracking and validation</li>
 <li>Configure SNS notifications to receive failure or completion of export</li>
