@@ -308,9 +308,9 @@ def custom_thread_handler(conn_pool, table_name, processed_dir):
 
 
 
-def multi_thread_handler(threads_count, conn_pool, table_name, db_params, csv_files, processed_dir):
+def multi_thread_handler(threads_count, conn_pool, table_name, csv_files, processed_dir):
     # Fill the queue with partitions
-    for file in csv_files_list:
+    for file in csv_files:
         custom_file_queue.put(file)
 
     # Use ThreadPoolExecutor to manage threads and collect results
@@ -543,12 +543,12 @@ if __name__ == '__main__':
     #start and end time to calculate the timing of the script 
     start_time = datetime.now()
     custom_file_queue = queue.Queue()
-    csv_files_list = list_csv_file(directory)
-    if not csv_files_list:
+    csv_files = list_csv_file(directory)
+    if not csv_files:
         logger.error(f"No CSV files found in {directory}")
         sys.exit(1)
-    logger.info(f"Starting ingestion of {len(csv_files_list)} files in {min({len(csv_files_list)},{num_of_threads})} threads")
-    multi_thread_handler(num_of_threads, conn_pool, table_name, db_params, csv_files_list, processed_dir)
+    logger.info(f"Starting ingestion of {len(csv_files)} files in {min({len(csv_files)},{num_of_threads})} threads")
+    multi_thread_handler(num_of_threads, conn_pool, table_name, db_params, csv_files, processed_dir)
     conn_pool.closeall()
     end_time = datetime.now()
     duration = end_time - start_time
