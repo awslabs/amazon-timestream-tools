@@ -19,10 +19,15 @@ class AthenaUtility:
         self.athena_client = boto3.client("athena", region_name=region)
         self.logger = create_logger("athena_logger")
 
-    def start_query_execution(self, query_string: str, database_name="default"):
+    def start_query_execution(
+        self, query_string: str, output_location: str, database_name="default"
+    ):
         return self.athena_client.start_query_execution(
             QueryString=query_string,
             QueryExecutionContext={"Database": database_name},
+            ResultConfiguration={
+                "OutputLocation": output_location,
+            },
         )
 
     def wait_for_athena_query(
@@ -53,9 +58,19 @@ class AthenaUtility:
         if state == "SUCCEEDED":
             self.logger.info("Query successful")
         else:
-            raise RuntimeError(
-                f"Query failed: {query_status['QueryExecution']['Status']}"
+            failure_state = (
+                query_status.get("QueryExecution", {})
+                .get("Status", {})
+                .get("State", "UNKNOWN")
             )
+            error_message = (
+                query_status.get("QueryExecution", {})
+                .get("Status", {})
+                .get("AthenaError", {})
+                .get("ErrorMessage", "UNKNOWN")
+            )
+            failure_message = f"Athena query failed with state: {failure_state}, error: {error_message}"
+            raise RuntimeError(failure_message)
 
     @staticmethod
     def is_valid_athena_table_name(athena_table_name: str) -> bool:
