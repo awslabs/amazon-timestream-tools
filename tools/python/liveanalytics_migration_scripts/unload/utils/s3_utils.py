@@ -1,7 +1,9 @@
+import random
 import boto3
 from logger_utils import create_logger
 import botocore
 import json
+import time
 
 
 class S3Utility:
@@ -89,6 +91,12 @@ class S3Utility:
         s3://<s3 bucket name>/<timestream database name>/<timestream table name>/unload-<%Y-%m-%d-%H:%M:%S>/results
         """
         prefix = f"{timestream_database_name}/{timestream_table_name}/"
+
+        # For general-purpose buckets, list_objects_v2 will not return
+        # prefixes while that prefix is related to an in-progress
+        # multipart upload.
+        self.wait_for_multipart_uploads(bucket_name=bucket_name, prefix=prefix)
+
         list_response = self.s3_client.list_objects_v2(
             Bucket=bucket_name, Prefix=prefix, Delimiter="/"
         )
@@ -107,3 +115,44 @@ class S3Utility:
         latest_dir = unload_dirs[-1]
         parts = latest_dir.rstrip("/").split("/")
         return parts[-1]
+
+    def wait_for_multipart_uploads(
+        self, bucket_name, prefix, delimeter="/", max_attempts=20, base_delay=1
+    ):
+        """
+        Waits for all multipart uploads related to a prefix within an S3 bucket
+        to complete or abort.
+
+        Args:
+            bucket_name (str): The name of the S3 bucket.
+            prefix (str): The prefix to check. For example, "benchmark22/cpu/".
+            delimeter (str): The delimiter that separates paths within the S3
+                bucket. Defaults to "/".
+            max_attempts (int): The maximum attempts to check whether any
+                mutlipart uplaods are in progress. Defaults to 20.
+            base_delay (int): The base delay in seconds to use for
+                backoffs with exponential retries and jitter.
+
+        Returns:
+            None
+        """
+        for attempt in range(max_attempts):
+            multipart_uploads = self.s3_client.list_multipart_uploads(
+                Bucket=bucket_name, Delimiter=delimeter, Prefix=prefix
+            ).get("Uploads", [])
+
+            if not multipart_uploads:
+                return
+
+            # Max 1 minute delay.
+            delay = min(base_delay * (2**attempt), 60)
+            # 10% jitter.
+            jitter = random.uniform(0, delay * 0.1)
+            sleep_time = delay + jitter
+            self.logger.info(
+                f"Multipart uploads are still in progress. Retrying in {sleep_time:.2f}s (attempt {attempt + 1})/{max_attempts})"
+            )
+            time.sleep(sleep_time)
+        raise TimeoutError(
+            f"Multipart uploads did not complete after {max_attempts} attempts"
+        )
