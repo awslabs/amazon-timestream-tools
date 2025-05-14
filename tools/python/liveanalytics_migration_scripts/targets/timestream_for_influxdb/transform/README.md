@@ -93,6 +93,7 @@ python3 transform.py \
 After the script has finished running:
 - In Athena, the table `example_database_example_table` will be created, containing Timestream for LiveAnalytics data.
 - In Athena, the table `lp_example_database_example_table` will be created, containing Timestream for LiveAnalytics data transformed to line protocol points.
+    - **NOTE**: The name of this table is needed later, when [validating ingested records](../validation/README.md), if `--source-engine` is set to `athena`.
 - In the S3 bucket `example_s3_bucket`, within the path `example_database/example_table/unload-<%Y-%m-%d-%H:%M:%S>/line-protocol-output`, line protocol data will be stored.
 
 ### Multiple Tables
