@@ -49,9 +49,9 @@ python copy_postgres.py \
 
 - `--table`: Target PostgreSQL table name
 - `--database`: PostgreSQL database name
-- `--csv-files-dir`: Directory or glob pattern for CSV files
+- `--csv-files-dir`: Directory for CSV files
 - `--host`: Aurora/RDS Postgres cluster writer endpoint
-- `--secret-arn`: AWS Secrets Manager secret containing database password
+- `--secret-arn`: ARN of AWS Secrets Manager secret containing database password
 
 ### Optional Parameters
 
@@ -104,7 +104,7 @@ python copy_postgres.py \
 
 To validate that all rows have been ingested, compare the total count of records (`COUNT(*)`) from your original Timestream for LiveAnalytics database and table with your PostgresQL database and table.
 
-If data from Timestream for LiveAnalytics was unloaded with [DynamoDB logging enabled on export to S3](../../unload/README.md#export-with-dynamodb-logging-enabled)), you can avoid querying Timestream and refer to the DynamoDB table to retrieve the total count that was exported from the [unload stage](../../unload/README.md).
+If data from Timestream for LiveAnalytics was unloaded with [DynamoDB logging enabled](../../unload/README.md#export-with-dynamodb-logging-enabled), you can avoid querying Timestream and refer to the DynamoDB table for retrieving the total exported row count from the [unload stage](../../unload/README.md#tracking-the-progress-and-checking-rows-exported).
 
 
 ## Troubleshooting
