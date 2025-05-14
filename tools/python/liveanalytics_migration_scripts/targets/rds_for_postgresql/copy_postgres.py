@@ -364,7 +364,7 @@ def move_to_processed_directory(file_path, processed_dir):
             logger.error(f"Failed to move {file_path} to processed directory: {str(e)}")
             return False
 
-def get_secret_value(secret_arn):
+def get_secret(secret_arn):
     """
     Retrieve a secret value from AWS Secrets Manager.
     
@@ -483,7 +483,7 @@ if __name__ == '__main__':
     #retrieve secret value
     try:
         secret_arn = args.secret_arn
-        secret = get_secret_value(secret_arn)
+        secret = get_secret(secret_arn)
         if 'password' not in secret:
             error_message = f"Password not found in secret {secret_arn}"
             logger.error(error_message)
