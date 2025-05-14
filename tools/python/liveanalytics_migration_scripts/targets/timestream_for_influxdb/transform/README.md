@@ -181,3 +181,15 @@ aws s3 rm s3://<S3 bucket name>/<Timestream database name>/<Timestream table nam
 
 The following limitations should be considered before transforming Timestream for LiveAnalytics records to line protocol:
 - The finest timestamp precision that Athena supports is **milliseconds**. If you need greater timestamp precision, such as microsecond or nanosecond precision, consider migrating to [Amazon RDS](https://aws.amazon.com/rds/).
+
+## Troubleshooting
+
+### Table Already Exists Error
+
+As part of the transformation process, two Athena tables are created. By default, these are `<Timestream database name>_<Timestream table name>` and `lp_<Timestream database name>_<Timestream table name>`. If these tables already exist, for example, from a previous run of the transformation script, the following exception will be raised:
+
+```
+RuntimeError: Athena query failed with state: FAILED, error: Table <table name> already exists.
+```
+
+To solve this error, delete the table indicated in the error and try running the transformation script again. To delete a table in Athena, see the [Cleanup](#cleanup) section.
