@@ -3,13 +3,10 @@ import time
 import boto3
 import psycopg2
 import glob
-import threading
 import queue
-from datetime import datetime,timezone
+from datetime import datetime
 import argparse
-from psycopg2 import pool
 import sys
-import boto3
 import json
 import logging 
 import shutil
@@ -367,12 +364,12 @@ def move_to_processed_directory(file_path, processed_dir):
             logger.error(f"Failed to move {file_path} to processed directory: {str(e)}")
             return False
 
-def get_secret_value(secret_name):
+def get_secret_value(secret-arn):
     """
     Retrieve a secret value from AWS Secrets Manager.
     
     Args:
-        secret_name (str): The name or ARN of the secret to retrieve
+        secret-arn (str): The ARN of the secret to retrieve
         region_name (str): AWS region where the secret is stored (default: 'us-east-1')
         
     Returns:
@@ -390,7 +387,7 @@ def get_secret_value(secret_name):
     try:
         # Get the secret value
         response = client.get_secret_value(
-            SecretId=secret_name
+            SecretId=secret-arn
         )
     except Exception as e:
         # Handle exceptions
@@ -485,15 +482,15 @@ if __name__ == '__main__':
 
     #retrieve secret value
     try:
-        secret_name = args.secret_name
-        secret = get_secret_value(secret_name)       
+        secret-arn = args.secret-arn
+        secret = get_secret_value(secret-arn)       
         if 'password' not in secret:
-            error_message = f"Password not found in secret {secret_name}"
+            error_message = f"Password not found in secret {secret-arn}"
             logger.error(error_message)
             sys.exit(1)
         db_params['password'] = secret['password']
     except Exception as e:
-        error_message = f"Error retrieving secret {secret_name}: {str(e)}"
+        error_message = f"Error retrieving secret {secret-arn}: {str(e)}"
         logger.error(error_message)  # Use error level instead of info for errors
         sns_publish_message(error_message, "Failed to retrieve database credentials")
         sys.exit(1)
