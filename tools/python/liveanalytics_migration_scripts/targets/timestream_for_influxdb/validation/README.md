@@ -24,27 +24,24 @@ The validation script can be run anytime after ingestion has begun. The script f
 
 1. Complete the previous migration stages as highlighted above. The validation script will exit early if there are no points ingested to the target InfluxDB instance.
 2. [An InfluxDB API token](https://docs.influxdata.com/influxdb/v2/admin/tokens/create-token/) for the target Timestream for InfluxDB instance.
-3. Optional: Docker
 
 ## Installation
 
 See [README.md#Installation](../../../README.md#installation).
 
 
-#### With Docker
-
-Build the container with 
-```bash
-make build
-```
-
 ## Usage
+
+All settings can be supplied as CLI flags **or** environment variables. See [example.env](../example.env) for reference.
 
 ```
 python validator.py [options]
 ```
 
-All settings can be supplied as CLI flags **or** environment variables. See [example.env](../example.env) for reference.
+Example:
+```
+python validator.py --athena-database-name default --athena-table-name benchmark_cpu --athena-output s3://bucket_name --influxdb-v2-url https://example.com:8086 --influxdb-v2-token your_token_here --influxdb-v2-org organization --influxdb-v2-bucket benchmark-bucket --influxdb-v2-measurement cpu
+```
 
 ### Required arguments
 
@@ -72,28 +69,13 @@ All settings can be supplied as CLI flags **or** environment variables. See [exa
 - `--skip-wal-check` / `SKIP_WAL_CHECK` – Skip WAL‑flush wait *(default: false)*  
 - `--influx-only` / `INFLUX_ONLY` – Skip source query; return Influx count only *(default: false)*  
 
-#### With Docker
-
-For full validation:
-```bash
-make validate
-```
-
-To query only InfluxDB:
-```bash
-make influx_only
-```
-
-To track ingestion (skips WAL check & queries only InfluxDB)
-```bash
-make track_influx
-```
-
 ## Use Cases
+
+First, create a `.env` to configure variables (See [example.env](../example.env) for reference).
 
 | Intent | Command |
 |--------|---------|
-| Validate **entire** migration of `benchmark3.cpu` | `python validator.py` |
+| Validate **entire** migration from Athena (`default.benchmark_cpu`) | `python validator.py` |
 | Validate migration for a **date partition** | `python validator.py --start-time 2025-01-01T00:00:00Z --end-time 2025-02-01T00:00:00Z` |
 | Validate migration against **Timestream** | `python validator.py --source-engine timestream` |
 | Validate migration for a **transformed table** | `python validator.py --schema-tags=service_environment,os,arch,service_version,team,region`<br/><br/>If changes were made to the original table schema during the transformation to Line Protocol (i.e., using the [`--dimensions-to-fields` flag](../transform/README.md#using-dimensions-as-fields)), pass the full list of tags from the new table schema to `--schema-tags` as a comma-separated list.|
