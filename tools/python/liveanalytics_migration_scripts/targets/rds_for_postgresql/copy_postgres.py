@@ -100,15 +100,15 @@ def validate_sns_topic(sns_topic_arn):
         )
         
         # If we get here, the topic exists. Now try to publish a test message
-        test_message = {
+        sns_init_message = {
             "validation": "test",
             "timestamp": datetime.now().isoformat(),
-            "message": "This is a test message to validate SNS topic permissions"
+            "message": f"Migration initiated for RDS for PostgreSQL at {datetime.now().isoformat()}"
         }
         
         response = sns_client.publish(
             TopicArn=sns_topic_arn,
-            Message=json.dumps(test_message),
+            Message=json.dumps(sns_init_message),
             Subject="SNS Topic Validation Test",
             MessageAttributes={
                 'TestMessage': {
@@ -361,8 +361,8 @@ def move_to_processed_directory(file_path, processed_dir):
         logger.info(f"Moved {file_path} to {destination}")
         return True
     except Exception as e:
-            logger.error(f"Failed to move {file_path} to processed directory: {str(e)}")
-            return False
+        logger.error(f"Failed to move {file_path} to processed directory: {str(e)}")
+        return False
 
 def get_secret(secret_arn):
     """
@@ -370,7 +370,6 @@ def get_secret(secret_arn):
     
     Args:
         secret_arn (str): The ARN of the secret to retrieve
-        region_name (str): AWS region where the secret is stored (default: 'us-east-1')
         
     Returns:
         dict: The secret value as a dictionary
@@ -424,12 +423,16 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--csv-files-dir", help="CSV files to feed into Postgres", required=True) 
     parser.add_argument("-e", "--host", help="Postgres Writer Endpoint", required=True)
     parser.add_argument("-p", "--port", help="Postgres Port", default='5432', required=False)
-    parser.add_argument("-sm", "--secret-name", help="Secrets Manager Secret Name", required=True)
-    parser.add_argument("-pt", "--parallel-threads", help = "Number of threads that will ingest CSV files parallely", default=10, required = False)
+    parser.add_argument("-sm", "--secret-arn", help="Secrets Manager secret arn", required=False)
+    parser.add_argument("-pt", "--parallel-threads", help = "Number of threads that will ingest CSV files in parallel", default=10, required = False)
     parser.add_argument("-pd", "--processed-dir", help = "location for moving the processed files",default = None, required = False)
     parser.add_argument("-ld", "--logs_dir", help='Directory for postgres ingestion logs (default: postgres-ingestion-logs)', default = None, required = False)
     parser.add_argument("-sns","--sns_topic-arn", help="SNS topic ARN for sending any batchload failures", default=None, required=False)
 
+    secret = None
+    if args.secret_arn is None:
+        secret = input("No no value provided for secret-arn. Add the secret-arn for the database credentials, "
+        "unless you are using self managed credentials in which case enter your database password now: ")
 
     args = parser.parse_args()
 
@@ -450,7 +453,7 @@ if __name__ == '__main__':
     host = args.host
     port = args.port
     user = args.user
-    num_of_threads = args.parallel_threads
+    num_of_threads = int(args.parallel_threads)
     sns_topic_arn = args.sns_topic_arn
 
     if not validate_sql_identifier(table_name) or not validate_sql_identifier(schema):
@@ -481,19 +484,20 @@ if __name__ == '__main__':
     }
 
     #retrieve secret value
-    try:
-        secret_arn = args.secret_arn
-        secret = get_secret(secret_arn)
-        if 'password' not in secret:
-            error_message = f"Password not found in secret {secret_arn}"
-            logger.error(error_message)
+    if secret is None:
+        try:
+            secret_arn = args.secret_arn
+            secret = get_secret(secret_arn)
+            if 'password' not in secret:
+                error_message = f"Password not found in secret {secret_arn}"
+                logger.error(error_message)
+                sys.exit(1)
+            db_params['password'] = secret['password']
+        except Exception as e:
+            error_message = f"Error retrieving secret {secret_arn}: {str(e)}"
+            logger.error(error_message)  # Use error level instead of info for errors
+            sns_publish_message(error_message, "Failed to retrieve database credentials")
             sys.exit(1)
-        db_params['password'] = secret['password']
-    except Exception as e:
-        error_message = f"Error retrieving secret {secret_arn}: {str(e)}"
-        logger.error(error_message)  # Use error level instead of info for errors
-        sns_publish_message(error_message, "Failed to retrieve database credentials")
-        sys.exit(1)
 
 
     logger.info(f"Connecting to {host} as user {user} for database {database_name}")
