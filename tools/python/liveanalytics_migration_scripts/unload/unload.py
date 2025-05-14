@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     start_time= args.start_time 
     end_time= args.end_time
-    migration_tag = args.migration_tag or f"unload-{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
+    migration_tag = args.migration_tag or f"unload-{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H:%M:%S')}"
     database = args.database
     table = args.table
     compression = args.compression
