@@ -129,7 +129,7 @@ class S3Utility:
             delimeter (str): The delimiter that separates paths within the S3
                 bucket. Defaults to "/".
             max_attempts (int): The maximum attempts to check whether any
-                mutlipart uplaods are in progress. Defaults to 20.
+                multipart uploads are in progress. Defaults to 20.
             base_delay (int): The base delay in seconds to use for
                 backoffs with exponential retries and jitter.
 
