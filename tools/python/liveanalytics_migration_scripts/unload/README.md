@@ -216,7 +216,7 @@
 <tr>
 <td><code>--recent-first</code></td>
 <td>Set to true to load data in reverse chronological order (most recent batch first)<br><i>Default: False</i></td>
-<td><code>,</code></td>
+<td><code>True</code></td>
 </tr>
 <tr>
 <td><code>--custom-partition-count</code></td>
