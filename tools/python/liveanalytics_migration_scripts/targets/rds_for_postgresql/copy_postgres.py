@@ -394,7 +394,7 @@ def get_secret_value(secret_name):
         )
     except Exception as e:
         # Handle exceptions
-        logger.info(f"Error retrieving secret {secret_name}: {str(e)}")
+        logger.info(f"Error retrieving secret: {str(e)}")
         raise
     
     # Parse and return the secret
