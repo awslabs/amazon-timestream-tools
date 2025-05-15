@@ -28,7 +28,7 @@ See [README.md#Installation](../../README.md#installation).
 ## Usage
 
 ```bash
-python copy_postgres.py \
+python postgres_ingestion.py \
   --table TABLE_NAME \
   --database DATABASE_NAME \
   --input-files "/path/to/csv/files" \
@@ -81,7 +81,7 @@ python copy_postgres.py \
 ## Example
 
 ```bash
-python copy_postgres.py \
+python postgres_ingestion.py \
   --table customers \
   --database sales \
   --input-files "/data/csv_files/*partition*/*.csv" \

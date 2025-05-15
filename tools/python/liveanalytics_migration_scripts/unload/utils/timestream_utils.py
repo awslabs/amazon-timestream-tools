@@ -209,33 +209,32 @@ class TimestreamUtility:
             self.logger.error(f"Error getting tables: {str(e)}", exc_info=True)
             raise   
 
-    def validate_sns_topic(self, sns_topic_arn):
+    def init_sns_topic(sns_topic_arn):
         """
-        Validates that the SNS topic exists and is accessible by sending a test message.
-        
+        Validates that the SNS topic exists and is accessible. Sends initialization message.
+
         Args:
             sns_topic_arn (str): The ARN of the SNS topic to validate
-            
+
         Returns:
             bool: True if the topic is valid and accessible, False otherwise
         """
-            
+        sns_client = boto3.client('sns')
         try:
-            # First, check if the topic exists
-            self.sns_client.get_topic_attributes(
+            sns_client.get_topic_attributes(
                 TopicArn=sns_topic_arn
             )
-            
-            # If we get here, the topic exists. Now try to publish a test message
-            test_message = {
+
+            # Topic exists if we don't run into exception
+            sns_init_message = {
                 "validation": "test",
                 "timestamp": datetime.now().isoformat(),
-                "message": "This is a test message to validate SNS topic permissions"
+                "message": f"Migration initiated for RDS for PostgreSQL at {datetime.now().isoformat()}"
             }
-            
-            response = self.sns_client.publish(
+
+            response = sns_client.publish(
                 TopicArn=sns_topic_arn,
-                Message=json.dumps(test_message),
+                Message=json.dumps(sns_init_message),
                 Subject="SNS Topic Validation Test",
                 MessageAttributes={
                     'TestMessage': {
@@ -244,26 +243,26 @@ class TimestreamUtility:
                     }
                 }
             )
-            
+
             # Check if we got a message ID, which indicates successful publishing
             if 'MessageId' in response:
-                self.logger.info(f"Successfully validated SNS topic with test message: {sns_topic_arn} (Message ID: {response['MessageId']})")
+                self.logger.info(f"Successfully initialized SNS topic with test message: {sns_topic_arn} (Message ID: {response['MessageId']})")
                 return True
             else:
                 self.logger.error(f"Failed to publish test message to SNS topic: {sns_topic_arn}")
                 return False
-            
+
         except boto3.exceptions.botocore.exceptions.ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
             error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
-            
+
             if error_code == 'AuthorizationErrorException':
                 self.logger.error(f"Authorization error accessing SNS topic {sns_topic_arn}: {error_message}")
             elif error_code == 'NotFound':
                 self.logger.error(f"SNS topic {sns_topic_arn} not found: {error_message}")
             else:
                 self.logger.error(f"Error validating SNS topic {sns_topic_arn}: {error_code} - {error_message}")
-            
+
             return False
         except Exception as e:
             self.logger.error(f"Unexpected error validating SNS topic {sns_topic_arn}: {str(e)}")

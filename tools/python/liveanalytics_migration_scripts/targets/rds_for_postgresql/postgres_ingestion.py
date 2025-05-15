@@ -17,92 +17,11 @@ import gzip
 
 sys.path.append("../../unload/utils/")
 from logger_utils import create_logger
+from timestream_utils import TimestreamUtility
 
 class FileExtractionError(Exception):
     """Exception raised for errors during file extraction."""
     pass
-
-def sns_publish_message(sns_topic_arn, message, subject, message_structure='email'):
-    """
-    Publish a message to an SNS topic
-
-    Args:
-        message: Message to publish
-        subject: Subject of the message
-        message_structure: Message structure (default: 'email')
-    """
-    if not sns_topic_arn:
-        logger.info(f"SNS notification skipped (no topic ARN provided): {subject} - {message}")
-        return None
-
-    subject =subject[:100]
-    sns_client = boto3.client('sns')
-
-    try:
-        response = sns_client.publish(
-            TopicArn=sns_topic_arn, Message=message, Subject=subject, MessageStructure=message_structure)
-        logger.info(response)
-    except Exception as err:
-        logger.error(f"Error publishing message to SNS topic: {str(err)}", exc_info=True)
-
-def init_sns_topic(sns_topic_arn):
-    """
-    Validates that the SNS topic exists and is accessible. Sends initialization message.
-
-    Args:
-        sns_topic_arn (str): The ARN of the SNS topic to validate
-
-    Returns:
-        bool: True if the topic is valid and accessible, False otherwise
-    """
-    sns_client = boto3.client('sns')
-    try:
-        sns_client.get_topic_attributes(
-            TopicArn=sns_topic_arn
-        )
-
-        # Topic exists if we don't run into exception
-        sns_init_message = {
-            "validation": "test",
-            "timestamp": datetime.now().isoformat(),
-            "message": f"Migration initiated for RDS for PostgreSQL at {datetime.now().isoformat()}"
-        }
-
-        response = sns_client.publish(
-            TopicArn=sns_topic_arn,
-            Message=json.dumps(sns_init_message),
-            Subject="SNS Topic Validation Test",
-            MessageAttributes={
-                'TestMessage': {
-                    'DataType': 'String',
-                    'StringValue': 'true'
-                }
-            }
-        )
-
-        # Check if we got a message ID, which indicates successful publishing
-        if 'MessageId' in response:
-            logger.info(f"Successfully initialized SNS topic with test message: {sns_topic_arn} (Message ID: {response['MessageId']})")
-            return True
-        else:
-            logger.error(f"Failed to publish test message to SNS topic: {sns_topic_arn}")
-            return False
-
-    except boto3.exceptions.botocore.exceptions.ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
-
-        if error_code == 'AuthorizationErrorException':
-            logger.error(f"Authorization error accessing SNS topic {sns_topic_arn}: {error_message}")
-        elif error_code == 'NotFound':
-            logger.error(f"SNS topic {sns_topic_arn} not found: {error_message}")
-        else:
-            logger.error(f"Error validating SNS topic {sns_topic_arn}: {error_code} - {error_message}")
-
-        return False
-    except Exception as e:
-        logger.error(f"Unexpected error validating SNS topic {sns_topic_arn}: {str(e)}")
-        return False
 
 def _extract_column_names(csv_filepath, delimiter=','):
     """
@@ -119,7 +38,7 @@ def _extract_column_names(csv_filepath, delimiter=','):
         header_line = f.readline().strip()
         return [col.strip() for col in header_line.split(delimiter)]
 
-def _execute_copy_command(cur, table_name, csv_file, column_names):
+def _execute_copy_command(cur, table_name, csv_file, column_names, logger):
     """
     Execute the COPY command to load data from a CSV file into PostgreSQL.
 
@@ -128,6 +47,7 @@ def _execute_copy_command(cur, table_name, csv_file, column_names):
         table_name (str): Target table name
         csv_file: File object for the CSV file
         column_names (list): List of column names
+        logger: Logger instance
 
     Returns:
         int: Number of rows ingested
@@ -148,7 +68,7 @@ def _execute_copy_command(cur, table_name, csv_file, column_names):
 
     return rows_ingested
 
-def _handle_retry_backoff(retry_count, max_retries, initial_backoff, backoff_multiplier):
+def _handle_retry_backoff(retry_count, max_retries, initial_backoff, backoff_multiplier, logger):
     """
     Handle exponential backoff between retry attempts.
 
@@ -157,13 +77,14 @@ def _handle_retry_backoff(retry_count, max_retries, initial_backoff, backoff_mul
         max_retries (int): Maximum number of retry attempts
         initial_backoff (int): Initial backoff time in seconds
         backoff_multiplier (int): Multiplier for exponential backoff
+        logger: Logger instance
     """
     if retry_count > 0:
         backoff_time = initial_backoff * (backoff_multiplier ** (retry_count - 1))
         logger.info(f"Retry attempt {retry_count}/{max_retries} after {backoff_time} seconds...")
         time.sleep(backoff_time)
 
-def _handle_failure(csv_filepath, exception, retry_count, max_retries, is_connection_error=False):
+def _handle_failure(csv_filepath, exception, retry_count, max_retries, logger, timestream_utility=None, is_connection_error=False):
     """
     Handle failure during copy operation.
 
@@ -172,6 +93,8 @@ def _handle_failure(csv_filepath, exception, retry_count, max_retries, is_connec
         exception: The exception that occurred
         retry_count (int): Current retry attempt number
         max_retries (int): Maximum number of retry attempts
+        logger: Logger instance
+        timestream_utility: Timestream utility instance
         is_connection_error (bool): Whether this was a connection error
     """
     # Only send SNS notification on final retry failure
@@ -179,20 +102,24 @@ def _handle_failure(csv_filepath, exception, retry_count, max_retries, is_connec
         error_type = "Database connection error" if is_connection_error else "Error loading"
         message = f"{error_type} with error: {str(exception)} for {csv_filepath} after {max_retries} retries"
         logger.info(message)
-        if sns_topic_arn is not None:
-            sns_publish_message(sns_topic_arn, message, "Ingestion to postgres failed")
+        if timestream_utility is not None:
+            timestream_utility.sns_publish_message(message, "Ingestion to postgres failed")
     else:
         attempt_type = "Connection attempt" if is_connection_error else "Attempt"
         logger.info(f"{attempt_type} {retry_count}/{max_retries} failed: {str(exception)}")
 
-def copy_to_postgres(conn_pool, table_name, csv_filepath, processed_dir, delimiter=',', header=True, 
+def copy_to_postgres(conn_pool, table_name, csv_filepath, processed_dir, logger, timestream_utility=None, delimiter=',', header=True, 
                      max_retries=3, initial_backoff=1, backoff_multiplier=2):
     """
     Copies data from a CSV file into a PostgreSQL table with retry logic.
 
     Args:
         conn_pool (dict): connecton pool
+        table_name (str): Target table name
         csv_filepath (str): Path to the CSV file
+        processed_dir (str): Directory to move processed files to
+        logger: Logger instance
+        timestream_utility: Timestream utility instance
         delimiter (str, optional): Delimiter used in the CSV file (default: ',')
         header (bool, optional): Whether the CSV file has a header row (default: True)
         max_retries (int, optional): Maximum number of retry attempts (default: 3)
@@ -209,7 +136,7 @@ def copy_to_postgres(conn_pool, table_name, csv_filepath, processed_dir, delimit
     rows_ingested = 0
 
     while retry_count <= max_retries and not success:
-        _handle_retry_backoff(retry_count, max_retries, initial_backoff, backoff_multiplier)
+        _handle_retry_backoff(retry_count, max_retries, initial_backoff, backoff_multiplier, logger)
 
         try:
             conn = conn_pool.getconn()
@@ -222,7 +149,7 @@ def copy_to_postgres(conn_pool, table_name, csv_filepath, processed_dir, delimit
                     with open(csv_filepath, 'r') as f:
                         # Rewind to beginning to include header
                         f.seek(0)
-                        rows_ingested = _execute_copy_command(cur, table_name, f, column_names)
+                        rows_ingested = _execute_copy_command(cur, table_name, f, column_names, logger)
 
                     conn.commit()
                     logger.info(f"Successfully copied: {csv_filepath}")
@@ -233,7 +160,7 @@ def copy_to_postgres(conn_pool, table_name, csv_filepath, processed_dir, delimit
                 conn.rollback()
                 last_exception = e
                 retry_count += 1
-                _handle_failure(csv_filepath, e, retry_count, max_retries)
+                _handle_failure(csv_filepath, e, retry_count, max_retries, logger, timestream_utility)
 
             finally:
                 if conn:
@@ -243,10 +170,10 @@ def copy_to_postgres(conn_pool, table_name, csv_filepath, processed_dir, delimit
         except psycopg2.Error as e:
             last_exception = e
             retry_count += 1
-            _handle_failure(csv_filepath, e, retry_count, max_retries, is_connection_error=True)
+            _handle_failure(csv_filepath, e, retry_count, max_retries, logger, timestream_utility, is_connection_error=True)
  
     if success:
-        move_to_processed_directory(csv_filepath, processed_dir)
+        move_to_processed_directory(csv_filepath, processed_dir, logger)
     elif last_exception:
         logger.info(f"All {max_retries} retry attempts failed for {csv_filepath}")
         logger.info(f"Last error: {str(last_exception)}")
@@ -287,36 +214,45 @@ def decompress_gzip_files(gz_files):
     return extracted_files
 
 
-def list_files(directory, file_extension):
+def list_files(glob_pattern, file_extension, logger):
     """
-    List all files with the supplied file_extension in the specified directory.
+    List all files with the supplied file_extension in the specified directory matching the glob pattern.
 
     Args:
-        directory (str): Directory path containing CSV files
+        glob_pattern (str): Glob pattern with extension
         file_extension (str): Extension to search for files
+        logger: Logger instance
 
     Returns:
         list: List of file paths
     """
     try:
-        if not os.path.isdir(directory):
-            logger.error(f"Directory does not exist: {directory}")
-            return []
 
-        csv_files = []
-        for file in os.listdir(directory):
-            if file.lower().endswith(file_extension):
-                csv_files.append(os.path.join(directory, file))
+        all_files = glob.glob(glob_pattern)
+        files_with_extension = [file for file in all_files if file.lower().endswith(file_extension)]
 
-        logger.info(f"Found {len(csv_files)} {file_extension} files in {directory}")
-        csv_files.sort()
-        return csv_files
+        logger.info(f"Found {len(files_with_extension)} {file_extension} files matching pattern {glob_pattern}")
+        files_with_extension.sort()
+        return files_with_extension
+
+
     except Exception as e:
-        message = f"Error listing {file_extension} files in {directory}: {str(e)}"
+        message = f"Error listing {file_extension} files with pattern {glob_pattern}: {str(e)}"
         logger.error(message)
         return []
 
 def check_table_exists(conn_pool, table_name, schema):
+    """
+    Check if a table exists in the specified schema.
+
+    Args:
+        conn_pool: Database connection pool
+        table_name (str): Name of the table to check
+        schema (str): Schema name where the table should exist
+
+    Returns:
+        bool: True if the table exists, False otherwise
+    """
     conn = conn_pool.getconn()
     try:
         with conn.cursor() as cur:
@@ -331,7 +267,21 @@ def check_table_exists(conn_pool, table_name, schema):
         conn_pool.putconn(conn)
 
 
-def thread_handler(conn_pool, table_name, processed_dir, custom_file_queue):
+def thread_handler(conn_pool, table_name, processed_dir, custom_file_queue, logger, timestream_utility=None):
+    """
+    Process files from the queue using a dedicated thread.
+
+    Args:
+        conn_pool: Database connection pool
+        table_name (str): Target table name
+        processed_dir (str): Directory to move processed files to
+        custom_file_queue (Queue): Queue containing files to process
+        logger: Logger instance
+        timestream_utility: Optional Timestream utility instance for notifications
+
+    Returns:
+        int: Total number of rows ingested by this thread
+    """
     total_rows_ingested = 0
     files_processed = 0
 
@@ -341,7 +291,7 @@ def thread_handler(conn_pool, table_name, processed_dir, custom_file_queue):
         except queue.Empty:
             break
 
-        success, rows = copy_to_postgres(conn_pool, table_name, csv_file, processed_dir)
+        success, rows = copy_to_postgres(conn_pool, table_name, csv_file, processed_dir, logger, timestream_utility)
         if success:
             total_rows_ingested += rows
             files_processed += 1
@@ -352,14 +302,30 @@ def thread_handler(conn_pool, table_name, processed_dir, custom_file_queue):
     return total_rows_ingested
 
 
-def handle_ingestion(threads_count, conn_pool, table_name, csv_files, processed_dir, custom_file_queue):
+def handle_ingestion(threads_count, conn_pool, table_name, csv_files, processed_dir, custom_file_queue, logger, timestream_utility=None):
+    """
+    Manage the multi-threaded ingestion of CSV files into PostgreSQL.
+
+    Args:
+        threads_count (int): Number of threads to use for ingestion
+        conn_pool: Database connection pool
+        table_name (str): Target table name
+        csv_files (list): List of CSV file paths to process
+        processed_dir (str): Directory to move processed files to
+        custom_file_queue (Queue): Queue to hold files for processing
+        logger: Logger instance
+        timestream_utility: Optional Timestream utility instance for notifications
+
+    Returns:
+        int: Total number of rows ingested across all threads
+    """
     for file in csv_files:
         custom_file_queue.put(file)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads_count) as executor:
         future_results = []
         for i in range(threads_count):
-            future = executor.submit(thread_handler, conn_pool, table_name, processed_dir, custom_file_queue)
+            future = executor.submit(thread_handler, conn_pool, table_name, processed_dir, custom_file_queue, logger, timestream_utility)
             future_results.append(future)
 
         thread_results = [future.result() for future in concurrent.futures.as_completed(future_results)]
@@ -369,13 +335,14 @@ def handle_ingestion(threads_count, conn_pool, table_name, csv_files, processed_
     return total_rows
 
 
-def move_to_processed_directory(file_path, processed_dir):
+def move_to_processed_directory(file_path, processed_dir, logger):
     """
     Move a file to the processed directory.
 
     Args:
         file_path (str): Path to the file to move
         processed_dir (str): Path to the processed directory
+        logger: Logger instance
 
     Returns:
         bool: True if successful, False otherwise
@@ -399,12 +366,13 @@ def move_to_processed_directory(file_path, processed_dir):
         logger.error(f"Failed to move {file_path} to processed directory: {str(e)}")
         return False
 
-def get_secret(secret_arn):
+def get_secret(secret_arn, logger):
     """
     Retrieve a secret value from AWS Secrets Manager.
 
     Args:
         secret_arn (str): The ARN of the secret to retrieve
+        logger (logger): Logger instance
 
     Returns:
         dict: The secret value as a dictionary
@@ -431,6 +399,15 @@ def get_secret(secret_arn):
         return json.loads(secret)
 
 def validate_sql_identifier(identifier):
+    """
+    Validate that a SQL identifier contains only allowed characters.
+    
+    Args:
+        identifier (str): The SQL identifier to validate
+        
+    Returns:
+        bool: True if the identifier is valid, False otherwise
+    """
     # Validation - alphanumeric and underscore only
     return bool(re.match(r'^[a-zA-Z0-9_]+$', identifier))
 
@@ -443,10 +420,10 @@ if __name__ == '__main__':
     parser.add_argument("-t", "--database", help="postgres database name", required=True)
     parser.add_argument("-s", "--schema", help="Postgres schema where table resides", default='public', required=False)
     parser.add_argument("-u", "--user", help="User to login to postgres", default='postgres', required=False)
-    parser.add_argument("-f", "--csv-files-dir", help="CSV files (Compressed or uncompressed) to ingest into Postgres", required=True) 
+    parser.add_argument("-f", "--input-files", help="Directory or glob pattern for CSV files(Compressed on uncompressed), for example \"./data/*.gz\"", required=True) 
     parser.add_argument("-e", "--host", help="Postgres Writer Endpoint", required=True)
     parser.add_argument("-p", "--port", help="Postgres Port", default='5432', required=False)
-    parser.add_argument("-sm", "--secret-arn", help="Secrets Manager secret arn if secret stored in Secrets Manager. Omit if using self managed credentials and enter through standard input.", required=False)
+    parser.add_argument("-sm", "--secret-arn", help="Secrets Manager secret arn if secret stored in Secrets Manager. Omit if using self managed credentials and enter the database password through standard input.", required=False)
     parser.add_argument("-pt", "--parallel-threads", help = "Number of threads that will ingest CSV files in parallel", default=10, required = False)
     parser.add_argument("-pd", "--processed-dir", help = "location for moving the processed files",default = None, required = False)
     parser.add_argument("-ld", "--logs_dir", help='Directory for postgres ingestion logs (default: postgres-ingestion-logs)', default = None, required = False)
@@ -470,13 +447,18 @@ if __name__ == '__main__':
 
     table_name = args.table
     database_name = args.database
-    directory = args.csv_files_dir
     schema = args.schema
     host = args.host
     port = args.port
     user = args.user
     num_of_threads = int(args.parallel_threads)
     sns_topic_arn = args.sns_topic_arn
+    timestream_utility = None
+    if args.sns_topic_arn is not None:
+        timestream_utility = TimestreamUtility(sns_topic_arn=sns_topic_arn)
+        if not timestream_utility.init_sns_topic(args.sns_topic_arn):
+            sys.exit(1)
+
 
     if not validate_sql_identifier(table_name) or not validate_sql_identifier(schema):
         logger.error(f"Invalid table name or schema. Must contain only alphanumeric characters and underscores.")
@@ -490,11 +472,6 @@ if __name__ == '__main__':
         logger.error(f"Invalid port number: {args.port}")
         sys.exit(1)
 
-
-    if args.sns_topic_arn is not None:
-        if not init_sns_topic(sns_topic_arn):
-            sys.exit(1)
-
     db_params = {
         'dbname': database_name ,
         'user': user,
@@ -507,7 +484,7 @@ if __name__ == '__main__':
         try:
             secret_arn = args.secret_arn
             sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
-            secret = get_secret(secret_arn)
+            secret = get_secret(secret_arn, logger)
             if 'password' not in secret:
                 error_message = f"Password not found in secret (ARN ending in {sanitized_secret_arn})"
                 logger.error(error_message)
@@ -517,7 +494,7 @@ if __name__ == '__main__':
             sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
             error_message = f"Error retrieving secret (ARN ending in {sanitized_secret_arn}): {str(e)}"
             logger.error(error_message)
-            sns_publish_message(error_message, "Failed to retrieve database credentials")
+            timestream_utility.sns_publish_message(error_message, "Failed to retrieve database credentials")
             sys.exit(1)
 
 
@@ -529,12 +506,12 @@ if __name__ == '__main__':
     except psycopg2.Error as e:
         logger.error(f"Failed to create connection pool: {str(e)}")
         message = f"Failed to connect to database: {str(e)}"
-        sns_publish_message(sns_topic_arn, message, "Database connection failed")
+        timestream_utility.sns_publish_message(sns_topic_arn, message, "Database connection failed")
         sys.exit(1)
     except Exception as e:
         logger.error(f"Unexpected error creating connection pool: {str(e)}")
         message = f"Unexpected error while connecting to database: {str(e)}"
-        sns_publish_message(sns_topic_arn, message, "Database connection failed with unexpected error")
+        timestream_utility.sns_publish_message(sns_topic_arn, message, "Database connection failed with unexpected error")
         sys.exit(1)
 
     schema = args.schema 
@@ -546,7 +523,7 @@ if __name__ == '__main__':
         if args.processed_dir is not None:
             processed_dir = args.processed_dir
         else:
-            input_dir = os.path.dirname(directory)    
+            input_dir = os.path.dirname(args.input_files)    
             processed_dir = os.path.join(input_dir, f'processed_{table_name}_{database_name}')
             logger.info(f"Processed files will be moved to: {processed_dir} after processing")
 
@@ -563,7 +540,7 @@ if __name__ == '__main__':
     start_time = datetime.now()
     custom_file_queue = queue.Queue()
 
-    gz_files = list_files(directory, ".gz")
+    gz_files = list_files(directory, ".gz", logger)
     if gz_files:
         logger.info(f"Found {len(gz_files)} .gz files to decompress")
         decompress_gzip_files(gz_files)
@@ -573,7 +550,7 @@ if __name__ == '__main__':
         logger.error(f"No CSV files found in {directory}")
         sys.exit(1)
     logger.info(f"Starting ingestion of {len(csv_files)} files in {min({len(csv_files)},{num_of_threads})} threads")
-    handle_ingestion(num_of_threads, conn_pool, table_name, csv_files, processed_dir, custom_file_queue)
+    handle_ingestion(num_of_threads, conn_pool, table_name, csv_files, processed_dir, custom_file_queue, logger, timestream_utility)
     conn_pool.closeall()
     end_time = datetime.now()
     duration = end_time - start_time
