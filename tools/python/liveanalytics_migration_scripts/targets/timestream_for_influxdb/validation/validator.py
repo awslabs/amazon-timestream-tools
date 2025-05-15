@@ -106,7 +106,7 @@ def count_timestream_rows(
     client = session.client("timestream-query")
 
     select_expr = (
-        f"COUNT(DISTINCT(measure_name, {', '.join(dimensions)}, time))"
+        f"COUNT(DISTINCT({', '.join(dimensions)}, time))"
         if dimensions
         else "COUNT(*)"
     )
@@ -178,13 +178,13 @@ def count_athena_rows(
     if dimensions is None:
         dimensions = []
 
-    if "time" in dimensions or "measure_name" in dimensions:
+    if "time" in dimensions:
         raise ValueError(
-            "Please exclude `time` and `measure_name` from the SCHEMA_TAGS list."
+            "Please exclude `time` from the SCHEMA_TAGS list."
         )
 
     select_expr = (
-        f"COUNT(DISTINCT(measure_name, {', '.join(dimensions)}, time)) AS c"
+        f"COUNT(DISTINCT({', '.join(dimensions)}, time)) AS c"
         if dimensions else
         "COUNT(*) AS c"
     )

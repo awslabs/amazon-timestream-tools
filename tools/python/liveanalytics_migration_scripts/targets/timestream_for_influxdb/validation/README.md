@@ -138,11 +138,12 @@ Total records in default.cpu_usage (2025-03-01T00:00:00Z – 2025-03-02T00:00:00
 
 ## Troubleshooting & Tips
 
+- If the total row count exported from Timestream is known at time of validation (i.e., unloaded with [DynamoDB logging enabled on export to S3](../../../unload/README.md#export-with-dynamodb-logging-enabled)), avoid querying the source engine using the `--influx-only` flag.
+
 - When ingesting large amounts of data to InfluxDB, [post-ingestion processing and compaction](https://www.influxdata.com/blog/compactor-hidden-engine-database-performance/#:~:text=loading%20and%20reading.-,Tasks%20of%20post%2Dingestion%20and%20pre%2Dquery,delete%20application%2C%20and%20data%20deduplication.) in the InfluxDB [storage engine](https://docs.influxdata.com/influxdb/v2/reference/internals/storage-engine/) can take some time. To skip waiting for the WAL to flush, run with `--skip-wal-check` to retrieve the total count without accounting for post-ingestion processing.
 
 - If data is still being written to InfluxDB at time of validation (i.e., simultaneous migrations to the same InfluxDB instance in different buckets or measurements), the WAL will remain non-empty until it has fully processed all ingested points. Ensure that ingestion is fully complete before running comparisons between a target database/table and bucket/measurement, or use the `--skip-wal-check` flag.
 
-- If the total row count exported from Timestream is known at time of validation (i.e., unloaded with [DynamoDB logging enabled on export to S3](../../../unload/README.md#export-with-dynamodb-logging-enabled)), avoid querying the source engine using the `--influx-only` flag.
-
 - For large datasets, consider using time range filters to validate in smaller chunks.
+
 - When validating transformed tables (with converted dimensions as fields), ensure you specify all schema tags for accurate comparison. See output of [the transformation script](../transform/README.md#using-dimensions-as-fields) for the full list of tags.
