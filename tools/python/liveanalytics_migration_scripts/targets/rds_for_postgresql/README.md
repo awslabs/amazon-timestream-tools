@@ -33,7 +33,7 @@ python copy_postgres.py \
   --database DATABASE_NAME \
   --csv-files-dir "/path/to/csv/files" \
   --host DATABASE_HOST \
-  --secret-arn SECRET_ARN \
+  [--secret-arn SECRET_ARN] \
   [--schema SCHEMA] \
   [--user USERNAME] \
   [--port PORT] \
@@ -51,10 +51,10 @@ python copy_postgres.py \
 - `--database`: PostgreSQL database name
 - `--csv-files-dir`: Directory for CSV files
 - `--host`: Aurora/RDS Postgres cluster writer endpoint
-- `--secret-arn`: ARN of AWS Secrets Manager secret containing database password
 
 ### Optional Parameters
 
+- `--secret-arn`: ARN of AWS Secrets Manager secret containing database password
 - `--schema`: PostgreSQL schema (default: public)
 - `--user`: PostgreSQL username (default: postgres)
 - `--port`: PostgreSQL port (default: 5432)
