@@ -221,17 +221,17 @@
 <tr>
 <td><code>--custom-partition-count</code></td>
 <td>Custom partition count for each batch<br><i>Default: 99</i></td>
-<td><code>,</code></td>
+<td><code>50</code></td>
 </tr>
 <tr>
-<td><code>--custom-partition-count</code></td>
+<td><code>--order-by-asc</code></td>
 <td>data order by time ascending<br><i>Default: False</i></td>
-<td><code>,</code></td>
+<td><code>True</code></td>
 </tr>
 <tr>
 <td><code>--logs-dir</code></td>
 <td>Directory for export logs (default: timestream-export-logs in current directory)<br><i>Default: timestream-export-logs in current directory</i></td>
-<td><code>,</code></td>
+<td><code>/data</code></td>
 </tr>
 <tr>
 </table>
