@@ -55,7 +55,8 @@ if __name__ == "__main__":
         log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'timestream-export-logs')
     os.makedirs(log_dir, exist_ok=True)
     custom_logger_file = f"timestream_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    logger = create_logger('timestream_export', log_file=f"{log_dir}/{custom_logger_file}" )
+    log_file_path = f"{log_dir}/{custom_logger_file}"
+    logger = create_logger('timestream_export', log_file=log_file_path)
     logger.info(f"logging into {log_dir}/{custom_logger_file}")
 
     start_time= args.start_time 
@@ -95,15 +96,16 @@ if __name__ == "__main__":
 
     # parse bucket
     bucket_s3_uri = args.s3_uri
-    s3_utility = S3Utility(region)
+    s3_utility = S3Utility(region, log_file=log_file_path)
 
     #parse sns 
     sns_topic_arn=args.sns_topic_arn
-    timestream_utility = TimestreamUtility(region, sns_topic_arn, args.enable_dynamodb_logger)
+    timestream_utility = TimestreamUtility(
+        region, sns_topic_arn, args.enable_dynamodb_logger, log_file=log_file_path, s3_util=s3_utility)
     if args.sns_topic_arn is not None:
         if not timestream_utility.validate_sns_topic(sns_topic_arn):
             sys.exit(1)
-   
+
     #create bucked if not provided
     if (bucket_s3_uri is None):
         account_id = sts_client.get_caller_identity().get('Account')
@@ -112,6 +114,22 @@ if __name__ == "__main__":
         bucket_s3_uri = s3_utility.create_s3_bucket(bucket_name)
     else:
         logger.info(f"Using provided S3 URI: {bucket_s3_uri}")
+        bucket_status = s3_utility.check_bucket_access(bucket_s3_uri)
+        if not bucket_status['exists']:
+            # Handle non-existent bucket
+            logger.error(bucket_status['message'])
+            sys.exit(1)
+        elif not bucket_status['accessible']:
+            # Handle inaccessible bucket
+            logger.error(bucket_status['message'])
+            sys.exit(1)
+        else:
+            # Bucket exists and is accessible
+            logger.info(bucket_status['message'])
+            # Extract just the bucket part for further operations if needed
+            if bucket_status['prefix']:
+                logger.info(f"Using prefix: {bucket_status['prefix']}")
+            bucket_s3_uri = f"s3://{bucket_status['bucket']}"
 
     # Validations
     timestream_utility.validate_timestamp(start_time)

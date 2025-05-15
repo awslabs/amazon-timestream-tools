@@ -7,12 +7,12 @@ import time
 
 
 class S3Utility:
-    def __init__(self, region=None):
+    def __init__(self, region=None, log_file=None):
         botocore_config = botocore.config.Config(
             max_pool_connections=5000, retries={"max_attempts": 10}
         )
         self.s3_client = boto3.client("s3", region_name=region, config=botocore_config)
-        self.logger = create_logger("s3_logger")
+        self.logger = create_logger("s3_logger", log_file=log_file)
         self.region = region
 
     def s3_bucket_exists(self, bucket_name: str) -> bool:
@@ -31,6 +31,52 @@ class S3Utility:
             return True
         except Exception:
             return False
+
+    def check_bucket_access(self, s3_path: str) -> dict:
+        """
+        Checks if a bucket exists and is accessible for the current user.
+        Args:
+            s3_path (str): The S3 path to check (can be bucket only or bucket with prefix).
+        Returns:
+            dict: A dictionary with 'exists' (bool), 'accessible' (bool), 'message' (str),
+                  'bucket' (str), and 'prefix' (str) keys.
+        """
+        self.logger.info(f"Checking for S3 Bucket access")
+        result = {
+            'exists': False,
+            'accessible': False,
+            'message': '',
+            'bucket': '',
+            'prefix': ''
+        }
+        # Remove s3:// prefix if present
+        if s3_path.lower().startswith('s3://'):
+            s3_path = s3_path[5:]
+        # Extract bucket name and prefix
+        parts = s3_path.split('/', 1)
+        bucket_name = parts[0]
+        prefix = parts[1] if len(parts) > 1 else ''
+        result['bucket'] = bucket_name
+        result['prefix'] = prefix
+        # Check if bucket exists
+        if not self.s3_bucket_exists(bucket_name):
+            result['message'] = f"Bucket {bucket_name} does not exist"
+            return result
+        result['exists'] = True
+        # Check if we can list objects (read access)
+        try:
+            # If prefix is provided, check if we can list objects with that prefix
+            if prefix:
+                self.s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix, MaxKeys=1)
+                result['accessible'] = True
+                result['message'] = f"Bucket {bucket_name} with prefix '{prefix}' exists and is accessible"
+            else:
+                self.s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+                result['accessible'] = True
+                result['message'] = f"Bucket {bucket_name} exists and is accessible"
+        except Exception as e:
+            result['message'] = f"Bucket {bucket_name}{' with prefix '+prefix if prefix else ''} exists but is not accessible: {str(e)}"
+        return result
 
     def create_s3_bucket(self, bucket_name: str) -> str:
         """
