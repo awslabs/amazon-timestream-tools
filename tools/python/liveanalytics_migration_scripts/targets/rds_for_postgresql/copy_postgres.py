@@ -573,7 +573,7 @@ if __name__ == '__main__':
         logger.error(f"No CSV files found in {directory}")
         sys.exit(1)
     logger.info(f"Starting ingestion of {len(csv_files)} files in {min({len(csv_files)},{num_of_threads})} threads")
-    handle_ingestion(num_of_threads, conn_pool, table_name, csv_files, processed_dir)
+    handle_ingestion(num_of_threads, conn_pool, table_name, csv_files, processed_dir, custom_file_queue)
     conn_pool.closeall()
     end_time = datetime.now()
     duration = end_time - start_time
