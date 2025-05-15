@@ -614,7 +614,7 @@ if __name__ == "__main__":
         "database_name/table_name/unload_latest_timestamp will "
         "be searched for in this bucket. "
         "If this is a full path, for example, s3://example_bucket/example_path, "
-        "then the path line-protocol-output added to this path. If not provided, "
+        "then the path line-protocol-output will be added to this path. If not provided, "
         "this defaults to the value provided by --s3-bucket-path.",
         required=False,
     )
