@@ -1,6 +1,6 @@
 """
-Compare row/point counts between an Amazon Athena (or Timestream) table and an InfluxDB
-bucket measurement, optionally within a specific time‑range.
+Compare row/point counts between an Amazon Athena (or Timestream) table and an
+InfluxDB bucket measurement, optionally within a specific time-range.
 
 Example CLI usage:
 
@@ -22,19 +22,20 @@ Or simply:
     python validate.py
 """
 from __future__ import annotations
+
 import argparse
 import os
 import sys
 import time
 import datetime as dt
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, List, Sequence, Tuple
-import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Callable, List, Sequence, Tuple, Dict
 
-# Third‑party deps
+import requests
 from dotenv import load_dotenv
 import boto3
 import influxdb_client
+
 
 # ───────────────────────── Helpers ──────────────────────────
 
@@ -58,10 +59,8 @@ def extract_wal_values(payload: str) -> List[float]:
     vals: List[float] = []
     for line in payload.splitlines():
         if line.startswith("storage_wal_size"):
-            # "<metric>{labels} <value>"
             try:
-                value_str = line.split(None, 1)[1]
-                val = float(value_str)
+                val = float(line.split(None, 1)[1])
             except (IndexError, ValueError):
                 continue
             if val != 0:
@@ -126,27 +125,24 @@ def count_timestream_rows(
     rows: list[dict] = []
     next_token: str | None = None
 
-    try:
-        while True:
-            params: dict[str, str] = {"QueryString": query}
-            if next_token:
-                params["NextToken"] = next_token
+    print(f"--- Timestream ---\n\nRunning query:\n{query}\n")
+    while True:
+        params: Dict[str, str] = {"QueryString": query}
+        if next_token:
+            params["NextToken"] = next_token
 
-            resp = client.query(**params)
-            rows.extend(resp.get("Rows", []))
-            next_token = resp.get("NextToken")
-            if not next_token:
-                break
-    except Exception as e:
-        print(f"[Timestream] Error: {e}")
-        return None
+        resp = client.query(**params)
+        rows.extend(resp.get("Rows", []))
+        next_token = resp.get("NextToken")
+        if not next_token:
+            break
 
     if not rows:
         return 0
 
     total = int(rows[0]["Data"][0]["ScalarValue"])
-    label = f"{database}.{table} ({start_time or 'begin'} – {end_time or 'now'})"
-    print(f"--- Timestream ---\nTotal records in {label}: {total}\n")
+    label = f"{database}.{table} ({start_time or 'begin'} - {end_time or 'now'})"
+    print(f"[TIMESTREAM] Total records in {label}: {total}\n")
     return total
 
 
@@ -187,61 +183,54 @@ def count_athena_rows(
             "Please exclude `time` and `measure_name` from the SCHEMA_TAGS list."
         )
 
-    if dimensions:
-        select_expr = (
-            f"COUNT(DISTINCT(measure_name, {', '.join(dimensions)}, time)) AS c"
-        )
-    else:
-        select_expr = "COUNT(*) AS c"
-
+    select_expr = (
+        f"COUNT(DISTINCT(measure_name, {', '.join(dimensions)}, time)) AS c"
+        if dimensions else
+        "COUNT(*) AS c"
+    )
     query = f'SELECT {select_expr} FROM "{database}"."{table}"'
 
-    # ─ Optional date filtering ─
     where_clauses: list[str] = []
     if start_time:
         where_clauses.append(
-            f"time >= from_iso8601_timestamp('{start_time}')"
-        )
+            f"time >= from_iso8601_timestamp('{start_time}')")
     if end_time:
         where_clauses.append(
-            f"time <  from_iso8601_timestamp('{end_time}')"
-        )
+            f"time <  from_iso8601_timestamp('{end_time}')")
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
 
     client = session.client("athena")
 
-    try:
-        execution = client.start_query_execution(
-            QueryString=query,
-            QueryExecutionContext={"Database": database},
-            ResultConfiguration={"OutputLocation": output_location},
+    print(f"--- Athena ---\n\nRunning query:\n{query}\n")
+    execution = client.start_query_execution(
+        QueryString=query,
+        QueryExecutionContext={"Database": database},
+        ResultConfiguration={"OutputLocation": output_location},
+    )
+    qid = execution["QueryExecutionId"]
+
+    while True:
+        status = client.get_query_execution(QueryExecutionId=qid)
+        state = status["QueryExecution"]["Status"]["State"]
+        if state in {"SUCCEEDED", "FAILED", "CANCELLED"}:
+            break
+        time.sleep(poll_interval)
+
+    if state != "SUCCEEDED":
+        err_msg = (
+            status.get("QueryExecution", {})
+            .get("Status", {})
+            .get("AthenaError", {})
+            .get("ErrorMessage", "UNKNOWN")
         )
-        qid = execution["QueryExecutionId"]
+        raise RuntimeError(err_msg)
 
-        # ─ Poll until finished ─
-        while True:
-            state = client.get_query_execution(QueryExecutionId=qid)[
-                "QueryExecution"
-            ]["Status"]["State"]
-            if state in {"SUCCEEDED", "FAILED", "CANCELLED"}:
-                break
-            time.sleep(poll_interval)
-
-        if state != "SUCCEEDED":
-            print(f"[Athena] Query {state}")
-            return None
-
-        rows = client.get_query_results(QueryExecutionId=qid)["ResultSet"]["Rows"]
-        count = int(rows[1]["Data"][0]["VarCharValue"])
-        label = (
-            f"{database}.{table} ({start_time or 'begin'} – {end_time or 'now'})"
-        )
-        print(f"--- Athena ---\nTotal records in {label}: {count}\n")
-        return count
-    except Exception as e:
-        print(f"[Athena] Error: {e}")
-        return None
+    rows = client.get_query_results(QueryExecutionId=qid)["ResultSet"]["Rows"]
+    count = int(rows[1]["Data"][0]["VarCharValue"])
+    label = f"{database}.{table} ({start_time or 'begin'} - {end_time or 'now'})"
+    print(f"[ATHENA] Total records in {label}: {count}\n")
+    return count
 
 
 # ────────────────── InfluxDB utilities ──────────────────────
@@ -276,7 +265,7 @@ def count_influx_rows(
         bucket: Target bucket.
         measurement: Measurement to count.
         row_identifier: Name of a field that appears exactly once per logical
-            row. Using a single field avoids double‑counting where multiple
+            row. Using a single field avoids double-counting where multiple
             fields exist.
         start_time: Inclusive lower-bound (ISO-8601).  None = no lower bound.
         end_time:   Exclusive upper-bound (ISO-8601).  None = no upper bound.
@@ -285,25 +274,24 @@ def count_influx_rows(
     Returns:
         Point count, or `None` on failure.
     """
-    try:
-        with influxdb_client.InfluxDBClient(url=url, token=token, org=org, timeout=timeout) as client:
-            range_clause = _build_range_clause(start_time, end_time)
-            query = (
-                f'from(bucket: "{bucket}")'
-                f"{range_clause}"
-                f' |> filter(fn: (r) => r._measurement == "{measurement}")'
-                f' |> filter(fn: (r) => r._field == "{row_identifier}")'
-                ' |> group() |> count()'
-            )
-            tables = client.query_api().query(org=org, query=query)
+    with influxdb_client.InfluxDBClient(
+        url=url, token=token, org=org, timeout=timeout
+    ) as client:
+        range_clause = _build_range_clause(start_time, end_time)
+        query = (
+            f'from(bucket: "{bucket}")'
+            f"{range_clause}"
+            f' |> filter(fn: (r) => r._measurement == "{measurement}")'
+            f' |> filter(fn: (r) => r._field == "{row_identifier}")'
+            ' |> group() |> count()'
+        )
+        print(f"--- InfluxDB ---\n\nRunning query:\n{query}\n")
+        tables = client.query_api().query(org=org, query=query)
 
-        total = sum(int(rec.get_value()) for tbl in tables for rec in tbl.records)
-        label = f"{bucket}.{measurement} ({start_time or 'begin'} – {end_time or 'now'})"
-        print(f"--- InfluxDB ---\nTotal LP points in {label}: {total}\n")
-        return total
-    except Exception as e:
-        print(f"[InfluxDB] Error: {e}")
-        return None
+    total = sum(int(rec.get_value()) for tbl in tables for rec in tbl.records)
+    label = f"{bucket}.{measurement} ({start_time or 'begin'} - {end_time or 'now'})"
+    print(f"[INFLUXDB] Total LP points in {label}: {total}\n")
+    return total
 
 
 # ────────────────────── CLI parsing ─────────────────────────
@@ -338,7 +326,7 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # – Timestream
+    # - Timestream
     parser.add_argument(
         "--timestream-database-name",
         default=env("TIMESTREAM_DATABASE_NAME"),
@@ -352,7 +340,7 @@ def parse_args() -> argparse.Namespace:
         help="Timestream table name (required if SOURCE_ENGINE=timestream)",
     )
 
-    # – Athena
+    # - Athena
     parser.add_argument(
         "--athena-database-name",
         default=env("ATHENA_DATABASE_NAME"),
@@ -372,7 +360,7 @@ def parse_args() -> argparse.Namespace:
         help="Athena query results S3 output location (required if SOURCE_ENGINE=athena)",
     )
 
-    # – InfluxDB
+    # - InfluxDB
     parser.add_argument(
         "--influxdb-v2-url",
         default=env("INFLUXDB_V2_URL"),
@@ -404,7 +392,7 @@ def parse_args() -> argparse.Namespace:
         help="InfluxDB measurement to validate",
     )
 
-    # – Optional
+    # - Optional
     parser.add_argument(
         "--schema-tags",
         default=env("SCHEMA_TAGS", ""),
@@ -447,17 +435,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    print("-"*20)
+    print("-" * 20)
     print("Starting validation")
-    print("-"*20)
+    print("-" * 20)
 
-    # First, check WAL across shards to ensure post-ingestion
-    # is complete
     poll_interval = int(args.poll_metrics_interval)
     session = requests.Session()
 
     if not args.skip_wal_check:
-        print(f"\nPolling {args.influxdb_v2_url}/metrics to wait for WAL to complete flushing ... \n")
+        print(f"\nPolling {args.influxdb_v2_url}/metrics to wait for WAL to complete flushing ...\n")
         while True:
             timestamp = dt.datetime.now().isoformat(sep=" ", timespec="seconds")
             try:
@@ -475,15 +461,19 @@ def main() -> None:
                 print(f"{timestamp}  WAL empty on all shards — ready for validation.\n")
                 break
     else:
-        print(f"\nSkipping check for InfluxDB WAL to complete flushing ...\n")
+        print("\nSkipping check for InfluxDB WAL to complete flushing ...\n")
 
     schema_tags = [t.strip() for t in args.schema_tags.split(",") if t.strip()]
     boto3_session = initialize_session()
 
-    # Begin validation
-    print(f"Starting validation ...\n")
+    print("Starting validation ...\n")
+
+    futures: Dict[str, Any] = {}
+    results: Dict[str, Tuple[Any, float]] = {}
+    errors: Dict[str, Exception] = {}
+
     with ThreadPoolExecutor(max_workers=2) as pool:
-        fut_influx = pool.submit(
+        futures["InfluxDB"] = pool.submit(
             timed,
             count_influx_rows,
             args.influxdb_v2_url,
@@ -496,65 +486,72 @@ def main() -> None:
             args.end_time,
         )
 
+        if not args.influx_only:
+            if args.source_engine == "athena":
+                futures["Source Engine"] = pool.submit(
+                    timed,
+                    count_athena_rows,
+                    boto3_session,
+                    args.athena_database_name,
+                    args.athena_table_name,
+                    args.athena_output,
+                    schema_tags,
+                    args.start_time,
+                    args.end_time,
+                )
+            else:  # Timestream
+                futures["Source Engine"] = pool.submit(
+                    timed,
+                    count_timestream_rows,
+                    boto3_session,
+                    args.timestream_database_name,
+                    args.timestream_table_name,
+                    schema_tags,
+                    args.start_time,
+                    args.end_time,
+                )
 
-        # Check Influx result first
-        infl_count, infl_elapsed = fut_influx.result()
-        if infl_count == 0:
-            print(f"❗ InfluxDB returned 0 points in {args.influxdb_v2_bucket}.")
-            sys.exit(1)
+        for name, fut in futures.items():
+            try:
+                results[name] = fut.result()
+            except Exception as exc:
+                errors[name] = exc
 
-        if args.influx_only:
-            print(f"\n⏱ InfluxDB query time: {infl_elapsed:.2f} s")
-            print("\n--------- Influx-Only Results ---------\n")
-            print(f"InfluxDB row count: {infl_count}\n")
-            return 
+    infl_count, infl_elapsed = results.get("InfluxDB", (None, None))
+    src_count, src_elapsed = results.get("Source Engine", (None, None))
 
-        if args.source_engine == "athena":
-            fut_source = pool.submit(
-                timed,
-                count_athena_rows,
-                boto3_session,
-                args.athena_database_name,
-                args.athena_table_name,
-                args.athena_output,
-                schema_tags,
-                args.start_time,
-                args.end_time,
-            )
-        else:  # Timestream
-            fut_source = pool.submit(
-                timed,
-                count_timestream_rows,
-                boto3_session,
-                args.timestream_database_name,
-                args.timestream_table_name,
-                schema_tags,
-                args.start_time,
-                args.end_time,
-            )
-
-        src_count,  src_elapsed  = fut_source.result()
-
-    # ─ Timings ─
-    src_label = args.source_engine.title()
-    print(f"⏱ {src_label} query time: {src_elapsed:.2f} s")
-    print(f"⏱ InfluxDB query time:   {infl_elapsed:.2f} s\n")
-
-    # ─ Report ─
-    print("--------- Migration Results ---------\n")
-    if src_count is None:
-        print(f"⚠️  {src_label} query failed.")
     if infl_count is None:
-        print("⚠️  InfluxDB query failed.")
+        print("\n❌ InfluxDB query failed - cannot continue comparison.")
+    elif infl_count == 0:
+        print(f"\n❗ InfluxDB returned 0 points in {args.influxdb_v2_bucket}.")
+        sys.exit(1)
 
-    if src_count is not None and infl_count is not None:
-        if src_count == infl_count:
-            print(f"🎉  {src_label} and InfluxDB row counts match.\n")
-        else:
-            sign = ">" if src_count > infl_count else "<"
-            print(
-                f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n"
-            )
+    if infl_count is not None and args.influx_only:
+        print(f"\n⏱ InfluxDB query time: {infl_elapsed:.2f}s")
+        print("\n--------- Influx-Only Results ---------\n")
+        print(f"InfluxDB row count: {infl_count}\n")
+
+    if not errors:
+        print("--------- Migration Results ---------\n")
+        if src_elapsed is not None:
+            src_label = args.source_engine.title()
+            print(f"⏱ {src_label} query time: {src_elapsed:.2f}s")
+        if infl_elapsed is not None:
+            print(f"⏱ InfluxDB query time:   {infl_elapsed:.2f}s\n")
+
+        if src_count is not None and infl_count is not None:
+            if src_count == infl_count:
+                print(f"🎉  {src_label} and InfluxDB row counts match.\n")
+            else:
+                sign = ">" if src_count > infl_count else "<"
+                print(
+                    f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n"
+                )
+    else:
+        print("\n--------- Exceptions ---------\n")
+        for name, exc in errors.items():
+            print(f"{name} query failed: {exc}")
+        print()
 
 if __name__ == "__main__":
     try:
