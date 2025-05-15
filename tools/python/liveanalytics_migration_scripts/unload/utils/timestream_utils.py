@@ -12,7 +12,7 @@ import re
 
 
 class TimestreamUtility:
-    def __init__(self, region=None, sns_topic_arn=None, enable_dynamodb_logger=False):
+    def __init__(self, region=None, sns_topic_arn=None, enable_dynamodb_logger=False, log_file=None, s3_util=None):
         """
         Initialize the TimestreamUtility class.
 
@@ -35,9 +35,12 @@ class TimestreamUtility:
         )
         self.dynamodb_client = boto3.client("dynamodb")
         self.dynamodb = boto3.resource("dynamodb")
-        self.logger = create_logger("timestream_logger")
+        self.logger = create_logger("timestream_logger", log_file=log_file)
         self.sns_topic_arn = sns_topic_arn
-        self.s3_utility = S3Utility(region)
+        if s3_util is None:
+            self.s3_util = S3Utility(region)
+        else:
+            self.s3_util = s3_util
         self.enable_dynamodb_logger = enable_dynamodb_logger
 
     @staticmethod
@@ -482,8 +485,7 @@ class TimestreamUtility:
 
             file = "/".join(manifest_file.split("/")[3:])
             s3_manifest_bucket_name = manifest_file.split('s3://')[-1].split('/')[0]
-            manifest_file_response = self.s3_utility.fetch_json_from_s3(s3_manifest_bucket_name, file)
-            self.logger.info(manifest_file_response)
+            manifest_file_response = self.s3_util.fetch_json_from_s3(s3_manifest_bucket_name, file)
             exported_rows = manifest_file_response['query_metadata']['total_row_count']
             export_files = {}
             for file in manifest_file_response['result_files']:
