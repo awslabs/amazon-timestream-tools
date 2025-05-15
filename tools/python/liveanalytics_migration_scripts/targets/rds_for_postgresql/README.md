@@ -31,7 +31,7 @@ See [README.md#Installation](../../README.md#installation).
 python copy_postgres.py \
   --table TABLE_NAME \
   --database DATABASE_NAME \
-  --csv-files-dir "/path/to/csv/files" \
+  --input-files "/path/to/csv/files" \
   --host DATABASE_HOST \
   [--secret-arn SECRET_ARN] \
   [--schema SCHEMA] \
@@ -49,7 +49,7 @@ python copy_postgres.py \
 
 - `--table`: Target PostgreSQL table name
 - `--database`: PostgreSQL database name
-- `--csv-files-dir`: Directory for CSV files
+- `--input-files`: Directory or glob pattern for CSV files
 - `--host`: Aurora/RDS Postgres cluster writer endpoint
 
 ### Optional Parameters
@@ -84,7 +84,7 @@ python copy_postgres.py \
 python copy_postgres.py \
   --table customers \
   --database sales \
-  --csv-files-dir "/data/csv_files/partition_x/" \
+  --input-files "/data/csv_files/*partition*/*.csv" \
   --host database-1.cluster-123456789012.us-east-1.rds.amazonaws.com \
   --secret-arn  'arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!cluster-xxxxx-xx-xx-xx-xxxxxxxx-xxxxx' \
   --parallel-threads 20 \
