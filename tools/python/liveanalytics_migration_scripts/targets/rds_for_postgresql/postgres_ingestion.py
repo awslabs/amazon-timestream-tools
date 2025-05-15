@@ -390,8 +390,7 @@ def get_secret(secret_arn, logger):
             SecretId=secret_arn
         )
     except Exception as e:
-        sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
-        logger.info(f"Error retrieving secret (ARN ending in {sanitized_secret_arn}): {str(e)}")
+        logger.info(f"Error retrieving secret: {str(e)}")
         raise
 
     if 'SecretString' in response:
@@ -483,16 +482,14 @@ if __name__ == '__main__':
     if secret is None:
         try:
             secret_arn = args.secret_arn
-            sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
             secret = get_secret(secret_arn, logger)
             if 'password' not in secret:
-                error_message = f"Password not found in secret (ARN ending in {sanitized_secret_arn})"
+                error_message = f"Password not found in secret)"
                 logger.error(error_message)
                 sys.exit(1)
             db_params['password'] = secret['password']
         except Exception as e:
-            sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
-            error_message = f"Error retrieving secret (ARN ending in {sanitized_secret_arn}): {str(e)}"
+            error_message = f"Error retrieving secret: {str(e)}"
             logger.error(error_message)
             timestream_utility.sns_publish_message(error_message, "Failed to retrieve database credentials")
             sys.exit(1)
