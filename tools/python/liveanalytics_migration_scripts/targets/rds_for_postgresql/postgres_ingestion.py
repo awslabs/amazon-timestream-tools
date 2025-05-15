@@ -540,14 +540,14 @@ if __name__ == '__main__':
     start_time = datetime.now()
     custom_file_queue = queue.Queue()
 
-    gz_files = list_files(directory, ".gz", logger)
+    gz_files = list_files(args.input_files, ".gz", logger)
     if gz_files:
         logger.info(f"Found {len(gz_files)} .gz files to decompress")
         decompress_gzip_files(gz_files)
 
-    csv_files = list_files(directory, ".csv")
+    csv_files = list_files(args.input_files, ".csv", logger)
     if not csv_files:
-        logger.error(f"No CSV files found in {directory}")
+        logger.error(f"No CSV files found for pattern {args.input_files}")
         sys.exit(1)
     logger.info(f"Starting ingestion of {len(csv_files)} files in {min({len(csv_files)},{num_of_threads})} threads")
     handle_ingestion(num_of_threads, conn_pool, table_name, csv_files, processed_dir, custom_file_queue, logger, timestream_utility)
