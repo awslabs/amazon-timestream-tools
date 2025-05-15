@@ -43,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("-en", "--encryption", help="Encryption type", default='SSE_S3', choices=['SSE_KMS', 'SSE_S3'], required=False)
     parser.add_argument("-rf", "--recent-first", default=False,type=lambda x: x.lower() in ['true', '1', 'yes'],help="Set to true to load data in reverse chronological order (most recent batch first)",required=False)
     parser.add_argument("-cp", "--custom-partition-count", help="Custom partition count", default=99, required=False)
-    parser.add_argument("-ob", "--order-by-asc", help="data order by ascending", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
+    parser.add_argument("-ob", "--order-by-asc", help="data order by time ascending", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
     parser.add_argument("-ld", "--logs-dir", help='Directory for export logs (default: timestream-export-logs)', default = None, required = False)
 
     #assign arguments to args variable

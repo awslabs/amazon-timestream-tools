@@ -69,6 +69,7 @@
 <li>If your target is <strong>Postgres</strong> choose <strong>CSV</strong>, <strong>GZIP compression</strong> and <strong>`--max-file-size` to 3GB</strong> to meet the ingestion script requirements </li>
 <li>Tool uses <a href="https://docs.aws.amazon.com/timestream/latest/developerguide/export-unload.html" target="_blank" rel="noopener noreferrer" title="Learn more about unload functionality" aria-label="Read about AWS Timestream unload feature">Timestream unload Feature</a>. Unload has limitation on number of partitions, tool will overcome this by running unload in batches if required based and start time and end time provided</li>
 <li>Tool supports partitioning by hour, day, month, or year (default is <strong>day</strong>). To avoid error "The query computation exceeds maximum available memory," make sure each partition under approximately 350GB. For example, if your yearly data in Timestream table exceeds 350GB, consider switching to monthly partitions, and if needed, go even more granular (e.g., daily or hourly) </li>
+<li>  If you choose hourly and still get a “The query computation exceeds maximum available memory” error, you can reduce the number of partitions <strong>(--custom-partition-count)</strong> to a lower number, making sure your exports are successful</li>
 <li>You can export single table, single database or all databases. If your requirement is more custom example: exporting multiple databases please write a wrapper on top of the existing automation </li>
 <li>Tool provides option to export recent data first if you want to export in reverse order (i.e, latest data first)</li>
 <li>If you are restarting the script due to failures, you could restart from the failed batch. During restart you could write to same bucket and proving the previous migration tag so all the files are created under same S3 prefix. If you prefer to create new files under new S3 prefix you may skip providing the migration tag </li>
@@ -212,6 +213,27 @@
 <td>CSV escape character<br><i>Default: (\)</i></td>
 <td><code>\</code></td>
 </tr>
+<tr>
+<td><code>--recent-first</code></td>
+<td>Set to true to load data in reverse chronological order (most recent batch first)<br><i>Default: False</i></td>
+<td><code>,</code></td>
+</tr>
+<tr>
+<td><code>--custom-partition-count</code></td>
+<td>Custom partition count for each batch<br><i>Default: 99</i></td>
+<td><code>,</code></td>
+</tr>
+<tr>
+<td><code>--custom-partition-count</code></td>
+<td>data order by time ascending<br><i>Default: False</i></td>
+<td><code>,</code></td>
+</tr>
+<tr>
+<td><code>--logs-dir</code></td>
+<td>Directory for export logs (default: timestream-export-logs in current directory)<br><i>Default: timestream-export-logs in current directory</i></td>
+<td><code>,</code></td>
+</tr>
+<tr>
 </table>
 </div>
 
