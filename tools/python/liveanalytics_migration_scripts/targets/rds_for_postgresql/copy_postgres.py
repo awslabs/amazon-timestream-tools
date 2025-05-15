@@ -13,9 +13,14 @@ import shutil
 import re
 import concurrent.futures
 from psycopg2 import pool
+import gzip
 
 sys.path.append("../../unload/utils/")
 from logger_utils import create_logger
+
+class FileExtractionError(Exception):
+    """Exception raised for errors during file extraction."""
+    pass
 
 def sns_publish_message(sns_topic_arn, message, subject, message_structure='email'):
     """
@@ -174,7 +179,8 @@ def _handle_failure(csv_filepath, exception, retry_count, max_retries, is_connec
         error_type = "Database connection error" if is_connection_error else "Error loading"
         message = f"{error_type} with error: {str(exception)} for {csv_filepath} after {max_retries} retries"
         logger.info(message)
-        sns_publish_message(sns_topic_arn, message, "Ingestion to postgres failed")
+        if sns_topic_arn is not None:
+            sns_publish_message(sns_topic_arn, message, "Ingestion to postgres failed")
     else:
         attempt_type = "Connection attempt" if is_connection_error else "Attempt"
         logger.info(f"{attempt_type} {retry_count}/{max_retries} failed: {str(exception)}")
@@ -248,24 +254,65 @@ def copy_to_postgres(conn_pool, table_name, csv_filepath, processed_dir, delimit
     return success, rows_ingested
 
 
-def list_csv_file(directory):
+def decompress_gzip_files(gz_files):
     """
-    List all CSV files in the specified directory.
+    Decompress a list of gzip files.
 
     Args:
-        directory (str): Directory path or glob pattern
+        gz_files: List of paths to gzip files to decompress, or a single file path
 
     Returns:
-        list: List of CSV file paths
+        list: Paths to the extracted files
+
+    Raises:
+        FileExtractionError: If decompression fails
+    """
+
+    if isinstance(gz_files, str):
+        gz_files = [gz_files]
+
+    extracted_files = []
+    for gz_file_path in gz_files:
+        extracted_file_path = gz_file_path[:-3] if gz_file_path.endswith('.gz') else gz_file_path
+        logging.info(f"Extracting {gz_file_path} to {extracted_file_path}")
+        try:
+            with gzip.open(gz_file_path, 'rb') as f_in:
+                with open(extracted_file_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            extracted_files.append(extracted_file_path)
+        except Exception as exc:
+            logging.error(f"Error decompressing file {gz_file_path}: {exc}")
+            raise FileExtractionError(f"Failed to decompress {gz_file_path}") from exc
+
+    return extracted_files
+
+
+def list_files(directory, file_extension):
+    """
+    List all files with the supplied file_extension in the specified directory.
+
+    Args:
+        directory (str): Directory path containing CSV files
+        file_extension (str): Extension to search for files
+
+    Returns:
+        list: List of file paths
     """
     try:
-        all_files = glob.glob(directory)
-        csv_files = [file for file in all_files if file.lower().endswith('.csv')]
-        logger.info(f"Found {len(csv_files)} CSV files in {directory}")
+        if not os.path.isdir(directory):
+            logger.error(f"Directory does not exist: {directory}")
+            return []
+
+        csv_files = []
+        for file in os.listdir(directory):
+            if file.lower().endswith(file_extension):
+                csv_files.append(os.path.join(directory, file))
+
+        logger.info(f"Found {len(csv_files)} {file_extension} files in {directory}")
         csv_files.sort()
         return csv_files
     except Exception as e:
-        message = f"Error listing CSV files in {directory}: {str(e)}"
+        message = f"Error listing {file_extension} files in {directory}: {str(e)}"
         logger.error(message)
         return []
 
@@ -284,7 +331,7 @@ def check_table_exists(conn_pool, table_name, schema):
         conn_pool.putconn(conn)
 
 
-def thread_handler(conn_pool, table_name, processed_dir):
+def thread_handler(conn_pool, table_name, processed_dir, custom_file_queue):
     total_rows_ingested = 0
     files_processed = 0
 
@@ -305,14 +352,14 @@ def thread_handler(conn_pool, table_name, processed_dir):
     return total_rows_ingested
 
 
-def handle_ingestion(threads_count, conn_pool, table_name, csv_files, processed_dir):
+def handle_ingestion(threads_count, conn_pool, table_name, csv_files, processed_dir, custom_file_queue):
     for file in csv_files:
         custom_file_queue.put(file)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads_count) as executor:
         future_results = []
         for i in range(threads_count):
-            future = executor.submit(thread_handler, conn_pool, table_name, processed_dir)
+            future = executor.submit(thread_handler, conn_pool, table_name, processed_dir, custom_file_queue)
             future_results.append(future)
 
         thread_results = [future.result() for future in concurrent.futures.as_completed(future_results)]
@@ -382,9 +429,6 @@ def get_secret(secret_arn):
     if 'SecretString' in response:
         secret = response['SecretString']
         return json.loads(secret)
-    else:
-        decoded_binary_secret = base64.b64decode(response['SecretBinary'])
-        return json.loads(decoded_binary_secret)
 
 def validate_sql_identifier(identifier):
     # Validation - alphanumeric and underscore only
@@ -399,7 +443,7 @@ if __name__ == '__main__':
     parser.add_argument("-t", "--database", help="postgres database name", required=True)
     parser.add_argument("-s", "--schema", help="Postgres schema where table resides", default='public', required=False)
     parser.add_argument("-u", "--user", help="User to login to postgres", default='postgres', required=False)
-    parser.add_argument("-f", "--csv-files-dir", help="CSV files to feed into Postgres", required=True) 
+    parser.add_argument("-f", "--csv-files-dir", help="CSV files (Compressed or uncompressed) to ingest into Postgres", required=True) 
     parser.add_argument("-e", "--host", help="Postgres Writer Endpoint", required=True)
     parser.add_argument("-p", "--port", help="Postgres Port", default='5432', required=False)
     parser.add_argument("-sm", "--secret-arn", help="Secrets Manager secret arn if secret stored in Secrets Manager. Omit if using self managed credentials and enter through standard input.", required=False)
@@ -502,11 +546,8 @@ if __name__ == '__main__':
         if args.processed_dir is not None:
             processed_dir = args.processed_dir
         else:
-            # Get the directory part of the input path
             input_dir = os.path.dirname(directory)    
-            # Go one level up to create the processed directory
-            parent_dir = os.path.dirname(input_dir)
-            processed_dir = os.path.join(parent_dir, f'processed_{table_name}_{database_name}')
+            processed_dir = os.path.join(input_dir, f'processed_{table_name}_{database_name}')
             logger.info(f"Processed files will be moved to: {processed_dir} after processing")
 
         # Create the directory if it doesn't exist
@@ -521,7 +562,13 @@ if __name__ == '__main__':
 
     start_time = datetime.now()
     custom_file_queue = queue.Queue()
-    csv_files = list_csv_file(directory)
+
+    gz_files = list_files(directory, ".gz")
+    if gz_files:
+        logger.info(f"Found {len(gz_files)} .gz files to decompress")
+        decompress_gzip_files(gz_files)
+
+    csv_files = list_files(directory, ".csv")
     if not csv_files:
         logger.error(f"No CSV files found in {directory}")
         sys.exit(1)
