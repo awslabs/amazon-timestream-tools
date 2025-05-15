@@ -246,19 +246,21 @@ def create_and_load_athena_table(
     try:
         # Expect the unload path to be
         # unload-%Y-%m-%d %H:%M:S
-        s3_unload_path = s3_utility.get_latest_unload_path(
+        latest_unload_path = s3_utility.get_latest_unload_path(
             bucket_name=s3_bucket_name,
             timestream_database_name=timestream_database_name,
             timestream_table_name=timestream_table_name,
         )
-        print(f"S3 unload path: {s3_unload_path}")
+        print(f"S3 unload path: {latest_unload_path}")
+        s3_unload_path = f"s3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload_path}"
         unload_query = f"""
                        CREATE EXTERNAL TABLE `{athena_database_name}`.`{athena_table_name}` ({", ".join(athena_columns)})
-                       STORED AS PARQUET LOCATION 's3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{s3_unload_path}/results';
+                       STORED AS PARQUET LOCATION '{s3_unload_path}/results';
                        """
         transform_logger.info(f"Executing query: {unload_query}")
         response = athena_utility.start_query_execution(
             query_string=unload_query,
+            output_location=f"{s3_unload_path}/athena-query-results",
             database_name=athena_database_name,
         )
         query_execution_id = response["QueryExecutionId"]
@@ -429,11 +431,12 @@ def translate_athena_table_to_line_protocol(
     line_protocol_translation_result.tags.append(measure_name)
 
     try:
-        s3_unload_path = s3_utility.get_latest_unload_path(
+        latest_unload_path = s3_utility.get_latest_unload_path(
             bucket_name=s3_bucket_name,
             timestream_database_name=timestream_database_name,
             timestream_table_name=timestream_table_name,
         )
+        s3_unload_path = f"s3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload_path}"
         # Translate to line protocol.
         #
         # All column names are wrapped in quotes.
@@ -443,7 +446,7 @@ def translate_athena_table_to_line_protocol(
             CREATE TABLE "{athena_database_name}"."{lp_athena_table_name}"
             WITH (
                 format = 'TEXTFILE',
-                external_location = 's3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{s3_unload_path}/line-protocol-output'
+                external_location = '{s3_unload_path}/line-protocol-output'
             ) AS
             SELECT
                 -- Measurement, from table name
@@ -495,7 +498,9 @@ def translate_athena_table_to_line_protocol(
 
         transform_logger.info(f"Executing query: {lp_translation_query}")
         response = athena_utlity.start_query_execution(
-            query_string=lp_translation_query, database_name=athena_database_name
+            query_string=lp_translation_query,
+            output_location=f"{s3_unload_path}/athena-query-results",
+            database_name=athena_database_name,
         )
         query_execution_id = response["QueryExecutionId"]
         transform_logger.info(f"Query execution ID: {query_execution_id}")
@@ -589,7 +594,7 @@ if __name__ == "__main__":
         "to help with post-migration validation. "
         "The field will be 'la_unload=1'.",
         required=True,
-        type=parse_bool_cli_argument
+        type=parse_bool_cli_argument,
     )
 
     args = parser.parse_args()

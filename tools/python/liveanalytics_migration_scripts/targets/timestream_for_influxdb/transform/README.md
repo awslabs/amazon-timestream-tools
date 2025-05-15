@@ -93,6 +93,7 @@ python3 transform.py \
 After the script has finished running:
 - In Athena, the table `example_database_example_table` will be created, containing Timestream for LiveAnalytics data.
 - In Athena, the table `lp_example_database_example_table` will be created, containing Timestream for LiveAnalytics data transformed to line protocol points.
+    - **NOTE**: The name of this table is needed later if [validating ingested records](../validation/README.md).
 - In the S3 bucket `example_s3_bucket`, within the path `example_database/example_table/unload-<%Y-%m-%d-%H:%M:%S>/line-protocol-output`, line protocol data will be stored.
 
 ### Multiple Tables
@@ -181,3 +182,15 @@ aws s3 rm s3://<S3 bucket name>/<Timestream database name>/<Timestream table nam
 
 The following limitations should be considered before transforming Timestream for LiveAnalytics records to line protocol:
 - The finest timestamp precision that Athena supports is **milliseconds**. If you need greater timestamp precision, such as microsecond or nanosecond precision, consider migrating to [Amazon RDS](https://aws.amazon.com/rds/).
+
+## Troubleshooting
+
+### Table Already Exists Error
+
+As part of the transformation process, two Athena tables are created. By default, these are `<Timestream database name>_<Timestream table name>` and `lp_<Timestream database name>_<Timestream table name>`. If these tables already exist, for example, from a previous run of the transformation script, the following exception will be raised:
+
+```
+RuntimeError: Athena query failed with state: FAILED, error: Table <table name> already exists.
+```
+
+To solve this error, delete the table indicated in the error and try running the transformation script again. To delete a table in Athena, see the [Cleanup](#cleanup) section.
