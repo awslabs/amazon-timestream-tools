@@ -134,7 +134,7 @@ def create_and_load_athena_table(
     athena_utility: AthenaUtility,
     timestream_database_name: str,
     timestream_table_name: str,
-    s3_bucket_name: str,
+    s3_bucket_path: str,
     athena_database_name="default",
     athena_table_name=None,
     wait_for_completion=True,
@@ -147,7 +147,7 @@ def create_and_load_athena_table(
         session (boto3.Session): The boto3 Session to use to create clients.
         timestream_database_name (str): The Timestream database to retrieve the table schema from.
         timestream_table_name (str): The Timestream table to replicate the schema of.
-        s3_bucket_name (str): The name of the S3 bucket containing Timestream data.
+        s3_bucket_path (str): The S3 bucket path containing Timestream data.
         athena_table_name (str): Optional. The name of the Athena table to
             create. Defaults to <timestream_database_name>_<timestream_table_name>.
         wait_for_completion (bool): Whether to wait for loading
@@ -182,8 +182,14 @@ def create_and_load_athena_table(
     if not AthenaUtility.is_valid_athena_table_name(athena_table_name):
         raise RuntimeError(f"Athena table name {athena_table_name} is invalid")
 
-    if s3_bucket_name.lower().startswith("s3://"):
-        s3_bucket_name = s3_bucket_name[5:]
+    if s3_bucket_path.lower().startswith("s3://"):
+        s3_bucket_path = s3_bucket_path[5:]
+
+    if not s3_bucket_path:
+        raise RuntimeError("S3 bucket path was empty")
+
+    s3_bucket_path_parts = s3_bucket_path.split("/")
+    s3_bucket_name = s3_bucket_path_parts[0]
 
     # S3 bucket names are easier to check by simply checking if the
     # bucket already exists
@@ -244,18 +250,30 @@ def create_and_load_athena_table(
         return
 
     try:
-        # Expect the unload path to be
-        # unload-%Y-%m-%d %H:%M:S
-        latest_unload_path = s3_utility.get_latest_unload_path(
-            bucket_name=s3_bucket_name,
-            timestream_database_name=timestream_database_name,
-            timestream_table_name=timestream_table_name,
-        )
-        print(f"S3 unload path: {latest_unload_path}")
-        s3_unload_path = f"s3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload_path}"
+        # An S3 bucket name has been provided,
+        # search for a results path within.
+        if len(s3_bucket_path_parts) == 1:
+            # Expect the unload path to be
+            # unload-%Y-%m-%d %H:%M:S
+            latest_unload_path = s3_utility.get_latest_unload_path(
+                bucket_name=s3_bucket_name,
+                timestream_database_name=timestream_database_name,
+                timestream_table_name=timestream_table_name,
+            )
+            s3_unload_path = f"s3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload_path}"
+            s3_results_path = s3_unload_path + "/results"
+        else:
+            if not s3_utility.s3_bucket_path_exists(
+                bucket_name=s3_bucket_name, prefix="/".join(s3_bucket_path_parts[1:])
+            ):
+                raise RuntimeError(
+                    f"S3 bucket path does not exist or is unavailable: {s3_bucket_path}"
+                )
+            s3_unload_path = f"s3://{'/'.join(s3_bucket_path_parts[:-1])}"
+            s3_results_path = f"s3://{s3_bucket_path}"
         unload_query = f"""
                        CREATE EXTERNAL TABLE `{athena_database_name}`.`{athena_table_name}` ({", ".join(athena_columns)})
-                       STORED AS PARQUET LOCATION '{s3_unload_path}/results';
+                       STORED AS PARQUET LOCATION '{s3_results_path}';
                        """
         transform_logger.info(f"Executing query: {unload_query}")
         response = athena_utility.start_query_execution(
@@ -280,7 +298,7 @@ def translate_athena_table_to_line_protocol(
     athena_utlity: AthenaUtility,
     timestream_database_name: str,
     timestream_table_name: str,
-    s3_bucket_name: str,
+    s3_output_path: str,
     dimensions_to_fields=[],
     athena_database_name: str = "default",
     athena_table_name=None,
@@ -299,7 +317,7 @@ def translate_athena_table_to_line_protocol(
             database in which the data originates.
         timestream_table_name (str): The Timestream for LiveAnalytics
             table in which the data originates.
-        s3_bucket_name (str): The name of the S3 bucket to add line protocol
+        s3_output_path (str): The S3 bucket path to add line protocol
             data to.
         dimensions_to_fields (list[str]): A list of dimension names to turn
             into fields.
@@ -352,8 +370,14 @@ def translate_athena_table_to_line_protocol(
     if not AthenaUtility.is_valid_athena_table_name(lp_athena_table_name):
         raise RuntimeError(f"Athena table name {lp_athena_table_name} is invalid")
 
-    if s3_bucket_name.lower().startswith("s3://"):
-        s3_bucket_name = s3_bucket_name[5:]
+    if s3_output_path.lower().startswith("s3://"):
+        s3_output_path = s3_output_path[5:]
+
+    if not s3_lp_output_path:
+        raise RuntimeError("S3 line protocol output path was empty")
+
+    s3_output_path_parts = s3_output_path.split("/")
+    s3_bucket_name = s3_output_path_parts[0]
 
     if not s3_utility.s3_bucket_exists(bucket_name=s3_bucket_name):
         raise RuntimeError(f"S3 bucket {s3_bucket_name} does not exist")
@@ -361,7 +385,6 @@ def translate_athena_table_to_line_protocol(
     line_protocol_translation_result = LineProtocolTranslationResult(
         timestream_database_name=timestream_database_name,
         timestream_table_name=timestream_table_name,
-        s3_bucket_destination=s3_bucket_name,
     )
 
     measure_name = ""
@@ -431,12 +454,30 @@ def translate_athena_table_to_line_protocol(
     line_protocol_translation_result.tags.append(measure_name)
 
     try:
-        latest_unload_path = s3_utility.get_latest_unload_path(
-            bucket_name=s3_bucket_name,
-            timestream_database_name=timestream_database_name,
-            timestream_table_name=timestream_table_name,
+        if len(s3_output_path_parts) == 1:
+            # A bucket name has been provided, search within for the
+            # latest unload path.
+            latest_unload_path = s3_utility.get_latest_unload_path(
+                bucket_name=s3_bucket_name,
+                timestream_database_name=timestream_database_name,
+                timestream_table_name=timestream_table_name,
+            )
+            s3_unload_path = f"s3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload_path}"
+        else:
+            if not s3_utility.s3_bucket_path_exists(
+                bucket_name=s3_bucket_name,
+                prefix="/".join(s3_output_path_parts[1:]),
+                delimiter="/",
+            ):
+                raise RuntimeError(
+                    f"S3 bucket path does not exist or is unavailable: {s3_output_path}"
+                )
+            s3_unload_path = f"s3://{s3_output_path}"
+
+        line_protocol_translation_result.s3_bucket_destination = (
+            s3_unload_path + "/line-protocol-output"
         )
-        s3_unload_path = f"s3://{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload_path}"
+
         # Translate to line protocol.
         #
         # All column names are wrapped in quotes.
@@ -551,11 +592,31 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "--s3-bucket-name",
-        help="The name of the S3 bucket "
-        "to load and unload data from. This bucket must already "
-        "exist.",
+        "--s3-bucket-path",
+        help="The S3 bucket path in which "
+        "to load data from. This bucket must already "
+        "exist. If this is an S3 bucket name or URI, "
+        "for example, s3://example_bucket, then the path "
+        "database_name/table_name/unload-latest-timestamp/results "
+        "will be searched for in this bucket and used to load "
+        "data. If this is a full path, for example, "
+        "s3://example_bucket/example_path, then this path will be used "
+        "to load data.",
         required=True,
+    )
+    parser.add_argument(
+        "--s3-lp-output-path",
+        help="Optional. The S3 bucket path in which "
+        "to load transformed line protocol data into, in a new "
+        "line-protocol-output path. "
+        "If this is an S3 bucket name or URI, for example, "
+        "s3://example_bucket, then the path "
+        "database_name/table_name/unload_latest_timestamp will "
+        "be searched for in this bucket. "
+        "If this is a full path, for example, s3://example_bucket/example_path, "
+        "then the path line-protocol-output added to this path. If not provided, "
+        "this defaults to the value provided by --s3-bucket-path.",
+        required=False,
     )
     parser.add_argument(
         "--athena-database-name",
@@ -600,7 +661,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     timestream_database_name = args.database_name
-    s3_bucket_name = args.s3_bucket_name
+    s3_bucket_path = args.s3_bucket_path.rstrip("/")
+    s3_lp_output_path = args.s3_lp_output_path.rstrip("/")
+
+    if s3_lp_output_path is None:
+        s3_bucket_path_parts = s3_bucket_path.split("/")
+        # If a custom path has been provided, for example,
+        # my_bucket/some_path/results, then line protocol will
+        # be added to my_bucket/some_path/line-protocol-output.
+        if len(s3_bucket_path_parts) > 1:
+            s3_lp_output_path = "/".join(s3_bucket_path_parts[:-1])
+        # If the user has provided a bucket name as the bucket path,
+        # use it also for the lp output path. The bucket will be
+        # searched for the latest unload path.
+        else:
+            s3_lp_output_path = s3_bucket_path
+
     dimensions_to_fields_map = (
         dict(args.dimensions_to_fields) if args.dimensions_to_fields else {}
     )
@@ -645,7 +721,7 @@ if __name__ == "__main__":
             athena_utility=athena_utility,
             timestream_database_name=timestream_database_name,
             timestream_table_name=timestream_table_name,
-            s3_bucket_name=s3_bucket_name,
+            s3_bucket_path=s3_bucket_path,
             athena_database_name=args.athena_database_name,
             athena_table_name=args.athena_table_name,
         )
@@ -655,7 +731,7 @@ if __name__ == "__main__":
             athena_utlity=athena_utility,
             timestream_database_name=timestream_database_name,
             timestream_table_name=timestream_table_name,
-            s3_bucket_name=s3_bucket_name,
+            s3_output_path=s3_lp_output_path,
             dimensions_to_fields=dimensions_to_fields_map.get(
                 timestream_table_name, []
             ),
