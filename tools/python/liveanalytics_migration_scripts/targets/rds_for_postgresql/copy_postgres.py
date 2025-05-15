@@ -305,7 +305,7 @@ def thread_handler(conn_pool, table_name, processed_dir):
     return total_rows_ingested
 
 
-def multi_thread_handler(threads_count, conn_pool, table_name, csv_files, processed_dir):
+def handle_ingestion(threads_count, conn_pool, table_name, csv_files, processed_dir):
     for file in csv_files:
         custom_file_queue.put(file)
 
@@ -375,8 +375,8 @@ def get_secret(secret_arn):
             SecretId=secret_arn
         )
     except Exception as e:
-        secret_id_safe = "***" + secret_arn[-6:] if secret_arn else "None"
-        logger.info(f"Error retrieving secret (ARN ending in {secret_id_safe}): {str(e)}")
+        sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
+        logger.info(f"Error retrieving secret (ARN ending in {sanitized_secret_arn}): {str(e)}")
         raise
 
     if 'SecretString' in response:
@@ -462,18 +462,16 @@ if __name__ == '__main__':
     if secret is None:
         try:
             secret_arn = args.secret_arn
-            # Log with redacted ARN
-            secret_id_safe = "***" + secret_arn[-6:] if secret_arn else "None"
+            sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
             secret = get_secret(secret_arn)
             if 'password' not in secret:
-                error_message = f"Password not found in secret (ARN ending in {secret_id_safe})"
+                error_message = f"Password not found in secret (ARN ending in {sanitized_secret_arn})"
                 logger.error(error_message)
                 sys.exit(1)
             db_params['password'] = secret['password']
         except Exception as e:
-            # Log with redacted ARN
-            secret_id_safe = "***" + secret_arn[-6:] if secret_arn else "None"
-            error_message = f"Error retrieving secret (ARN ending in {secret_id_safe}): {str(e)}"
+            sanitized_secret_arn = "***" + secret_arn[-6:] if secret_arn else "None"
+            error_message = f"Error retrieving secret (ARN ending in {sanitized_secret_arn}): {str(e)}"
             logger.error(error_message)
             sns_publish_message(error_message, "Failed to retrieve database credentials")
             sys.exit(1)
@@ -528,7 +526,7 @@ if __name__ == '__main__':
         logger.error(f"No CSV files found in {directory}")
         sys.exit(1)
     logger.info(f"Starting ingestion of {len(csv_files)} files in {min({len(csv_files)},{num_of_threads})} threads")
-    multi_thread_handler(num_of_threads, conn_pool, table_name, db_params, csv_files, processed_dir)
+    handle_ingestion(num_of_threads, conn_pool, table_name, csv_files, processed_dir)
     conn_pool.closeall()
     end_time = datetime.now()
     duration = end_time - start_time
