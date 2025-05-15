@@ -103,7 +103,7 @@ if __name__ == "__main__":
     timestream_utility = TimestreamUtility(
         region, sns_topic_arn, args.enable_dynamodb_logger, log_file=log_file_path, s3_util=s3_utility)
     if args.sns_topic_arn is not None:
-        if not timestream_utility.validate_sns_topic(sns_topic_arn):
+        if not timestream_utility.init_sns_topic(sns_topic_arn):
             sys.exit(1)
 
     #create bucked if not provided
