@@ -662,7 +662,9 @@ if __name__ == "__main__":
 
     timestream_database_name = args.database_name
     s3_bucket_path = args.s3_bucket_path.rstrip("/")
-    s3_lp_output_path = args.s3_lp_output_path.rstrip("/")
+    s3_lp_output_path = args.s3_lp_output_path
+    if s3_lp_output_path is not None:
+        s3_lp_output_path = s3_lp_output_path.rstrip("/")
 
     if s3_lp_output_path is None:
         s3_bucket_path_parts = s3_bucket_path.split("/")
