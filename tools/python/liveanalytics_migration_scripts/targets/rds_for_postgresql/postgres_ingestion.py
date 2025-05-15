@@ -535,20 +535,25 @@ if __name__ == '__main__':
         logger.error(f"Failed to create processed directory: {str(e)}")
         sys.exit(1)
 
-
-
     start_time = datetime.now()
     custom_file_queue = queue.Queue()
+    csv_pattern = args.input_files
 
-    gz_files = list_files(args.input_files, ".gz", logger)
-    if gz_files:
-        logger.info(f"Found {len(gz_files)} .gz files to decompress")
-        decompress_gzip_files(gz_files)
+    if args.input_files.endswith('.gz'):
+        gz_files = list_files(args.input_files, ".gz", logger)
+        if gz_files:
+            logger.info(f"Found {len(gz_files)} .gz files to decompress")
+            decompress_gzip_files(gz_files)
+            csv_pattern = args.input_files[:-3] + '.csv'
+        else:
+            logger.error(f"No gzip files found for pattern {args.input_files}")
+            sys.exit(1)
 
-    csv_files = list_files(args.input_files, ".csv", logger)
+    csv_files = list_files(csv_pattern, ".csv", logger)
     if not csv_files:
         logger.error(f"No CSV files found for pattern {args.input_files}")
         sys.exit(1)
+
     logger.info(f"Starting ingestion of {len(csv_files)} files in {min({len(csv_files)},{num_of_threads})} threads")
     handle_ingestion(num_of_threads, conn_pool, table_name, csv_files, processed_dir, custom_file_queue, logger, timestream_utility)
     conn_pool.closeall()
