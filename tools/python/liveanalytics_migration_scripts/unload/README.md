@@ -63,10 +63,10 @@
 <div>
 <h2>Recommendations and Best Practices</h2>
 <ol>
-<li> If your target is <strong>Timestream for InfluxDB</strong> export in <strong>Parquet format</strong> and <strong>no compression</strong> to meet the ingestion scripts requirements place_holder </li>
+<li> If your target is <strong>Timestream for InfluxDB</strong> export in <strong>Parquet format</strong> and <strong>no compression</strong> to meet the ingestion scripts requirements </li>
 <li>Enable DynamoDB logging for tracking and validation</li>
 <li>Configure SNS notifications to receive failure or completion of export</li>
-<li>If your target is <strong>Postgres</strong> choose <strong>CSV</strong>, <strong>no compression</strong> and <strong>max_file_size to 3GB</strong> to meet the ingestion script requirements place_holder </li>
+<li>If your target is <strong>Postgres</strong> choose <strong>CSV</strong>, <strong>GZIP compression</strong> and <strong>`--max-file-size` to 3GB</strong> to meet the ingestion script requirements </li>
 <li>Tool uses <a href="https://docs.aws.amazon.com/timestream/latest/developerguide/export-unload.html" target="_blank" rel="noopener noreferrer" title="Learn more about unload functionality" aria-label="Read about AWS Timestream unload feature">Timestream unload Feature</a>. Unload has limitation on number of partitions, tool will overcome this by running unload in batches if required based and start time and end time provided</li>
 <li>Tool supports partitioning by hour, day, month, or year (default is <strong>day</strong>). To avoid error "The query computation exceeds maximum available memory," make sure each partition under approximately 350GB. For example, if your yearly data in Timestream table exceeds 350GB, consider switching to monthly partitions, and if needed, go even more granular (e.g., daily or hourly) </li>
 <li>You can export single table, single database or all databases. If your requirement is more custom example: exporting multiple databases please write a wrapper on top of the existing automation </li>
@@ -83,27 +83,27 @@
 
 <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">
 <h4>Export a Single Table</h4>
-<pre><code>python3.9 unload.py --export_table --database Demo --table Demo --start_time '2020-03-26 17:24:38'</code></pre>
+<pre><code>python3.9 unload.py --export-table --database Demo --table Demo --start-time '2020-03-26 17:24:38'</code></pre>
 </div>
 
 <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">
 <h4>Export with DynamoDB logging enabled</h4>
-<pre><code>python3.9 unload.py --export_table --database Demo --table Demo --start_time '2020-03-26 17:24:38' --enable_dynamodb_logger true</code></pre>
+<pre><code>python3.9 unload.py --export-table --database Demo --table Demo --start-time '2020-03-26 17:24:38' --enable-dynamodb-logger true</code></pre>
 </div>
 
 <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">
 <h4>Export Entire Database</h4>
-<pre><code>python3.9 unload.py --export_database --database Demo --start_time '2020-03-26 17:24:38'</code></pre>
+<pre><code>python3.9 unload.py --export-database --database Demo --start-time '2020-03-26 17:24:38'</code></pre>
 </div>
 
 <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">
 <h4>Export All Databases</h4>
-<pre><code>python3.9 unload.py --export_all_databases --start_time '2020-03-26 17:24:38'</code></pre>
+<pre><code>python3.9 unload.py --export-all-databases --start-time '2020-03-26 17:24:38'</code></pre>
 </div>
 
 <div style="border: 1px solid #ddd; padding: 15px; margin: 20px 0; border-radius: 5px; background-color: #f8f9fa;">
-<h4>Export Example with end time, parition, s3_uri, dynamodb logging and sns notification </h4>
-<pre><code>python unload.py --export_table --database MyDB --table MyTable --start_time '2024-01-01 00:00:00'--end_time '2024-02-01 00:00:00' --partition month --export_format PARQUET --compression GZIP --region us-east-1 --s3_uri s3://my-bucket --enable_dynamodb_logger --sns_topic_arn arn:aws:sns:region:account-id:topic-name</code></pre>
+<h4>Export Example with end time, parition, s3 uri, dynamodb logging and sns notification </h4>
+<pre><code>python unload.py --export-table --database MyDB --table MyTable --start-time '2024-01-01 00:00:00' --end-time '2024-02-01 00:00:00' --partition month --export-format PARQUET --compression GZIP --region us-east-1 --s3-uri s3://my-bucket --enable-dynamodb-logger --sns-topic-arn arn:aws:sns:region:account-id:topic-name</code></pre>
 </div>
 </div>
 
@@ -116,7 +116,7 @@
 <th>Example</th>
 </tr>
 <tr>
-<td><code>--start_time</code></td>
+<td><code>--start-time</code></td>
 <td>UTC start timestamp (Format: 'YYYY-MM-DD HH:MM:SS')</td>
 <td><code>'2024-01-01 00:00:00'</code></td>
 </tr>
@@ -148,7 +148,7 @@
 <td><code>SensorData</code></td>
 </tr>
 <tr>
-<td><code>-s, --s3_uri</code></td>
+<td><code>-s, --s3-uri</code></td>
 <td>S3 Bucket URI<br><i>Default: Bucket will be created if not provided,s3://timestream-dump-{account_id}-{region} </i></td>
 <td><code>s3://my-bucket</code></td>
 </tr>
@@ -158,7 +158,7 @@
 <td><code>day</code></td>
 </tr>
 <tr>
-<td><code>-ef, --export_format</code></td>
+<td><code>-ef, --export-format</code></td>
 <td>Export format (PARQUET/CSV)<br><i>Default: PARQUET</i></td>
 <td><code>PARQUET</code></td>
 </tr>
@@ -168,27 +168,27 @@
 <td><code>GZIP</code></td>
 </tr>
 <tr>
-<td><code>-e, --end_time</code></td>
+<td><code>-e, --end-time</code></td>
 <td>UTC end timestamp (Format: 'YYYY-MM-DD HH:MM:SS')<br><i>Default: current timestamp</i></td>
 <td><code>'2024-01-02 00:00:00'</code></td>
 </tr>
 <tr>
-<td><code>-sns, --sns_topic_arn</code></td>
+<td><code>-sns, --sns-topic-arn</code></td>
 <td>SNS Topic ARN for notifications</td>
 <td><code>arn:aws:sns:region:account-id:topic-name</code></td>
 </tr>
 <tr>
-<td><code>-edl, --enable_dynamodb_logger</code></td>
+<td><code>-edl, --enable-dynamodb-logger</code></td>
 <td>Enable DynamoDB logging (true/false)<br><i>Default: false</i></td>
 <td><code>true</code></td>
 </tr>
 <tr>
-<td><code>-mt, --migration_tag</code></td>
-<td>Custom tag for tracking exports<br><i>Default:unload-{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}</i></td>
+<td><code>-mt, --migration-tag</code></td>
+<td>Custom tag for tracking exports<br><i>Default:unload-{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H:%M:%S')}</i></td>
 <td><code>production-export-jan122024</code></td>
 </tr>
 <tr>
-<td><code>-ik, --kms_key</code></td>
+<td><code>-ik, --kms-key</code></td>
 <td>KMS key for encryption<br><i>Default: S3 bucket KMS key</i></td>
 <td><code>arn:aws:kms:region:account-id:key/key-id</code></td>
 </tr>
@@ -198,17 +198,17 @@
 <td><code>SSE_KMS</code></td>
 </tr>
 <tr>
-<td><code>-ms, --max_file_size</code></td>
+<td><code>-ms, --max-file-size</code></td>
 <td>Maximum file size in GB<br><i>Default: 78GB</i></td>
 <td><code>50GB</code></td>
 </tr>
 <tr>
-<td><code>--field_delimiter</code></td>
+<td><code>--field-delimiter</code></td>
 <td>CSV field delimiter character<br><i>Default: (,)</i></td>
 <td><code>,</code></td>
 </tr>
 <tr>
-<td><code>-eb, --escaped_by</code></td>
+<td><code>-eb, --escaped-by</code></td>
 <td>CSV escape character<br><i>Default: (\)</i></td>
 <td><code>\</code></td>
 </tr>
