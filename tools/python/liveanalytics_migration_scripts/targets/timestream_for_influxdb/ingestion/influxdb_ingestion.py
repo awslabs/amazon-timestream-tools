@@ -81,6 +81,28 @@ def check_bucket_exists(bucket_name):
             client.close()
 
 
+def check_org_exists():
+    """
+    Check if InfluxDB organization exists.
+
+    Returns:
+        bool: True if organization exists, else False
+    """
+    try:
+        client = InfluxDBClient.from_env_properties()
+        org_api = client.organizations_api()
+        orgs = org_api.find_organizations(org=client.org)
+        if orgs:
+            logging.info("Organization '%s' exists – proceeding.", client.org)
+            return True
+        return False
+    except Exception as exc:
+        logging.error("Error checking if organization '%s' exists: %s", client.org, exc)
+        return False
+    finally:
+        if client:
+            client.close()
+
 def setup_logging(log_dir=None):
     """Safe logging for multiprocessing"""
     if log_dir is None:
@@ -441,8 +463,7 @@ def main():
     setup_logging()
 
     check_required_env_vars()
-    if not check_bucket_exists(args.bucket):
-        logging.error(f"Bucket '{args.bucket}' does not exist. Exiting.")
+    if not check_bucket_exists(args.bucket) or not check_org_exists():
         sys.exit(1)
 
     if not os.path.isdir(args.data_directory):
