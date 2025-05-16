@@ -606,20 +606,6 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
-        "--s3-lp-output-path",
-        help="Optional. The S3 bucket path in which "
-        "to load transformed line protocol data into, in a new "
-        "line-protocol-output path. "
-        "If this is an S3 bucket name or URI, for example, "
-        "s3://example_bucket, then the path "
-        "database_name/table_name/unload_latest_timestamp will "
-        "be searched for in this bucket. "
-        "If this is a full path, for example, s3://example_bucket/example_path, "
-        "then the path line-protocol-output will be added to this path. If not provided, "
-        "this defaults to the value provided by --s3-bucket-path.",
-        required=False,
-    )
-    parser.add_argument(
         "--athena-database-name",
         help="Optional. The name of the Athena database to use "
         'when creating any new Athena tables. Defaults to "default".',
@@ -665,24 +651,6 @@ if __name__ == "__main__":
     s3_bucket_path = args.s3_bucket_path.rstrip("/")
     if s3_bucket_path.lower().startswith("s3://"):
         s3_bucket_path = s3_bucket_path[5:]
-
-    s3_lp_output_path = args.s3_lp_output_path
-    if s3_lp_output_path is None:
-        s3_bucket_path_parts = s3_bucket_path.split("/")
-        # If a custom path has been provided, for example,
-        # my_bucket/some_path/results, then line protocol will
-        # be added to my_bucket/some_path/line-protocol-output.
-        if len(s3_bucket_path_parts) > 1:
-            s3_lp_output_path = "/".join(s3_bucket_path_parts[:-1])
-        # If the user has provided a bucket name as the bucket path,
-        # use it also for the lp output path. The bucket will be
-        # searched for the latest unload path.
-        else:
-            s3_lp_output_path = s3_bucket_path
-    else:
-        s3_lp_output_path = s3_lp_output_path.rstrip("/")
-        if s3_lp_output_path.lower().startswith("s3://"):
-            s3_lp_output_path = s3_lp_output_path[5:]
 
     dimensions_to_fields_map = (
         dict(args.dimensions_to_fields) if args.dimensions_to_fields else {}
@@ -739,7 +707,7 @@ if __name__ == "__main__":
             athena_utility=athena_utility,
             timestream_database_name=timestream_database_name,
             timestream_table_name=timestream_table_name,
-            s3_output_path=s3_lp_output_path,
+            s3_output_path=s3_bucket_path,
             dimensions_to_fields=dimensions_to_fields_map.get(
                 timestream_table_name, []
             ),
