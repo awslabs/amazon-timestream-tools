@@ -373,7 +373,7 @@ def translate_athena_table_to_line_protocol(
     if s3_output_path.lower().startswith("s3://"):
         s3_output_path = s3_output_path[5:]
 
-    if not s3_lp_output_path:
+    if not s3_output_path:
         raise RuntimeError("S3 line protocol output path was empty")
 
     s3_output_path_parts = s3_output_path.split("/")
@@ -662,10 +662,10 @@ if __name__ == "__main__":
 
     timestream_database_name = args.database_name
     s3_bucket_path = args.s3_bucket_path.rstrip("/")
-    s3_lp_output_path = args.s3_lp_output_path
-    if s3_lp_output_path is not None:
-        s3_lp_output_path = s3_lp_output_path.rstrip("/")
+    if s3_bucket_path.lower().startswith("s3://"):
+        s3_bucket_path = s3_bucket_path[5:]
 
+    s3_lp_output_path = args.s3_lp_output_path
     if s3_lp_output_path is None:
         s3_bucket_path_parts = s3_bucket_path.split("/")
         # If a custom path has been provided, for example,
@@ -678,6 +678,10 @@ if __name__ == "__main__":
         # searched for the latest unload path.
         else:
             s3_lp_output_path = s3_bucket_path
+    else:
+        s3_lp_output_path = s3_lp_output_path.rstrip("/")
+        if s3_lp_output_path.lower().startswith("s3://"):
+            s3_lp_output_path = s3_lp_output_path[5:]
 
     dimensions_to_fields_map = (
         dict(args.dimensions_to_fields) if args.dimensions_to_fields else {}
