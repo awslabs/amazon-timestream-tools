@@ -473,7 +473,9 @@ def translate_athena_table_to_line_protocol(
                 raise RuntimeError(
                     f"S3 bucket path does not exist or is unavailable: {s3_output_path}"
                 )
-            s3_unload_path = f"s3://{s3_output_path}"
+            # Assume that the path provided is a "results" path, containing valid parquet files.
+            # Avoid adding line protocol output to the same path, to not clobber the parquet files.
+            s3_unload_path = f's3://{"/".join(s3_output_path_parts[:-1])}'
 
         line_protocol_translation_result.s3_bucket_destination = (
             s3_unload_path + "/line-protocol-output"
