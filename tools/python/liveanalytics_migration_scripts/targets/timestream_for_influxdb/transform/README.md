@@ -74,7 +74,6 @@ See [README.md#Installation](../../../README.md#installation).
 - `--database-name DATABASE_NAME`: The Timestream for LiveAnalytics database that your table(s) resides in.
 - `--all-tables`: Optional. Whether to transform all tables in the database.
 - `--s3-bucket-path S3_BUCKET_PATH`: The S3 bucket path to load data from. This bucket must already exist.
-- `--s3-lp-output-path S3_LP_OUTPUT_PATH`: Optional. The S3 bucket path in which to load transformed line protocol data into, in a new `line-protocol-output` path. If this is an S3 bucket name or URI, for example, `s3://example_bucket`, then the path `database_name/table_name/unload_latest_timestamp` will be searched for in this bucket. If this is a full path, for example, `s3://example_bucket/example_path`, then the path `line-protocol-output` will be added to this path. If not provided, this defaults to the value provided by `--s3-bucket-path`.
 - `--athena-database-name ATHENA_DATABASE_NAME`: Optional. The name of the Athena database to use when creating any new Athena tables. Defaults to "`default`".
 - `--athena-table-name ATHENA_TABLE_NAME`: Optional. The name to use for a new Athena table, used for the transformation of LiveAnalytics records to line protocol. Defaults to the Timestream for LiveAnalytics database and table name connected with an underscore, without dashes.
 - `--dimensions-to-fields DIMENSIONS_TO_FIELDS`: Optional. The tables and names of dimensions within to change to fields in resulting line protocol. Dimensions are usually mapped to tags. Mapping dimensions to fields can lower cardinality. The required format is `--dimensions-to-fields table1=dimension1,dimension2 --dimensions-to-fields table2=dimension3,dimension4`.
@@ -108,22 +107,6 @@ python3 transform.py \
     --s3-bucket-path example_s3_bucket \
     --add-validation-field false
 ```
-
-### Using a Different S3 Bucket for Line Protocol Output
-
-If you want your output line protocol data put into a different S3 bucket path, `--s3-lp-output-path` can be used:
-
-```
-python3 transform.py \
-    --database-name example_database \
-    --tables example_table_1,example_table_2,example_table_3 \
-    --s3-bucket-path example_s3_bucket \
-    --add-validation-field false \
-    --s3-lp-output-path example_s3_bucket/custom_existing_path
-```
-
-If `--s3-lp-output-path` is simply a bucket name, the path `<Timestream database name>/<Timestream table name>/unload-<%Y-%m-%d-%H:%M:%S>` will be searched for within the bucket. Keep this in mind when considering using a different bucket for `--s3-lp-output-path`.
-
 
 ### Using Dimensions as Fields
 
