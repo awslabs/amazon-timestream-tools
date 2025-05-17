@@ -35,8 +35,6 @@ class S3Utility:
     def s3_bucket_path_exists(
         self, bucket_name: str, prefix: str, delimiter="/"
     ) -> bool:
-        print(bucket_name)
-        print(prefix)
         try:
             # A multipart upload may be in progress, causing the path to be
             # inaccessible.
@@ -46,7 +44,6 @@ class S3Utility:
             list_response = self.s3_client.list_objects_v2(
                 Bucket=bucket_name, Prefix=prefix, Delimiter=delimiter, MaxKeys=1
             )
-            print(list_response)
             return "Contents" in list_response or (
                 "CommonPrefixes" in list_response and list_response["CommonPrefixes"]
             )
