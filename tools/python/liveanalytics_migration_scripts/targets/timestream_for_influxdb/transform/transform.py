@@ -600,11 +600,8 @@ if __name__ == "__main__":
         "to load data from. This bucket must already "
         "exist. If this is an S3 bucket name or URI, "
         "for example, s3://example_bucket, then the path "
-        "database_name/table_name/unload-latest-timestamp/results "
-        "will be searched for in this bucket and used to load "
-        "data. If this is a full path, for example, "
-        "s3://example_bucket/example_path, then this path will be used "
-        "to load data.",
+        "s3://example_bucket/database_name/table_name/unload-latest-timestamp/results "
+        "will be used to load data.",
         required=True,
     )
     parser.add_argument(
