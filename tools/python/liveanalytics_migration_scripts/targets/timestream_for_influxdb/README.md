@@ -77,7 +77,7 @@ Transform the unloaded data from Timestream for LiveAnalytics to line protocol (
 
 ```
 cd transform
-python3 transform.py --database-name benchmark --tables cpu --s3-bucket-name <s3_bucket_name> --add-validation-field true
+python3 transform.py --database-name benchmark --tables cpu --s3-bucket-path <s3_bucket_path> --add-validation-field true
 ```
 
 - To transform all tables, use the `--all-tables` flag.

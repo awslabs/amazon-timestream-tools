@@ -73,7 +73,7 @@ See [README.md#Installation](../../../README.md#installation).
 - `--tables TABLES`: Optional. A comma-separated list of Timestream for LiveAnalytics tables to transform.
 - `--database-name DATABASE_NAME`: The Timestream for LiveAnalytics database that your table(s) resides in.
 - `--all-tables`: Optional. Whether to transform all tables in the database.
-- `--s3-bucket-name S3_BUCKET_NAME`: The name of the S3 bucket to load and unload data from. This bucket must already exist.
+- `--s3-bucket-path S3_BUCKET_PATH`: The S3 bucket path in which to load data from. This bucket must already exist. If this is an S3 bucket name or URI, for example, `s3://example_bucket`, then the path `s3://example_bucket/database_name/table_name/unload-latest-timestamp/results` will be used to load data.
 - `--athena-database-name ATHENA_DATABASE_NAME`: Optional. The name of the Athena database to use when creating any new Athena tables. Defaults to "`default`".
 - `--athena-table-name ATHENA_TABLE_NAME`: Optional. The name to use for a new Athena table, used for the transformation of LiveAnalytics records to line protocol. Defaults to the Timestream for LiveAnalytics database and table name connected with an underscore, without dashes.
 - `--dimensions-to-fields DIMENSIONS_TO_FIELDS`: Optional. The tables and names of dimensions within to change to fields in resulting line protocol. Dimensions are usually mapped to tags. Mapping dimensions to fields can lower cardinality. The required format is `--dimensions-to-fields table1=dimension1,dimension2 --dimensions-to-fields table2=dimension3,dimension4`.
@@ -86,7 +86,7 @@ To transform data stored in the bucket, `example_s3_bucket` from the Timestream 
 python3 transform.py \
     --database-name example_database \
     --tables example_table \
-    --s3-bucket-name example_s3_bucket \
+    --s3-bucket-path example_s3_bucket \
     --add-validation-field false
 ```
 
@@ -104,7 +104,7 @@ The `--tables` argument accepts any number of table names, where each named tabl
 python3 transform.py \
     --database-name example_database \
     --tables example_table_1,example_table_2,example_table_3 \
-    --s3-bucket-name example_s3_bucket \
+    --s3-bucket-path example_s3_bucket \
     --add-validation-field false
 ```
 
@@ -117,7 +117,7 @@ Dimensions belonging to a specific table can be changed to fields in the followi
 python3 transform.py \
     --database-name example_database \
     --tables example_table_1,example_table_2,example_table_3 \
-    --s3-bucket-name example_s3_bucket \
+    --s3-bucket-path example_s3_bucket \
     --dimensions-to-fields example_table1=dimension_1,dimension_2 \
     --dimensions-to-fields example_table2=dimension_3,dimension_4 \
     --add-validation-field true
@@ -153,7 +153,7 @@ The `la_unload` field can be added in the following way:
 python3 transform.py \
     --database-name example_database \
     --tables example_table \
-    --s3-bucket-name example_s3_bucket \
+    --s3-bucket-path example_s3_bucket \
     --add-validation-field true
 ```
 

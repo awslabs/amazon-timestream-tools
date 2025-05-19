@@ -32,6 +32,25 @@ class S3Utility:
         except Exception:
             return False
 
+    def s3_bucket_path_exists(
+        self, bucket_name: str, prefix: str, delimiter="/"
+    ) -> bool:
+        try:
+            # A multipart upload may be in progress, causing the path to be
+            # inaccessible.
+            self.wait_for_multipart_uploads(
+                bucket_name=bucket_name, prefix=prefix, delimeter=delimiter
+            )
+            list_response = self.s3_client.list_objects_v2(
+                Bucket=bucket_name, Prefix=prefix, Delimiter=delimiter, MaxKeys=1
+            )
+            return "Contents" in list_response or (
+                "CommonPrefixes" in list_response and list_response["CommonPrefixes"]
+            )
+        except Exception as e:
+            self.logger.error(f"Checking bucket path failed: {e}")
+            return False
+
     def check_bucket_access(self, s3_path: str) -> dict:
         """
         Checks if a bucket exists and is accessible for the current user.
@@ -41,41 +60,48 @@ class S3Utility:
             dict: A dictionary with 'exists' (bool), 'accessible' (bool), 'message' (str),
                   'bucket' (str), and 'prefix' (str) keys.
         """
-        self.logger.info(f"Checking for S3 Bucket access")
+        self.logger.info("Checking for S3 bucket access")
         result = {
-            'exists': False,
-            'accessible': False,
-            'message': '',
-            'bucket': '',
-            'prefix': ''
+            "exists": False,
+            "accessible": False,
+            "message": "",
+            "bucket": "",
+            "prefix": "",
         }
         # Remove s3:// prefix if present
-        if s3_path.lower().startswith('s3://'):
+        if s3_path.lower().startswith("s3://"):
             s3_path = s3_path[5:]
         # Extract bucket name and prefix
-        parts = s3_path.split('/', 1)
+        parts = s3_path.split("/", 1)
         bucket_name = parts[0]
-        prefix = parts[1] if len(parts) > 1 else ''
-        result['bucket'] = bucket_name
-        result['prefix'] = prefix
+        prefix = parts[1] if len(parts) > 1 else ""
+        result["bucket"] = bucket_name
+        result["prefix"] = prefix
         # Check if bucket exists
         if not self.s3_bucket_exists(bucket_name):
-            result['message'] = f"Bucket {bucket_name} does not exist"
+            result["message"] = f"Bucket {bucket_name} does not exist"
             return result
-        result['exists'] = True
+        result["exists"] = True
         # Check if we can list objects (read access)
         try:
             # If prefix is provided, check if we can list objects with that prefix
             if prefix:
-                self.s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix, MaxKeys=1)
-                result['accessible'] = True
-                result['message'] = f"Bucket {bucket_name} with prefix '{prefix}' exists and is accessible"
+                self.wait_for_multipart_uploads(bucket_name=bucket_name, prefix=prefix)
+                self.s3_client.list_objects_v2(
+                    Bucket=bucket_name, Prefix=prefix, MaxKeys=1
+                )
+                result["accessible"] = True
+                result["message"] = (
+                    f"Bucket {bucket_name} with prefix '{prefix}' exists and is accessible"
+                )
             else:
                 self.s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
-                result['accessible'] = True
-                result['message'] = f"Bucket {bucket_name} exists and is accessible"
+                result["accessible"] = True
+                result["message"] = f"Bucket {bucket_name} exists and is accessible"
         except Exception as e:
-            result['message'] = f"Bucket {bucket_name}{' with prefix '+prefix if prefix else ''} exists but is not accessible: {str(e)}"
+            result["message"] = (
+                f"Bucket {bucket_name}{' with prefix ' + prefix if prefix else ''} exists but is not accessible: {str(e)}"
+            )
         return result
 
     def create_s3_bucket(self, bucket_name: str) -> str:
