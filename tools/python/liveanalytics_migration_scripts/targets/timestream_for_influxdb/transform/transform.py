@@ -139,6 +139,7 @@ def create_and_load_athena_table(
     athena_table_name=None,
     wait_for_completion=True,
     max_wait_seconds=MAX_WAIT_SECONDS,
+    add_time_ns: bool = False,
 ):
     """
     Creates and loads an Athena table, importing data from an S3 bucket.
@@ -243,6 +244,10 @@ def create_and_load_athena_table(
         else:
             transform_logger.warning(f"No data entry in column: {column}")
 
+    # append nanosecond column
+    if add_time_ns:
+        athena_columns.append("`time_ns` STRING")
+
     if is_empty_table:
         transform_logger.warning(
             f'Table "{timestream_database_name}"."{timestream_table_name}" is empty, skipping Athena table creation'
@@ -307,6 +312,7 @@ def translate_athena_table_to_line_protocol(
     wait_for_completion: bool = True,
     max_wait_seconds: int = MAX_WAIT_SECONDS,
     add_validation_field: bool = False,
+    add_time_ns: bool = False,
 ) -> LineProtocolTranslationResult:
     """
     Translates the contents of an Athena table to line protocol and stores the
@@ -533,8 +539,12 @@ def translate_athena_table_to_line_protocol(
                 """
 
         # Millisecond precision, the most fine-grain precision that Athena supports
+        if add_time_ns:
+            time_query = "time_ns"
+        else:
+            time_query = "CAST(CAST(TO_UNIXTIME(time) * 1000 AS BIGINT) AS VARCHAR)"
         lp_translation_query += f"""
-            ' ' || CAST(CAST(TO_UNIXTIME(time) * 1000 AS BIGINT) AS VARCHAR) AS lp_record
+            ' ' || {time_query} AS lp_record
             FROM "{athena_database_name}"."{athena_table_name}";
         """
 
@@ -641,6 +651,13 @@ if __name__ == "__main__":
         required=True,
         type=parse_bool_cli_argument,
     )
+    parser.add_argument(
+        "--add-time-ns",
+        help="Optional. Whether to include time_ns column "
+        "in export to preserve timestamp precision during migration",
+        required=False,
+        type=parse_bool_cli_argument,
+    )
 
     args = parser.parse_args()
 
@@ -696,6 +713,7 @@ if __name__ == "__main__":
             s3_bucket_path=s3_bucket_path,
             athena_database_name=args.athena_database_name,
             athena_table_name=args.athena_table_name,
+            add_time_ns=args.add_time_ns,
         )
 
         line_protocol_result = translate_athena_table_to_line_protocol(
@@ -711,6 +729,7 @@ if __name__ == "__main__":
             athena_database_name=args.athena_database_name,
             athena_table_name=args.athena_table_name,
             add_validation_field=args.add_validation_field,
+            add_time_ns=args.add_time_ns,
         )
         line_protocol_results.append(line_protocol_result)
 

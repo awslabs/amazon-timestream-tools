@@ -201,7 +201,7 @@ def decompress_gzip_file(gz_file_path):
         raise FileExtractionError(f"Failed to decompress {gz_file_path}") from exc
 
 
-def ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retries):
+def ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retries, precision):
     """
     Ingest a single batch of line protocol data into InfluxDB with retry logic.
 
@@ -233,7 +233,7 @@ def ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retr
             else:
                 logging.warning(f"{process_name} - Retry attempt {ingestion_attempt} for batch {batch_id}")
 
-            write_api.write(bucket=bucket_name, record=batch_content, write_precision="ms")
+            write_api.write(bucket=bucket_name, record=batch_content, write_precision=precision)
 
             logging.info(f"{process_name} - Successfully wrote batch {batch_id} on attempt #{ingestion_attempt}")
             return len(batch)
@@ -257,7 +257,7 @@ def ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retr
             time.sleep(delay_with_jitter / 1000)
 
 
-def batch_outer_chunk(write_api, outer_chunk, lines_per_batch, process_name, line_count, bucket_name, max_retries):
+def batch_outer_chunk(write_api, outer_chunk, lines_per_batch, process_name, line_count, bucket_name, max_retries, precision):
     """
     Batch a large outer chunk by breaking it into smaller batches for ingestion. Using a larger
     outer chunk reduces disk I/O when reading from the line protocol file.
@@ -287,7 +287,7 @@ def batch_outer_chunk(write_api, outer_chunk, lines_per_batch, process_name, lin
             current_line_count += len(batch)
             batch_id = f"{process_name}-batch-{current_line_count}"
 
-            lines_ingested = ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retries)
+            lines_ingested = ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retries, precision)
             total_lines += lines_ingested
 
     return total_lines, current_line_count
@@ -310,7 +310,7 @@ def read_outer_chunks(file_handle, lines_per_batch, io_multiplier):
     return [line for line in outer_chunk if line]
 
 
-def ingest_line_protocol_file(extracted_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries):
+def ingest_line_protocol_file(extracted_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries, precision):
     """
     Ingest a line protocol file into InfluxDB.
 
@@ -344,14 +344,14 @@ def ingest_line_protocol_file(extracted_file_path, lines_per_batch, io_multiplie
                     break
 
                 lines_ingested, line_count = batch_outer_chunk(
-                    write_api, outer_chunk, lines_per_batch, process_name, line_count, bucket_name, max_retries
+                    write_api, outer_chunk, lines_per_batch, process_name, line_count, bucket_name, max_retries, precision
                 )
                 total_lines += lines_ingested
 
     return total_lines
 
 
-def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries):
+def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries, precision):
     """
     Ingest a gzip file to InfluxDB.
 
@@ -361,6 +361,7 @@ def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, 
         io_multiplier: Multiplier for batches read from file at a time
         bucket_name: Name of the InfluxDB bucket
         max_retries: Maximum number of retry attempts
+        precision: Timestamp precision for InfluxDB write (default: ms)
 
     Returns:
         int: The number of lines ingested
@@ -376,7 +377,7 @@ def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, 
 
     extracted_file_path = decompress_gzip_file(gz_file_path)
 
-    total_lines = ingest_line_protocol_file(extracted_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries)
+    total_lines = ingest_line_protocol_file(extracted_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries, precision)
 
     duration = time.time() - start_time
     lines_per_sec = total_lines/duration if duration > 0 else 0
@@ -458,6 +459,9 @@ def main():
                         help='Resume from a previous run, providing the path to the previous tracking_<run_id> directory')
     parser.add_argument('--continue-on-error', action='store_true',
                         help='Continue ingesting remaining files even if one fails')
+    parser.add_argument('-p', '--precision', type=str, default='ms',
+                        choices=['ns', 'ms'],
+                        help='Timestamp precision for InfluxDB write (default: ms)')
     args = parser.parse_args()
 
     setup_logging()
@@ -522,7 +526,7 @@ def main():
 
             result = pool.apply_async(
                 ingest_gzip_file,
-                args=(file, args.lines, args.multiplier, args.bucket, args.retries),
+                args=(file, args.lines, args.multiplier, args.bucket, args.retries, args.precision),
                 error_callback=make_error_callback(failure_flags[file_name])
             )
             async_results.append((file, result))
