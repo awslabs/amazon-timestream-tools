@@ -539,7 +539,7 @@ def translate_athena_table_to_line_protocol(
                 """
 
         if add_time_ns:
-            # Expects time_ns column from unloaded data
+            # Nanosecond precision, expects time_ns column from unload
             time_query = "time_ns"
         else:
             # Millisecond precision, the most fine-grain precision that Athena supports
@@ -654,8 +654,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--add-time-ns",
-        help="Optional. Whether to include time_ns column "
-        "in export to preserve timestamp precision during migration",
+        help="Optional. Whether to add and use `time_ns` "
+        "column during transformation for achieving "
+        "nanosecond timestamp precision. Defaults to false.",
         required=False,
         type=parse_bool_cli_argument,
     )

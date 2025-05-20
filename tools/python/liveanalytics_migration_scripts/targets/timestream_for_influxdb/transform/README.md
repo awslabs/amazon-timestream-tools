@@ -78,6 +78,7 @@ See [README.md#Installation](../../../README.md#installation).
 - `--athena-table-name ATHENA_TABLE_NAME`: Optional. The name to use for a new Athena table, used for the transformation of LiveAnalytics records to line protocol. Defaults to the Timestream for LiveAnalytics database and table name connected with an underscore, without dashes.
 - `--dimensions-to-fields DIMENSIONS_TO_FIELDS`: Optional. The tables and names of dimensions within to change to fields in resulting line protocol. Dimensions are usually mapped to tags. Mapping dimensions to fields can lower cardinality. The required format is `--dimensions-to-fields table1=dimension1,dimension2 --dimensions-to-fields table2=dimension3,dimension4`.
 - `--add-validation-field BOOLEAN`: Whether to add an additional field to all transformed line protocol points to help with post-migration validation. The field will be `la_unload=1`.
+- `--add-time-ns BOOLEAN`: Optional. Whether to add and use `time_ns` column during transformation for achieving nanosecond timestamp precision. Defaults to "`false`".
 
 ### Basic Usage
 
@@ -183,7 +184,7 @@ Note that if [validation](../validation/README.md) is required, it is recommende
 ## Limitations
 
 The following limitations should be considered before transforming Timestream for LiveAnalytics records to line protocol:
-- The finest timestamp precision that Athena supports is **milliseconds**. If you need greater timestamp precision, such as microsecond or nanosecond precision, ensure your data is unloaded and transformed with `--add-time-ns` set to `true`.
+- The finest timestamp precision that Athena supports is **milliseconds**. If you need greater timestamp precision, such as nanosecond precision, ensure your data is unloaded and transformed with `--add-time-ns` set to `true`.
 
 ## Troubleshooting
 
