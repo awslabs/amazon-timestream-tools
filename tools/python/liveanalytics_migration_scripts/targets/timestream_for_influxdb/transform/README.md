@@ -183,7 +183,7 @@ Note that if [validation](../validation/README.md) is required, it is recommende
 ## Limitations
 
 The following limitations should be considered before transforming Timestream for LiveAnalytics records to line protocol:
-- The finest timestamp precision that Athena supports is **milliseconds**. If you need greater timestamp precision, such as microsecond or nanosecond precision, consider migrating to [Amazon RDS](https://aws.amazon.com/rds/).
+- The finest timestamp precision that Athena supports is **milliseconds**. If you need greater timestamp precision, such as microsecond or nanosecond precision, ensure your data is unloaded and transformed with `--add-time-ns` set to `true`.
 
 ## Troubleshooting
 

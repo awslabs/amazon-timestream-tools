@@ -538,10 +538,11 @@ def translate_athena_table_to_line_protocol(
                 CASE WHEN \"{measure_value_name}\" IS NOT NULL THEN REGEXP_REPLACE('{measure_value_name}', '([, =])', '\\\\$1') || '=' || CAST(\"{measure_value_name}\" AS VARCHAR) || ',' ELSE '' END {delimiter}
                 """
 
-        # Millisecond precision, the most fine-grain precision that Athena supports
         if add_time_ns:
+            # Expects time_ns column from unloaded data
             time_query = "time_ns"
         else:
+            # Millisecond precision, the most fine-grain precision that Athena supports
             time_query = "CAST(CAST(TO_UNIXTIME(time) * 1000 AS BIGINT) AS VARCHAR)"
         lp_translation_query += f"""
             ' ' || {time_query} AS lp_record

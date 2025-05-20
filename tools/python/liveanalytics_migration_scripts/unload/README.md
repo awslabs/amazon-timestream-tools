@@ -106,6 +106,11 @@
 <h4>Export Example with end time, parition, s3 uri, dynamodb logging and sns notification </h4>
 <pre><code>python unload.py --export-table --database MyDB --table MyTable --start-time '2024-01-01 00:00:00' --end-time '2024-02-01 00:00:00' --partition month --export-format PARQUET --compression GZIP --region us-east-1 --s3-uri s3://my-bucket --enable-dynamodb-logger --sns-topic-arn arn:aws:sns:region:account-id:topic-name</code></pre>
 </div>
+
+<div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">
+<h4>Export with `time_ns` column (to preserve nanosecond precision when <a href="../targets/timestream_for_influxdb/README.md">exporting to Timestream for InfluxDB</a>)</h4>
+<pre><code>python3.9 unload.py --export-table --database Demo --table Demo --start-time '2020-03-26 17:24:38' --add-time-ns true</code></pre>
+</div>
 </div>
 
 <div>
@@ -234,6 +239,10 @@
 <td><code>/data</code></td>
 </tr>
 <tr>
+<td><code>--add-time-ns</code></td>
+<td>Include `time_ns` column in export to preserve timestamp precision during migration<br><i>Default: False</i></td>
+<td><code>True</code></td>
+</tr>
 </table>
 </div>
 

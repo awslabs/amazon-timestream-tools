@@ -59,6 +59,7 @@ python influxdb_ingestion.py <bucket_name> <data_directory> [options]
 - `-l, --lines`: Number of lines per batch (default: 10000)
 - `-m, --multiplier`: I/O multiplier - how many batches to read at once (default: 10)
 - `-r, --retries`: Maximum retry attempts for failed batches (default: 20)
+- `-p, --precision`: Timestamp precision for InfluxDB write (default: ms)
 - `--logs-dir`: Directory for ingestion logs (default: influxdb-ingestion-logs)
 - `--resume-from`: Path to a previous tracking directory to resume ingestion
 - `--continue-on-error`: Continue ingesting remaining files even if one fails
