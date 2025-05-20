@@ -240,7 +240,7 @@
 </tr>
 <tr>
 <td><code>--add-time-ns</code></td>
-<td>Add `time_ns` column in export to preserve timestamp precision during migration<br><i>Default: False</i></td>
+<td>Add `time_ns` column in export to preserve timestamp precision for migrations to InfluxDB<br><i>Default: False</i></td>
 <td><code>True</code></td>
 </tr>
 </table>
