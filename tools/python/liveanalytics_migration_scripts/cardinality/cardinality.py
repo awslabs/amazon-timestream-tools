@@ -1,4 +1,5 @@
 import argparse
+from typing import Optional
 from datetime import datetime
 import sys
 
@@ -41,8 +42,8 @@ def get_live_analytics_cardinality(
     database_name: str,
     table_name: str,
     excluded_dimension_names=[],
-    start_time: datetime | None = None,
-    end_time: datetime | None = None,
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
 ) -> int:
     """
     Determines the cardinality of a Timestream for LiveAnalytics table, in accordance with
