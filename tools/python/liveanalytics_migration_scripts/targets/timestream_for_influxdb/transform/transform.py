@@ -619,14 +619,6 @@ if __name__ == "__main__":
         required=True,
         type=parse_bool_cli_argument,
     )
-    parser.add_argument(
-        "--add-time-ns",
-        help="Optional. Whether to add and use `time_ns` "
-        "column during transformation for achieving "
-        "nanosecond timestamp precision. Defaults to false.",
-        required=False,
-        type=parse_bool_cli_argument,
-    )
 
     args = parser.parse_args()
 
