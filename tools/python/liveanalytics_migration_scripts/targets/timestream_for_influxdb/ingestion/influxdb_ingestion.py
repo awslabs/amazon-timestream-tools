@@ -361,7 +361,7 @@ def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, 
         io_multiplier: Multiplier for batches read from file at a time
         bucket_name: Name of the InfluxDB bucket
         max_retries: Maximum number of retry attempts
-        precision: Timestamp precision for InfluxDB write (default: ms)
+        precision: Timestamp precision for InfluxDB write
 
     Returns:
         int: The number of lines ingested
@@ -459,9 +459,9 @@ def main():
                         help='Resume from a previous run, providing the path to the previous tracking_<run_id> directory')
     parser.add_argument('--continue-on-error', action='store_true',
                         help='Continue ingesting remaining files even if one fails')
-    parser.add_argument('-p', '--precision', type=str, default='ms',
+    parser.add_argument('-p', '--precision', type=str, default='ns',
                         choices=['ns', 'ms'],
-                        help='Timestamp precision for InfluxDB write (default: ms)')
+                        help='Timestamp precision for InfluxDB write (default: ns)')
     args = parser.parse_args()
 
     setup_logging()

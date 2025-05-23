@@ -188,6 +188,46 @@ class S3Utility:
         parts = latest_dir.rstrip("/").split("/")
         return parts[-1]
 
+    def get_first_of_type(self, bucket_path: str, file_type="parquet") -> str:
+        """
+        Return the full S3 URI to the first *.file_type* file that exists under the
+        supplied bucket_path prefix.
+
+        Args:
+            bucket_path (str): An S3 URI ie. `s3://my-bucket/benchmark22/cpu/
+                unload-2025-05-23-18:58:58/results`
+
+        Returns:
+            str: Full S3 URI to the first file type (ie. parquet) object discovered.
+
+        Raises:
+            ValueError: If *bucket_path* is not an S3 URI.
+            FileNotFoundError: If no *.file_type* files are found beneath the prefix.
+        """
+        if not bucket_path.lower().startswith("s3://"):
+            raise ValueError(
+                "bucket_path must be an S3 URI of the form s3://<bucket>/<prefix>"
+            )
+
+        bucket_and_prefix = bucket_path[5:]
+        bucket_name, prefix = bucket_and_prefix.split("/", 1)
+
+        # Ensure the prefix ends with a slash so we stay inside bucket_path
+        if not prefix.endswith("/"):
+            prefix += "/"
+
+        self.wait_for_multipart_uploads(bucket_name=bucket_name, prefix=prefix)
+
+        # Paginate through keys until we encounter the first *.file_type
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if key.endswith(f".{file_type}"):
+                    return f"s3://{bucket_name}/{key}"
+
+        raise FileNotFoundError(f"No .{file_type} objects found under {bucket_path}")
+
     def wait_for_multipart_uploads(
         self, bucket_name, prefix, delimeter="/", max_attempts=20, base_delay=1
     ):

@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument("-cp", "--custom-partition-count", help="Custom partition count", default=99, required=False)
     parser.add_argument("-ob", "--order-by-asc", help="data order by time ascending", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
     parser.add_argument("-ld", "--logs-dir", help='Directory for export logs (default: timestream-export-logs)', default = None, required = False)
-    parser.add_argument("-atn", "--add-time-ns", help="Add time_ns column in export to preserve timestamp precision for migrations to InfluxDB", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
+    parser.add_argument("-atn", "--add-time-ns", help="Add time_ns column in export to preserve timestamp precision for migrations to InfluxDB", default=True, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
 
     #assign arguments to args variable
     args = parser.parse_args()

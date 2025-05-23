@@ -1,6 +1,8 @@
 import argparse
 from dataclasses import dataclass
 import sys
+import pyarrow.parquet as pq
+import s3fs
 
 sys.path.append("../../../unload/utils/")
 
@@ -99,15 +101,6 @@ timestream_to_athena_ddl_type_mappings = {
     "int": "INTEGER",
 }
 
-timestream_attribute_types = [
-    "dimension",
-    "measure_name",
-    "timestamp",
-    "multi",
-    "measure_value",
-]
-
-
 def parse_bool_cli_argument(arg: str) -> bool:
     if arg.lower() == "true" or arg == "1":
         return True
@@ -127,9 +120,22 @@ def get_athena_ddl_type_mapping(timestream_type: str) -> str:
         )
     return athena_type
 
+def get_parquet_column_details(s3_uri: str):
+    try:
+        fs = s3fs.S3FileSystem()
+        file = fs.open(s3_uri, 'rb')
+        parquet_file = pq.ParquetFile(file)
+        formatted_columns = []
+        for field in parquet_file.schema_arrow:
+            column_type = str(field.type).upper()
+            if column_type == "TIMESTAMP[NS]":
+                column_type = "TIMESTAMP"
+            formatted_columns.append(f"`{field.name}` {column_type}")
+        return formatted_columns
+    except Exception as e:
+        raise
 
 def create_and_load_athena_table(
-    timestream_utility: TimestreamUtility,
     s3_utility: S3Utility,
     athena_utility: AthenaUtility,
     timestream_database_name: str,
@@ -138,8 +144,7 @@ def create_and_load_athena_table(
     athena_database_name="default",
     athena_table_name=None,
     wait_for_completion=True,
-    max_wait_seconds=MAX_WAIT_SECONDS,
-    add_time_ns: bool = False,
+    max_wait_seconds=MAX_WAIT_SECONDS
 ):
     """
     Creates and loads an Athena table, importing data from an S3 bucket.
@@ -157,7 +162,7 @@ def create_and_load_athena_table(
             for loading to complete.
 
     Returns:
-        None
+        List(str): Columns from loaded athena table
     """
 
     # Timestream database and table names are passed directly into a Timestream
@@ -197,63 +202,6 @@ def create_and_load_athena_table(
     if not s3_utility.s3_bucket_exists(bucket_name=s3_bucket_name):
         raise RuntimeError(f"S3 bucket {s3_bucket_name} does not exist")
 
-    athena_columns = []
-    try:
-        describe_query = (
-            f'DESCRIBE "{timestream_database_name}"."{timestream_table_name}"'
-        )
-        transform_logger.info(f"Executing query: {describe_query}")
-        describe_response = timestream_utility.query(query_string=describe_query)
-        next_token = describe_response.get("NextToken", None)
-        schema = describe_response["Rows"]
-        while next_token:
-            describe_response = timestream_utility.query(
-                query_string=describe_query, next_token=next_token
-            )
-            next_token = describe_response.get("NextToken", None)
-            schema.extend(describe_response["Rows"])
-    except Exception as e:
-        transform_logger.error(f"Failed to describe table: {e}")
-        raise
-    if "Rows" not in describe_response or len(describe_response["Rows"]) <= 0:
-        raise RuntimeError("Failed to access returned rows in describe table result")
-
-    is_empty_table = True
-    for column in schema:
-        if "Data" in column:
-            scalar_values = column["Data"]
-            if len(scalar_values) != 3:
-                transform_logger.warning(
-                    f"Unexpected number of scalar values in column: {scalar_values}"
-                )
-                continue
-            # Columns are returned in the following order:
-            # column name, type, Timestream attribute type ()
-            column_name = scalar_values[0]["ScalarValue"]
-            column_type = scalar_values[1]["ScalarValue"]
-            column_attribute_type = scalar_values[2]["ScalarValue"]
-            athena_type = get_athena_ddl_type_mapping(column_type)
-            if (
-                is_empty_table
-                and column_attribute_type.lower() != "timestamp"
-                and column_attribute_type.lower() != "measure_name"
-            ):
-                is_empty_table = False
-
-            athena_columns.append(f"`{column_name}` {athena_type}")
-        else:
-            transform_logger.warning(f"No data entry in column: {column}")
-
-    # append nanosecond column
-    if add_time_ns:
-        athena_columns.append("`time_ns` STRING")
-
-    if is_empty_table:
-        transform_logger.warning(
-            f'Table "{timestream_database_name}"."{timestream_table_name}" is empty, skipping Athena table creation'
-        )
-        return
-
     try:
         # An S3 bucket name has been provided,
         # search for a results path within.
@@ -276,13 +224,30 @@ def create_and_load_athena_table(
                 )
             s3_unload_path = f"s3://{'/'.join(s3_bucket_path_parts[:-1])}"
             s3_results_path = f"s3://{s3_bucket_path}"
-        unload_query = f"""
+    except Exception as e:
+        transform_logger.error(f"Failed to get S3 path: {e}")
+        raise
+
+    athena_columns = []
+    try:
+        first_parquet = s3_utility.get_first_of_type(s3_results_path)
+        athena_columns = get_parquet_column_details(first_parquet)
+    except FileNotFoundError:
+        transform_logger.warning(
+            f'Table "{timestream_database_name}"."{timestream_table_name}" is empty, skipping Athena table creation'
+        )
+        return
+    except Exception:
+        raise
+
+    try:
+        create_external_table_query = f"""
                        CREATE EXTERNAL TABLE `{athena_database_name}`.`{athena_table_name}` ({", ".join(athena_columns)})
                        STORED AS PARQUET LOCATION '{s3_results_path}';
                        """
-        transform_logger.info(f"Executing query: {unload_query}")
+        transform_logger.info(f"Executing query: {create_external_table_query}")
         response = athena_utility.start_query_execution(
-            query_string=unload_query,
+            query_string=create_external_table_query,
             output_location=f"{s3_unload_path}/athena-query-results",
             database_name=athena_database_name,
         )
@@ -294,8 +259,10 @@ def create_and_load_athena_table(
                 max_wait_seconds=max_wait_seconds,
             )
     except Exception as e:
-        transform_logger.error(f"Unload query failed: {e}")
+        transform_logger.error(f"Athena CREATE EXTERNAL TABLE query failed: {e}")
         raise
+
+    return athena_columns
 
 
 def translate_athena_table_to_line_protocol(
@@ -706,36 +673,44 @@ if __name__ == "__main__":
         exit(1)
 
     for timestream_table_name in timestream_table_names:
-        create_and_load_athena_table(
-            timestream_utility=timestream_utility,
-            s3_utility=s3_utility,
-            athena_utility=athena_utility,
-            timestream_database_name=timestream_database_name,
-            timestream_table_name=timestream_table_name,
-            s3_bucket_path=s3_bucket_path,
-            athena_database_name=args.athena_database_name,
-            athena_table_name=args.athena_table_name,
-            add_time_ns=args.add_time_ns,
-        )
+        try:
+            athena_columns = create_and_load_athena_table(
+                s3_utility=s3_utility,
+                athena_utility=athena_utility,
+                timestream_database_name=timestream_database_name,
+                timestream_table_name=timestream_table_name,
+                s3_bucket_path=s3_bucket_path,
+                athena_database_name=args.athena_database_name,
+                athena_table_name=args.athena_table_name
+            )
+            if not athena_columns:
+                continue
 
-        line_protocol_result = translate_athena_table_to_line_protocol(
-            timestream_utility=timestream_utility,
-            s3_utility=s3_utility,
-            athena_utility=athena_utility,
-            timestream_database_name=timestream_database_name,
-            timestream_table_name=timestream_table_name,
-            s3_output_path=s3_bucket_path,
-            dimensions_to_fields=dimensions_to_fields_map.get(
-                timestream_table_name, []
-            ),
-            athena_database_name=args.athena_database_name,
-            athena_table_name=args.athena_table_name,
-            add_validation_field=args.add_validation_field,
-            add_time_ns=args.add_time_ns,
-        )
-        line_protocol_results.append(line_protocol_result)
+            # TODO: Update to retrieve schema from parquet
+            line_protocol_result = translate_athena_table_to_line_protocol(
+                timestream_utility=timestream_utility,
+                s3_utility=s3_utility,
+                athena_utility=athena_utility,
+                timestream_database_name=timestream_database_name,
+                timestream_table_name=timestream_table_name,
+                s3_output_path=s3_bucket_path,
+                dimensions_to_fields=dimensions_to_fields_map.get(
+                    timestream_table_name, []
+                ),
+                athena_database_name=args.athena_database_name,
+                athena_table_name=args.athena_table_name,
+                add_validation_field=args.add_validation_field,
+                add_time_ns=("`time_ns` STRING" in athena_columns),
+            )
+            line_protocol_results.append(line_protocol_result)
+        except Exception as e:
+            transform_logger.error(
+                f"Encountered error transforming {timestream_table_name}: {e}"
+            )
+            continue
 
-    print("Line protocol translation results:")
-    for line_protocol_result in line_protocol_results:
-        print(line_protocol_result)
-        print()
+    if line_protocol_results:
+        print("Line protocol translation results:")
+        for line_protocol_result in line_protocol_results:
+            print(line_protocol_result)
+            print()
