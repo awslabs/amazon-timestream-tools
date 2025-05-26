@@ -460,8 +460,8 @@ def main():
     parser.add_argument('--continue-on-error', action='store_true',
                         help='Continue ingesting remaining files even if one fails')
     parser.add_argument('-p', '--precision', type=str, default='ns',
-                        choices=['ns', 'ms'],
-                        help='Timestamp precision for InfluxDB write (default: ns)')
+                        choices=['ns', 'ms', 'us', 's'],
+                        help='Timestamp precision for InfluxDB write. Note that this must align with the timestamp precision from the data being ingested (default: ns)')
     args = parser.parse_args()
 
     setup_logging()

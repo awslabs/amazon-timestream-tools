@@ -2,7 +2,7 @@ import argparse
 from dataclasses import dataclass
 import sys
 import pyarrow.parquet as pq
-import s3fs
+import pyarrow.fs as fs
 
 sys.path.append("../../../unload/utils/")
 
@@ -120,10 +120,10 @@ def get_athena_ddl_type_mapping(timestream_type: str) -> str:
         )
     return athena_type
 
+
 def get_parquet_column_details(s3_uri: str):
-    try:
-        fs = s3fs.S3FileSystem()
-        file = fs.open(s3_uri, 'rb')
+    s3, path = fs.FileSystem.from_uri(s3_uri)
+    with s3.open_input_file(path) as file:
         parquet_file = pq.ParquetFile(file)
         formatted_columns = []
         for field in parquet_file.schema_arrow:
@@ -132,8 +132,6 @@ def get_parquet_column_details(s3_uri: str):
                 column_type = "TIMESTAMP"
             formatted_columns.append(f"`{field.name}` {column_type}")
         return formatted_columns
-    except Exception as e:
-        raise
 
 def create_and_load_athena_table(
     s3_utility: S3Utility,
@@ -238,7 +236,10 @@ def create_and_load_athena_table(
         )
         return
     except Exception:
-        raise
+        transform_logger.error(
+            f'Error getting table details from "{timestream_database_name}"."{timestream_table_name}"'
+        )
+        return
 
     try:
         create_external_table_query = f"""
@@ -260,7 +261,7 @@ def create_and_load_athena_table(
             )
     except Exception as e:
         transform_logger.error(f"Athena CREATE EXTERNAL TABLE query failed: {e}")
-        raise
+        return
 
     return athena_columns
 

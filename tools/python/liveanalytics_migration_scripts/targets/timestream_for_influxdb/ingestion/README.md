@@ -59,7 +59,7 @@ python influxdb_ingestion.py <bucket_name> <data_directory> [options]
 - `-l, --lines`: Number of lines per batch (default: 10000)
 - `-m, --multiplier`: I/O multiplier - how many batches to read at once (default: 10)
 - `-r, --retries`: Maximum retry attempts for failed batches (default: 20)
-- `-p, --precision`: Timestamp precision for InfluxDB write (default: ns)
+- `-p, --precision`: Timestamp precision for InfluxDB write. Note that this must align with the timestamp precision from the data being ingested (default: ns)
 - `--logs-dir`: Directory for ingestion logs (default: influxdb-ingestion-logs)
 - `--resume-from`: Path to a previous tracking directory to resume ingestion
 - `--continue-on-error`: Continue ingesting remaining files even if one fails
@@ -124,6 +124,12 @@ You can tune the script's performance by adjusting:
 - I/O multiplier (`--multiplier`)
 
 The optimal values depend on your system resources and network conditions.
+
+## Timestamp precision
+
+The [InfluxDB V2 Write API](https://docs.influxdata.com/influxdb/v2/api/v2/#tag/Write) supports Unix timestamps in the following precisions: `ns` (nanoseconds), `us` (microseconds), `ms` (milliseconds), and `s` (seconds).
+
+Ensure that when running the ingestion script, `--precision` is set to the same precision from the data being ingested.
 
 ## Infrastructure recommendations
 
