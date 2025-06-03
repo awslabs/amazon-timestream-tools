@@ -475,7 +475,7 @@ def translate_athena_table_to_line_protocol(
                 )
             # Assume that the path provided is a "results" path, containing valid parquet files.
             # Avoid adding line protocol output to the same path, to not clobber the parquet files.
-            s3_unload_path = f's3://{"/".join(s3_output_path_parts[:-1])}'
+            s3_unload_path = f"s3://{'/'.join(s3_output_path_parts[:-1])}"
 
         line_protocol_translation_result.s3_bucket_destination = (
             s3_unload_path + "/line-protocol-output"
@@ -484,8 +484,6 @@ def translate_athena_table_to_line_protocol(
         # Translate to line protocol.
         #
         # All column names are wrapped in quotes.
-        # For the resulting line protocol, "::" is replaced with "_".
-        # Measurement is derived from the measure name.
         lp_translation_query = f"""
             CREATE TABLE "{athena_database_name}"."{lp_athena_table_name}"
             WITH (
@@ -496,12 +494,12 @@ def translate_athena_table_to_line_protocol(
                 -- Measurement, from table name
                     '{timestream_table_name}' ||
                 -- Tags
-                    CASE WHEN \"{measure_name}\" IS NOT NULL THEN ',measure_name=' || CAST(\"{measure_name}\" AS VARCHAR) ELSE '' END ||
+                    CASE WHEN \"{measure_name}\" IS NOT NULL THEN ',measure_name=' || REGEXP_REPLACE(CAST(\"{measure_name}\" AS VARCHAR), '([, =])', '\\\\$1') ELSE '' END ||
         """
 
         for dimension_name in dimension_names:
             lp_translation_query += f"""
-                CASE WHEN \"{dimension_name}\" IS NOT NULL THEN ',{dimension_name}=' || CAST(\"{dimension_name}\" AS VARCHAR) ELSE '' END ||
+                CASE WHEN \"{dimension_name}\" IS NOT NULL THEN ',' || REGEXP_REPLACE('{dimension_name}', '([, =])', '\\\\$1') || '=' || REGEXP_REPLACE(CAST(\"{dimension_name}\" AS VARCHAR), '([, =])', '\\\\$1') ELSE '' END ||
             """
         lp_translation_query += """
                 -- Fields
@@ -527,11 +525,11 @@ def translate_athena_table_to_line_protocol(
 
             if measure_value_type == "varchar":
                 lp_translation_query += f"""
-                CASE WHEN \"{measure_value_name}\" IS NOT NULL THEN '{measure_value_name}="' || CAST(\"{measure_value_name}\" AS VARCHAR) || '",' ELSE '' END {delimiter}
+                CASE WHEN \"{measure_value_name}\" IS NOT NULL THEN REGEXP_REPLACE('{measure_value_name}', '([, =])', '\\\\$1') || '="' || CAST(\"{measure_value_name}\" AS VARCHAR) || '",' ELSE '' END {delimiter}
                 """
             else:
                 lp_translation_query += f"""
-                CASE WHEN \"{measure_value_name}\" IS NOT NULL THEN '{measure_value_name}=' || CAST(\"{measure_value_name}\" AS VARCHAR) || ',' ELSE '' END {delimiter}
+                CASE WHEN \"{measure_value_name}\" IS NOT NULL THEN REGEXP_REPLACE('{measure_value_name}', '([, =])', '\\\\$1') || '=' || CAST(\"{measure_value_name}\" AS VARCHAR) || ',' ELSE '' END {delimiter}
                 """
 
         # Millisecond precision, the most fine-grain precision that Athena supports
