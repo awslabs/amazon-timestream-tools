@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument("-cp", "--custom-partition-count", help="Custom partition count", default=99, required=False)
     parser.add_argument("-ob", "--order-by-asc", help="data order by time ascending", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
     parser.add_argument("-ld", "--logs-dir", help='Directory for export logs (default: timestream-export-logs)', default = None, required = False)
-    parser.add_argument("-atn", "--add-time-ns", help="Add time_ns column in export to preserve timestamp precision for migrations to InfluxDB", default=True, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
+    parser.add_argument("-at", "--append-timestamps", help="Whether to append extra timestamp columns for preserving nanosecond precision.", default=True, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
 
     #assign arguments to args variable
     args = parser.parse_args()
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     recent_first = args.recent_first
     custom_partition_count = args.custom_partition_count
     order_by_asc = args.order_by_asc 
-    add_time_ns = args.add_time_ns
+    append_timestamps = args.append_timestamps
 
     sts_client = boto3.client("sts")
     region = args.region if args.region else sts_client.meta.region_name
@@ -185,7 +185,7 @@ if __name__ == "__main__":
         'recent_first' : recent_first,
         'custom_partition_count' : custom_partition_count,
         'order_by_asc' : order_by_asc,
-        'add_time_ns': add_time_ns
+        'append_timestamps': append_timestamps
     }
 
     # Create dynamodb logging table if dynamodb logging is enabled

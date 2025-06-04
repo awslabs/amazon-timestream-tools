@@ -194,11 +194,11 @@ class S3Utility:
         supplied bucket_path prefix.
 
         Args:
-            bucket_path (str): An S3 URI including bucket name and prefix ie.
+            bucket_path (str): An S3 URI including bucket name and prefix i.e.,
                 `s3://my-bucket/benchmark22/cpu/unload-2025-05-23-18:58:58/results`
 
         Returns:
-            str: Full S3 URI to the first file type (ie. parquet) object discovered.
+            str: Full S3 URI to the first file type (i.e., parquet) object discovered.
 
         Raises:
             ValueError: If *bucket_path* does not include both bucket and prefix.
