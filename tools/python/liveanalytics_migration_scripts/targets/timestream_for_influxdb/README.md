@@ -6,6 +6,8 @@ Migration tooling for Timestream for InfluxDB allows you to easily transform you
 
 Migrating to Timestream for InfluxDB takes multiple steps as the data models differ in how the data model is represented. See the Influx documentation for [getting started](https://docs.influxdata.com/influxdb/v2/get-started/) with InfluxDB V2 for an overview of the database key concepts.
 
+For best practices when designing your Timestream for InfluxDB deployment, see [Applying the AWS Well-Architected Framework for Amazon Timestream for InfluxDB](https://docs.aws.amazon.com/prescriptive-guidance/latest/timestream-for-influxdb-well-architected-framework/introduction.html).
+
 The workflow for completing a migration is separated into four stages:
 - [**Unload**](../../unload/README.md): Export your Timestream for LiveAnalytics dataset to S3
 - [**Data transformation**](./transform/README.md): Convert your Timestream for LiveAnalytics data to line protocol format (Based on the schema defined after the cardinality assessment)
