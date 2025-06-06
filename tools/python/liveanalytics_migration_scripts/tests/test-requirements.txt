@@ -1,0 +1,4 @@
+-r ../requirements.txt
+pandas==2.2.3
+pytest==7.4.0
+testcontainers==4.10.0

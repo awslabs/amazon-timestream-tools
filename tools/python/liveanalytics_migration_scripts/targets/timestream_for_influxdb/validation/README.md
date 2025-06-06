@@ -62,7 +62,7 @@ python validator.py --athena-database-name default --athena-table-name benchmark
 
 ### Optional arguments
 
-- `--schema-tags` / `SCHEMA_TAGS` – Comma‑separated dimension/tag list  
+- `--schema-tags` / `SCHEMA_TAGS` – Comma‑separated dimension/tag list. If a dimension includes commas, it should be surrounded by quotes. For example, `--schema-tags tag1,"tag,2",tag3`.
 - `--start-time` / `START_TIME` – Inclusive lower ISO‑8601 bound (e.g., `2024-08-01T00:00:00Z`) 
 - `--end-time` / `END_TIME` – Exclusive upper ISO‑8601 bound (e.g., `2024-08-04T00:00:00Z`) 
 - `--poll-metrics-interval` / `POLL_METRICS_INTERVAL` – Seconds between `/metrics` polls *(default: 30)*  

@@ -21,16 +21,19 @@ Or simply:
     # Define variables in .env file (see example.env)
     python validate.py
 """
+
 from __future__ import annotations
 
 import argparse
+from io import StringIO
 import os
 import sys
 import time
 import datetime as dt
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, List, Sequence, Tuple, Dict
 
+from pandas.io.parsers.readers import csv
 import requests
 from dotenv import load_dotenv
 import boto3
@@ -38,6 +41,7 @@ import influxdb_client
 
 
 # ───────────────────────── Helpers ──────────────────────────
+
 
 def timed(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Tuple[Any, float]:
     """Execute *func* and measure its runtime."""
@@ -77,6 +81,7 @@ def poll_metrics(session, url, timeout=60) -> List[float]:
 
 # ───────────────── Timestream utilities ─────────────────────
 
+
 def count_timestream_rows(
     session: boto3.Session,
     database: str,
@@ -106,7 +111,7 @@ def count_timestream_rows(
     client = session.client("timestream-query")
 
     select_expr = (
-        f"COUNT(DISTINCT({', '.join(dimensions)}, time))"
+        f"COUNT(DISTINCT({', '.join(f'"{dimension}"' for dimension in dimensions)}, time))"
         if dimensions
         else "COUNT(*)"
     )
@@ -114,11 +119,9 @@ def count_timestream_rows(
 
     where_clauses: list[str] = []
     if start_time:
-        where_clauses.append(
-            f"time >= from_iso8601_timestamp('{start_time}')")
+        where_clauses.append(f"time >= from_iso8601_timestamp('{start_time}')")
     if end_time:
-        where_clauses.append(
-            f"time <  from_iso8601_timestamp('{end_time}')")
+        where_clauses.append(f"time <  from_iso8601_timestamp('{end_time}')")
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
 
@@ -147,6 +150,7 @@ def count_timestream_rows(
 
 
 # ───────────────── Athena utilities ─────────────────────
+
 
 def count_athena_rows(
     session: boto3.Session,
@@ -179,24 +183,20 @@ def count_athena_rows(
         dimensions = []
 
     if "time" in dimensions:
-        raise ValueError(
-            "Please exclude `time` from the SCHEMA_TAGS list."
-        )
+        raise ValueError("Please exclude `time` from the SCHEMA_TAGS list.")
 
     select_expr = (
-        f"COUNT(DISTINCT({', '.join(dimensions)}, time)) AS c"
-        if dimensions else
-        "COUNT(*) AS c"
+        f"COUNT(DISTINCT({', '.join(f'"{dimension}"' for dimension in dimensions)}, time)) AS c"
+        if dimensions
+        else "COUNT(*) AS c"
     )
     query = f'SELECT {select_expr} FROM "{database}"."{table}"'
 
     where_clauses: list[str] = []
     if start_time:
-        where_clauses.append(
-            f"time >= from_iso8601_timestamp('{start_time}')")
+        where_clauses.append(f"time >= from_iso8601_timestamp('{start_time}')")
     if end_time:
-        where_clauses.append(
-            f"time <  from_iso8601_timestamp('{end_time}')")
+        where_clauses.append(f"time <  from_iso8601_timestamp('{end_time}')")
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
 
@@ -234,6 +234,7 @@ def count_athena_rows(
 
 
 # ────────────────── InfluxDB utilities ──────────────────────
+
 
 def _build_range_clause(start_time: str | None, end_time: str | None) -> str:
     """Return the Flux `range()` clause respecting start_time/end_time."""
@@ -283,7 +284,7 @@ def count_influx_rows(
             f"{range_clause}"
             f' |> filter(fn: (r) => r._measurement == "{measurement}")'
             f' |> filter(fn: (r) => r._field == "{row_identifier}")'
-            ' |> group() |> count()'
+            " |> group() |> count()"
         )
         print(f"--- InfluxDB ---\n\nRunning query:\n{query}\n")
         tables = client.query_api().query(org=org, query=query)
@@ -296,7 +297,8 @@ def count_influx_rows(
 
 # ────────────────────── CLI parsing ─────────────────────────
 
-def parse_args() -> argparse.Namespace:
+
+def parse_args(input_args: list[str]) -> argparse.Namespace:
     """
     Precedence order:
         1. command-line flags
@@ -312,7 +314,7 @@ def parse_args() -> argparse.Namespace:
         help="Data source engine, 'timestream' or 'athena'. (Defaults to 'athena')",
     )
 
-    prelim, remaining = source_engine_arg.parse_known_args()
+    prelim, remaining = source_engine_arg.parse_known_args(input_args)
 
     env = os.getenv
     missing = lambda var: env(var) is None
@@ -330,13 +332,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timestream-database-name",
         default=env("TIMESTREAM_DATABASE_NAME"),
-        required=prelim.source_engine == "timestream" and missing("TIMESTREAM_DATABASE_NAME"),
+        required=prelim.source_engine == "timestream"
+        and missing("TIMESTREAM_DATABASE_NAME"),
         help="Timestream database name (required if SOURCE_ENGINE=timestream)",
     )
     parser.add_argument(
         "--timestream-table-name",
         default=env("TIMESTREAM_TABLE_NAME"),
-        required=prelim.source_engine == "timestream" and missing("TIMESTREAM_TABLE_NAME"),
+        required=prelim.source_engine == "timestream"
+        and missing("TIMESTREAM_TABLE_NAME"),
         help="Timestream table name (required if SOURCE_ENGINE=timestream)",
     )
 
@@ -396,7 +400,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--schema-tags",
         default=env("SCHEMA_TAGS", ""),
-        help="Comma-separated list of dimension/tag names",
+        help="Comma-separated list of dimension/tag names. "
+        "If a tag includes commas, surround the tag with quotes. For "
+        'example: --schema-tags tag1,"tag2,with,commas",tag3',
     )
     parser.add_argument(
         "--start-time",
@@ -424,7 +430,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=env("INFLUX_ONLY", False),
         help="Skip querying the source engine (Athena/Timestream) and only "
-             "return the InfluxDB row count.",
+        "return the InfluxDB row count.",
     )
 
     args = parser.parse_args(remaining, namespace=prelim)
@@ -433,8 +439,9 @@ def parse_args() -> argparse.Namespace:
 
 # ────────────────────────── Main ────────────────────────────
 
-def main() -> None:
-    args = parse_args()
+
+def main(input_args) -> None:
+    args = parse_args(input_args)
     print("-" * 20)
     print("Starting validation")
     print("-" * 20)
@@ -443,19 +450,25 @@ def main() -> None:
     session = requests.Session()
 
     if not args.skip_wal_check:
-        print(f"\nPolling {args.influxdb_v2_url}/metrics to wait for WAL to complete flushing ...\n")
+        print(
+            f"\nPolling {args.influxdb_v2_url}/metrics to wait for WAL to complete flushing ...\n"
+        )
         while True:
             timestamp = dt.datetime.now().isoformat(sep=" ", timespec="seconds")
             try:
                 nz_wals = poll_metrics(session=session, url=args.influxdb_v2_url)
             except requests.RequestException as exc:
-                print(f"{timestamp}  request failed ({exc}); retrying in {poll_interval}s")
+                print(
+                    f"{timestamp}  request failed ({exc}); retrying in {poll_interval}s"
+                )
                 time.sleep(poll_interval)
                 continue
 
             if nz_wals:
-                print(f"{timestamp}  {len(nz_wals):>2} shards with non-zero WAL "
-                      f"(largest={max(nz_wals)/1024:,.1f} KiB)")
+                print(
+                    f"{timestamp}  {len(nz_wals):>2} shards with non-zero WAL "
+                    f"(largest={max(nz_wals) / 1024:,.1f} KiB)"
+                )
                 time.sleep(poll_interval)
             else:
                 print(f"{timestamp}  WAL empty on all shards — ready for validation.\n")
@@ -463,7 +476,12 @@ def main() -> None:
     else:
         print("\nSkipping check for InfluxDB WAL to complete flushing ...\n")
 
-    schema_tags = [t.strip() for t in args.schema_tags.split(",") if t.strip()]
+    if args.schema_tags:
+        reader = csv.reader(StringIO(args.schema_tags))
+        schema_tags = [tag.strip() for tag in next(reader) if tag.strip()]
+    else:
+        schema_tags = []
+
     boto3_session = initialize_session()
 
     print("Starting validation ...\n")
@@ -544,17 +562,18 @@ def main() -> None:
                 print(f"🎉  {src_label} and InfluxDB row counts match.\n")
             else:
                 sign = ">" if src_count > infl_count else "<"
-                print(
-                    f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n"
-                )
+                print(f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n")
+                sys.exit(1)
     else:
         print("\n--------- Exceptions ---------\n")
         for name, exc in errors.items():
             print(f"{name} query failed: {exc}")
         print()
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     try:
-        main()
+        main(sys.argv[1:])
     except KeyboardInterrupt:
         sys.exit("Interrupted by user.")

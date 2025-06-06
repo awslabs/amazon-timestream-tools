@@ -149,10 +149,6 @@ Ingestion tests using a C5N.9XL EC2 instance executing the ingestion script with
 
 If high ingestion rates are required for ingestion time requirements then at least 12K IOPS is recommended for the Timestream for InfluxDB instance. Additional optimizations can be gained by increasing the worker count for the script dependent on Timestream for InfluxDB instance size.
 
-## Testing
-
-For information about testing the ingestion process, refer to [ingestion-tests/README.md](ingestion-tests/README.md).
-
 ## Validation
 
 For information on validating ingestion data, refer to [../validation/README.md](../validation/README.md)

@@ -1,15 +1,18 @@
 import argparse
 from dataclasses import dataclass
+import os
 import sys
 import pyarrow.parquet as pq
 import pyarrow.fs as fs
 
-sys.path.append("../../../unload/utils/")
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+)
 
-from timestream_utils import TimestreamUtility
-from s3_utils import S3Utility
-from athena_utils import AthenaUtility, MAX_WAIT_SECONDS
-from logger_utils import create_logger
+from unload.utils.timestream_utils import TimestreamUtility
+from unload.utils.s3_utils import S3Utility
+from unload.utils.athena_utils import AthenaUtility, MAX_WAIT_SECONDS
+from unload.utils.logger_utils import create_logger
 
 
 transform_logger = create_logger("transform")
@@ -73,33 +76,62 @@ class LineProtocolTranslationResult:
 
         repr += "Tags:\n\t"
         if self.tags:
-            repr += f"{','.join(self.tags)}\n"
+            quoted_tags = []
+            for tag in self.tags:
+                if "," in tag:
+                    quoted_tags.append(f'"{tag}"')
+                else:
+                    quoted_tags.append(tag)
+            repr += f"{','.join(quoted_tags)}\n"
         else:
             repr += "[]\n"
 
         repr += "Fields:\n\t"
-        if self.tags:
-            repr += f"{','.join(self.fields)}"
+        if self.fields:
+            quoted_fields = []
+            for field in self.fields:
+                if "," in field:
+                    quoted_fields.append(f'"{field}"')
+                else:
+                    quoted_fields.append(field)
+            repr += f"{','.join(quoted_fields)}\n"
         else:
-            repr += "[]"
+            repr += "[]\n"
 
         return repr
 
 
 timestream_to_athena_ddl_type_mappings = {
-    "varchar": "STRING",
-    "boolean": "BOOLEAN",
-    "bigint": "BIGINT",
-    "double": "DOUBLE",
-    "timestamp": "TIMESTAMP",
-    "date": "DATE",
-    "time": "",  # Not supported in DDL
-    "interval_day_to_second": "",  # Not supported in DDL
-    "interval_year_to_month": "",  # Not supported in DDL
-    "unknown": "",  # Not supported
-    "integer": "INTEGER",
-    "int": "INTEGER",
+    "VARCHAR": "STRING",
+    "BOOLEAN": "BOOLEAN",
+    "BIGINT": "BIGINT",
+    "DOUBLE": "DOUBLE",
+    "TIMESTAMP": "TIMESTAMP",
+    "DATE": "DATE",
+    "INTEGER": "INTEGER",
+    "INT": "INTEGER",
 }
+
+arrow_to_athena_ddl_type_mappings = {
+    "BOOL": "BOOLEAN",
+    "INT8": "TINYINT",
+    "INT16": "SMALLINT",
+    "INT32": "INTEGER",
+    "INT64": "BIGINT",
+    "FLOAT": "FLOAT",
+    "FLOAT16": "FLOAT",  # Athena float is 32 bits.
+    "FLOAT32": "FLOAT",
+    "FLOAT64": "DOUBLE",
+    "DOUBLE": "DOUBLE",
+    "TIMESTAMP": "TIMESTAMP",
+    "TIMESTAMP[S]": "TIMESTAMP",
+    "TIMESTAMP[MS]": "TIMESTAMP",
+    "DATE32": "DATE",
+    "BINARY": "BINARY",
+    "STRING": "STRING",
+    "UTF8": "STRING",
+}
+
 
 def parse_bool_cli_argument(arg: str) -> bool:
     if arg.lower() == "true" or arg == "1":
@@ -110,9 +142,9 @@ def parse_bool_cli_argument(arg: str) -> bool:
         raise ValueError(f"Unknown argument: {arg}")
 
 
-def get_athena_ddl_type_mapping(timestream_type: str) -> str:
+def get_timestream_to_athena_ddl_type_mapping(timestream_type: str) -> str:
     athena_type = timestream_to_athena_ddl_type_mappings.get(
-        timestream_type.lower(), ""
+        timestream_type.upper(), ""
     )
     if not athena_type:
         raise RuntimeError(
@@ -157,6 +189,62 @@ def get_parquet_column_details(s3_uri: str):
                 processed_fields.add(field_name)
         return formatted_columns
 
+def get_arrow_to_athena_ddl_type_mapping(arrow_type: str) -> str:
+    athena_type = arrow_to_athena_ddl_type_mappings.get(arrow_type.upper(), "")
+    if not athena_type:
+        raise RuntimeError(f"Failed to match Arrow type to Athena type: {arrow_type}")
+    return athena_type
+
+
+def get_parquet_column_details_in_glue_format(s3_uri: str) -> list[dict]:
+    s3, path = fs.FileSystem.from_uri(s3_uri)
+    with s3.open_input_file(path) as file:
+        parquet_file = pq.ParquetFile(file)
+        schema = parquet_file.schema_arrow
+        all_field_names = {field.name for field in schema}
+
+        formatted_columns = []
+        processed_fields = set()
+
+        for field in schema:
+            field_name = field.name
+            if field_name in processed_fields:
+                continue
+
+            column_type = str(field.type).upper()
+
+            if column_type == "TIMESTAMP[NS]":
+                ns_field_name = f"{field_name}_ns"
+                # Check if corresponding _ns field exists
+                if ns_field_name in all_field_names:
+                    # time is a reserved column name.
+                    if field_name == "time":
+                        formatted_columns.append(
+                            {"Name": field_name, "Type": "TIMESTAMP"}
+                        )
+                        formatted_columns.append(
+                            {"Name": ns_field_name, "Type": "STRING"}
+                        )
+                        processed_fields.add(field_name)
+                        processed_fields.add(ns_field_name)
+                    else:
+                        # Use the _ns field instead and mark both as processed
+                        formatted_columns.append(
+                            {"Name": ns_field_name, "Type": "STRING"}
+                        )
+                        processed_fields.add(field_name)
+                        processed_fields.add(ns_field_name)
+                else:
+                    # No _ns field exists, use the original field
+                    formatted_columns.append({"Name": field_name, "Type": "TIMESTAMP"})
+                    processed_fields.add(field_name)
+            else:
+                column_type = get_arrow_to_athena_ddl_type_mapping(column_type)
+                formatted_columns.append({"Name": field_name, "Type": column_type})
+                processed_fields.add(field_name)
+        return formatted_columns
+
+
 def create_and_load_athena_table(
     s3_utility: S3Utility,
     athena_utility: AthenaUtility,
@@ -165,23 +253,19 @@ def create_and_load_athena_table(
     s3_bucket_path: str,
     athena_database_name="default",
     athena_table_name=None,
-    wait_for_completion=True,
-    max_wait_seconds=MAX_WAIT_SECONDS
-):
+) -> list[dict]:
     """
     Creates and loads an Athena table, importing data from an S3 bucket.
 
     Args:
-        session (boto3.Session): The boto3 Session to use to create clients.
+        timestream_utility (TimestreamUtility): The TimestreamUtility to use to execute queries.
+        s3_utility (S3Utility): The S3Utility to use to check the existence of S3 buckets.
+        athena_utility (AthenaUtility): The AthenaUtility used to execute Athena queries.
         timestream_database_name (str): The Timestream database to retrieve the table schema from.
         timestream_table_name (str): The Timestream table to replicate the schema of.
         s3_bucket_path (str): The S3 bucket path containing Timestream data.
         athena_table_name (str): Optional. The name of the Athena table to
             create. Defaults to <timestream_database_name>_<timestream_table_name>.
-        wait_for_completion (bool): Whether to wait for loading
-            to complete, checking its status periodically.
-        max_wait_seconds (int): The maximum number of seconds to wait
-            for loading to complete.
 
     Returns:
         List(str): Columns from loaded athena table
@@ -253,40 +337,28 @@ def create_and_load_athena_table(
     athena_columns = []
     try:
         first_parquet = s3_utility.get_first_of_type(s3_results_path)
-        athena_columns = get_parquet_column_details(first_parquet)
+        athena_columns = get_parquet_column_details_in_glue_format(first_parquet)
     except FileNotFoundError:
         transform_logger.warning(
             f'Table "{timestream_database_name}"."{timestream_table_name}" is empty, skipping Athena table creation'
         )
-        return
-    except Exception:
+        return athena_columns
+    except Exception as e:
         transform_logger.error(
-            f'Error getting table details from "{timestream_database_name}"."{timestream_table_name}"'
+            f'Error getting table details from "{timestream_database_name}"."{timestream_table_name}": {e}'
         )
-        return
+        return athena_columns
 
     try:
-        create_external_table_query = f"""
-                       CREATE EXTERNAL TABLE `{athena_database_name}`.`{athena_table_name}` ({", ".join(athena_columns)})
-                       STORED AS PARQUET LOCATION '{s3_results_path}';
-                       """
-        transform_logger.info(f"Executing query: {create_external_table_query}")
-        response = athena_utility.start_query_execution(
-            query_string=create_external_table_query,
-            output_location=f"{s3_unload_path}/athena-query-results",
+        athena_utility.create_glue_table_from_parquet(
             database_name=athena_database_name,
+            table_name=athena_table_name,
+            columns=athena_columns,
+            s3_bucket_path=s3_results_path,
         )
-        query_execution_id = response["QueryExecutionId"]
-        transform_logger.info(f"Query execution ID: {query_execution_id}")
-        if wait_for_completion:
-            athena_utility.wait_for_athena_query(
-                query_execution_id=query_execution_id,
-                max_wait_seconds=max_wait_seconds,
-            )
     except Exception as e:
         transform_logger.error(f"Athena CREATE EXTERNAL TABLE query failed: {e}")
-        return
-
+        return athena_columns
     return athena_columns
 
 
@@ -583,7 +655,7 @@ def parse_table_dimensions(arg):
         raise argparse.ArgumentTypeError("Use format table1=dimension1,dimension2")
 
 
-if __name__ == "__main__":
+def main(input_args):
     parser = argparse.ArgumentParser(
         prog="main.py",
         description="""A sample application that translates all data in a Timestream for LiveAnalytics
@@ -657,7 +729,7 @@ if __name__ == "__main__":
         type=parse_bool_cli_argument,
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(input_args)
 
     timestream_database_name = args.database_name
     s3_bucket_path = args.s3_bucket_path.rstrip("/")
@@ -710,7 +782,7 @@ if __name__ == "__main__":
                 timestream_table_name=timestream_table_name,
                 s3_bucket_path=s3_bucket_path,
                 athena_database_name=args.athena_database_name,
-                athena_table_name=args.athena_table_name
+                athena_table_name=args.athena_table_name,
             )
             if not athena_columns:
                 continue
@@ -728,7 +800,10 @@ if __name__ == "__main__":
                 athena_database_name=args.athena_database_name,
                 athena_table_name=args.athena_table_name,
                 add_validation_field=args.add_validation_field,
-                use_ns_precision=("`time_ns` STRING" in athena_columns),
+                use_ns_precision=any(
+                    column.get("Name") == "time_ns" and column.get("Type") == "STRING"
+                    for column in athena_columns
+                ),
             )
             line_protocol_results.append(line_protocol_result)
         except Exception as e:
@@ -737,8 +812,11 @@ if __name__ == "__main__":
             )
             continue
 
-    if line_protocol_results:
-        print("Line protocol translation results:")
-        for line_protocol_result in line_protocol_results:
-            print(line_protocol_result)
-            print()
+    print("Line protocol translation results:")
+    for line_protocol_result in line_protocol_results:
+        print(line_protocol_result)
+        print()
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

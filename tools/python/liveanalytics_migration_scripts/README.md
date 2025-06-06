@@ -65,8 +65,8 @@ For detailed instructions on using the unload tool for your preferred migration 
 
 Create a virtual environment using `venv` and install required dependencies.
    ```shell
-   python3 -m venv env && \
-   source env/bin/activate && \
+   python3 -m venv .env && \
+   source .env/bin/activate && \
    python3 -m pip install -r requirements.txt
    ```
 
@@ -81,3 +81,6 @@ Create a virtual environment using `venv` and install required dependencies.
     - [Timestream for InfluxDB](./targets/timestream_for_influxdb/README.md)
     - [RDS for PostgreSQL](./targets/rds_for_postgresql/README.md)
 
+## Testing
+
+Tests are contained within the [`tests`](./tests/README.md) directory.

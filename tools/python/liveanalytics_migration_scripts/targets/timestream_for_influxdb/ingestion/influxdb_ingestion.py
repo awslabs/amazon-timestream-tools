@@ -439,7 +439,7 @@ def poll_for_result(result, failure_flag, continue_on_error, failed_log, file_na
                 logging.error("Fix the issue and run with --resume-from with the path to the previous tracking folder.")
                 sys.exit(1)
 
-def main():
+def main(input_args):
     load_dotenv()
 
     parser = argparse.ArgumentParser(description='Process gzip files in a directory using multiple processes')
@@ -462,7 +462,7 @@ def main():
     parser.add_argument('-p', '--precision', type=str, default='ns',
                         choices=['ns', 'ms', 'us', 's'],
                         help='Timestamp precision for InfluxDB write. Note that this must align with the timestamp precision from the data being ingested (default: ns)')
-    args = parser.parse_args()
+    args = parser.parse_args(input_args)
 
     setup_logging()
 
@@ -560,4 +560,4 @@ def main():
         logging.error("To retry failed files, run the script with the --resume-from with the path to the previous tracking folder.")
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
