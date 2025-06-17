@@ -102,10 +102,15 @@ class BaseIntegrationTestCase(unittest.TestCase):
         )
 
         self.s3_bucket_name = self.s3_bucket_name_prefix + self.get_random_string(10)
-        self.s3_client.create_bucket(
-            Bucket=self.s3_bucket_name,
-            CreateBucketConfiguration={"LocationConstraint": self.session.region_name},
-        )
+        if self.session.region_name == "us-east-1":
+            self.s3_client.create_bucket(
+                Bucket=self.s3_bucket_name
+            )
+        else:
+            self.s3_client.create_bucket(
+                Bucket=self.s3_bucket_name,
+                CreateBucketConfiguration={"LocationConstraint": self.session.region_name},
+            )
 
         self.silence_cleanup_logging = False
 
