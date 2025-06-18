@@ -41,7 +41,7 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
     lp_directory_prefix = "la-idb-it-lp-output-"
     lp_directory: str
 
-    athena_database_name = "default"
+    athena_database_name = "test-integration-migration"
     athena_table_name: str
     athena_lp_table_name: str
 
@@ -85,6 +85,15 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
 
         # For interacting with Athena.
         cls.glue_client = cls.session.client("glue")
+
+        # Create Athena database
+        try:
+            cls.glue_client.create_database(
+                DatabaseInput={"Name": cls.athena_database_name}
+            )
+        except Exception as e:
+            logging.warning(f"setUpClass: Failed to create Athena database: {e}")
+
 
         # Create directory to hold nested directories of line protocol data.
         os.makedirs(cls.lp_base_directory, exist_ok=True)
@@ -145,6 +154,15 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 logging.warning(
                     f"tearDownClass: Failed to delete InfluxDB v2 container: {e}"
                 )
+
+        # Delete Athena database
+        try:
+            cls.glue_client.delete_database(
+                Name=cls.athena_database_name
+            )
+        except Exception as e:
+            if not cls.silence_cleanup_logging:
+                logging.warning(f"tearDownClass: Failed to delete Athena database: {e}")
 
     def tearDown(self):
         """
@@ -265,6 +283,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 self.database_name,
                 "--tables",
                 self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
                 "--s3-bucket-path",
                 self.s3_bucket_name,
                 "--add-validation-field",
@@ -363,6 +383,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 self.database_name,
                 "--tables",
                 self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
                 "--s3-bucket-path",
                 self.s3_bucket_name,
                 "--add-validation-field",
@@ -480,6 +502,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 self.database_name,
                 "--tables",
                 self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
                 "--s3-bucket-path",
                 self.s3_bucket_name,
                 "--add-validation-field",
@@ -583,6 +607,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 self.database_name,
                 "--tables",
                 self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
                 "--s3-bucket-path",
                 self.s3_bucket_name,
                 "--add-validation-field",
@@ -684,6 +710,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 self.database_name,
                 "--tables",
                 self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
                 "--s3-bucket-path",
                 self.s3_bucket_name,
                 "--add-validation-field",
@@ -837,6 +865,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 self.database_name,
                 "--tables",
                 self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
                 "--s3-bucket-path",
                 self.s3_bucket_name,
                 "--add-validation-field",
@@ -967,6 +997,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 self.database_name,
                 "--tables",
                 self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
                 "--s3-bucket-path",
                 self.s3_bucket_name,
                 "--add-validation-field",

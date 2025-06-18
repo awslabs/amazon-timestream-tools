@@ -51,6 +51,7 @@ class IngestionTestCase(unittest.TestCase):
         os.environ["INFLUXDB_V2_URL"] = influxdb_url
         os.environ["INFLUXDB_V2_ORG"] = "test-org"
         os.environ["INFLUXDB_V2_TOKEN"] = "test-token"
+        os.environ["INFLUXDB_V2_TIMEOUT"] = "30000"
 
         cls.influxdb_container = InfluxDb2Container(
             "influxdb:2.7",
