@@ -1,7 +1,12 @@
 import boto3
 import time
 import re
-from logger_utils import create_logger
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
+from unload.utils.logger_utils import create_logger
 
 
 # 24 hours
@@ -17,7 +22,46 @@ class AthenaUtility:
             region (str): The AWS region.
         """
         self.athena_client = boto3.client("athena", region_name=region)
+        self.glue_client = boto3.client("glue", region_name=region)
         self.logger = create_logger("athena_logger")
+
+    def create_glue_table_from_parquet(
+        self,
+        database_name: str,
+        table_name: str,
+        columns: list[dict],
+        s3_bucket_path: str,
+    ):
+        """
+        Creates a new Glue table using Parquet data.
+
+        Args:
+            database_name (str): The Glue database name to use.
+            table_name (str): The name of the Glue table to create.
+            columns (list[dict]): A list of columns to use for the schema. Each column must have "Name" and "Type" keys.
+            s3_bucket_path (str): The S3 bucket path where Parquet data is stored. For example, s3://my-bucket/my-path.
+
+        Returns:
+            None
+        """
+        self.glue_client.create_table(
+            DatabaseName=database_name,
+            TableInput={
+                "Name": table_name,
+                "StorageDescriptor": {
+                    "Columns": columns,
+                    "Location": s3_bucket_path,
+                    "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+                    "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+                    "SerdeInfo": {
+                        "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
+                        "Parameters": {},
+                    },
+                },
+                "TableType": "EXTERNAL_TABLE",
+                "Parameters": {"classification": "parquet"},
+            },
+        )
 
     def start_query_execution(
         self, query_string: str, output_location: str, database_name="default"

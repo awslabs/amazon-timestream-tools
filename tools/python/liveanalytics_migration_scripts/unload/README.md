@@ -66,7 +66,7 @@
 <li> If your target is <strong>Timestream for InfluxDB</strong> export in <strong>Parquet format</strong> and <strong>no compression</strong> to meet the ingestion scripts requirements </li>
 <li>Enable DynamoDB logging for tracking and validation</li>
 <li>Configure SNS notifications to receive failure or completion of export</li>
-<li>If your target is <strong>Postgres</strong> choose <strong>CSV</strong>, <strong>GZIP compression</strong> and <strong>`--max-file-size` to 3GB</strong> to meet the ingestion script requirements. We recommend using AWS Database Migration Service (DMS) with source as S3 (both CSV and Parquet are supported) with PostgreSQL as the target. For scenarios where AWS DMS may not be suitable for your specific requirements, you can use our <a href="../targets/rds_for_postgresql/README.md">PostgreSQL ingestion tool</a> which provides a customizable solution for loading CSV data into PostgreSQL databases.</li>
+<li>If your target is <strong>Postgres</strong> choose <strong>CSV</strong>, <strong>GZIP compression</strong>, set <strong>`--append-timestamps` to false</strong>, and <strong>`--max-file-size` to 3GB</strong> to meet the ingestion script requirements. We recommend using AWS Database Migration Service (DMS) with source as S3 (both CSV and Parquet are supported) with PostgreSQL as the target. For scenarios where AWS DMS may not be suitable for your specific requirements, you can use our <a href="../targets/rds_for_postgresql/README.md">PostgreSQL ingestion tool</a> which provides a customizable solution for loading CSV data into PostgreSQL databases.</li>
 <li>Tool uses <a href="https://docs.aws.amazon.com/timestream/latest/developerguide/export-unload.html" target="_blank" rel="noopener noreferrer" title="Learn more about unload functionality" aria-label="Read about AWS Timestream unload feature">Timestream unload Feature</a>. Unload has limitation on number of partitions, tool will overcome this by running unload in batches if required based and start time and end time provided</li>
 <li>Tool supports partitioning by hour, day, month, or year (default is <strong>day</strong>). To avoid error "The query computation exceeds maximum available memory," make sure each partition under approximately 350GB. For example, if your yearly data in Timestream table exceeds 350GB, consider switching to monthly partitions, and if needed, go even more granular (e.g., daily or hourly) </li>
 <li>  If you choose hourly and still get a “The query computation exceeds maximum available memory” error, you can reduce the number of partitions <strong>(--custom-partition-count)</strong> to a lower number, making sure your exports are successful</li>
@@ -105,6 +105,11 @@
 <div style="border: 1px solid #ddd; padding: 15px; margin: 20px 0; border-radius: 5px; background-color: #f8f9fa;">
 <h4>Export Example with end time, parition, s3 uri, dynamodb logging and sns notification </h4>
 <pre><code>python unload.py --export-table --database MyDB --table MyTable --start-time '2024-01-01 00:00:00' --end-time '2024-02-01 00:00:00' --partition month --export-format PARQUET --compression GZIP --region us-east-1 --s3-uri s3://my-bucket --enable-dynamodb-logger --sns-topic-arn arn:aws:sns:region:account-id:topic-name</code></pre>
+</div>
+
+<div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">
+<h4>Export without appending extra timestamp columns (for Postgres migrations)</h4>
+<pre><code>python3.9 unload.py --export-table --database Demo --table Demo --start-time '2020-03-26 17:24:38' --append-timestamps false</code></pre>
 </div>
 </div>
 
@@ -234,6 +239,10 @@
 <td><code>/data</code></td>
 </tr>
 <tr>
+<td><code>--append-timestamps</code></td>
+<td>For InfluxDB migrations. <a href="https://aws.amazon.com/athena">Amazon Athena</a> is used for <a href="../targets/timestream_for_influxdb/transform/README.md">transformations</a> and supports <a href="https://docs.aws.amazon.com/athena/latest/ug/data-types.html#data-types-timestamps">millisecond</a> precision. This flag appends an extra column for each measure of type `timestamp` to preserve nanosecond precision.<br><i>Default: True</i></td>
+<td><code>True</code></td>
+</tr>
 </table>
 </div>
 

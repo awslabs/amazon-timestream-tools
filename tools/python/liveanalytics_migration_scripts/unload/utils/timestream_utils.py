@@ -1,14 +1,18 @@
 import boto3
-from logger_utils import create_logger
 from botocore.exceptions import ClientError
 import botocore
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from s3_utils import S3Utility
 import time
-from datetime import timezone
 import json
 import re
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
+from unload.utils.logger_utils import create_logger
+from unload.utils.s3_utils import S3Utility
 
 
 class TimestreamUtility:
@@ -294,7 +298,7 @@ class TimestreamUtility:
         except Exception as err:
             self.logger.error(f"Error publishing message to SNS topic: {str(err)}", exc_info=True)
 
-    def timestream_unload(self, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, migration_tag, max_file_size, kms_key, encryption, escaped_by, field_delimiter, recent_first, custom_partition_count, order_by_asc):
+    def timestream_unload(self, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, migration_tag, max_file_size, kms_key, encryption, escaped_by, field_delimiter, recent_first, custom_partition_count, order_by_asc, append_timestamps):
         """
         Unload data from Timestream to S3
 
@@ -313,6 +317,7 @@ class TimestreamUtility:
             encryption: Encryption type (default: 'SSE_KMS')
             escaped_by: Escaped by character (default: '')
             field_delimiter: Field delimiter (default: ',')
+            append_timestamps: Whether timestamps should be preserved
         """
         self.logger.info(f"Starting unload for {database}.{table}")
         total_rows_exported = 0
@@ -341,10 +346,13 @@ class TimestreamUtility:
             time_range=f"start_time >= {start_time} and end_time < {end_time}",
             status="unload_started",
         )
+        timestamp_measures = []
+        if append_timestamps:
+            timestamp_measures = self.list_timestamp_columns(database, table)
         for index, start_end_pair in enumerate(batches, start=1):
             batch_start_time = start_end_pair[0]  # Gets first timestamp (start time)
             batch_end_time = start_end_pair[1]    # Gets second timestamp (end time)
-            query = self.build_query(migration_tag, database, table, bucket_s3_uri, partition, export_format, batch_start_time, batch_end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter, order_by_asc)
+            query = self.build_query(migration_tag, database, table, bucket_s3_uri, partition, export_format, batch_start_time, batch_end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter, order_by_asc, timestamp_measures)
             self.log_unload(database=database, table=table, migration_tag=migration_tag, time_range=f'start_time >= {batch_start_time} and end_time < {batch_end_time}', status=f"batch{index}_started")
             rows_exported = self.run_unload_query(query, database, table, batch_start_time, batch_end_time, migration_tag,batch_number=index)
             self.log_unload(database=database, table=table, migration_tag=migration_tag, time_range=f'start_time >= {batch_start_time} and end_time < {batch_end_time}', rows_exported=rows_exported, status=f"batch{index}_completed")
@@ -362,7 +370,25 @@ class TimestreamUtility:
             status="unload_completed",
         )
 
-    def build_query(self, migration_tag, database, table, bucket_s3_uri, partition, export_format, start_time, end_time, compression, max_file_size, kms_key, encryption, escaped_by, field_delimiter, order_by_asc):
+    def build_query(
+        self,
+        migration_tag,
+        database,
+        table,
+        bucket_s3_uri,
+        partition,
+        export_format,
+        start_time,
+        end_time,
+        compression,
+        max_file_size,
+        kms_key,
+        encryption,
+        escaped_by,
+        field_delimiter,
+        order_by_asc,
+        timestamp_measures,
+    ):
         """
         Build the Timestream unload query with the given parameters
 
@@ -381,6 +407,7 @@ class TimestreamUtility:
             encryption: Encryption type (default: 'SSE_KMS')
             escaped_by: Escaped by character (default: '')
             field_delimiter: Field delimiter (default: ', ')
+            timestamp_measures: Comma-separated list of timestamp columns that will be cast to VARCHAR and appended to export.
 
         Returns:
             str: Timestream unload query
@@ -389,6 +416,9 @@ class TimestreamUtility:
         self.logger.info(f"Building unload query for {database}.{table}")
         unload_query = "UNLOAD("
         unload_query += " SELECT *"
+        if timestamp_measures:
+            for timestamp_measure in timestamp_measures:
+                unload_query += f", CAST(to_nanoseconds({timestamp_measure}) AS VARCHAR) as {timestamp_measure}_ns"
         if partition:
             if partition == "hour":
                 unload_query += ", DATE_FORMAT(time, '%Y-%m-%d %H') as partition_date"
@@ -648,3 +678,29 @@ class TimestreamUtility:
                 raise
         else:
             self.logger.info("DynamoDB logging is disabled. Skipping table creation.")
+
+    def list_timestamp_columns(self, database: str, table: str):
+        """
+        Retrieves all columns of type TIMESTAMP from the specified Timestream table.
+
+        Args:
+            database (str): The name of the Timestream database.
+            table (str): The name of the Timestream table.
+
+        Returns:
+            List[str]: A list of column names with type TIMESTAMP.
+        """
+        query_string = f'DESCRIBE "{database}"."{table}"'
+        try:
+            response = self.timestream_read_client.query(QueryString=query_string)
+            rows = response.get("Rows", [])
+            timestamp_columns = [
+                row["Data"][0]["ScalarValue"]
+                for row in rows
+                if row["Data"][1]["ScalarValue"].upper() == "TIMESTAMP"
+            ]
+            self.logger.info(f"Timestamp columns in {database}.{table}: {timestamp_columns}")
+            return timestamp_columns
+        except Exception as e:
+            self.logger.error(f"Failed to list timestamp columns for {database}.{table}: {str(e)}", exc_info=True)
+            raise

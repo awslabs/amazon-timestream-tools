@@ -1,11 +1,12 @@
 import argparse
 from datetime import datetime
+import os
 import sys
 
-sys.path.append("../unload/utils/")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from timestream_utils import TimestreamUtility
-from logger_utils import create_logger
+from unload.utils.timestream_utils import TimestreamUtility
+from unload.utils.logger_utils import create_logger
 
 
 cardinality_logger = create_logger("cardinality")
@@ -172,7 +173,7 @@ def get_live_analytics_cardinality(
     return cardinality
 
 
-if __name__ == "__main__":
+def main(input_args):
     parser = argparse.ArgumentParser(
         prog="cardinality.py",
         description="A sample application that determines the cardinality of a Timestream for LiveAnalytics table.",
@@ -211,7 +212,7 @@ if __name__ == "__main__":
         "ISO-8601 format (e.g., '2024-08-02T00:00:00Z').",
         required=False,
     )
-    args = parser.parse_args()
+    args = parser.parse_args(input_args)
 
     database_name = args.database_name
     table_name = args.table_name
@@ -277,3 +278,7 @@ if __name__ == "__main__":
             "Your hypothetical recommended Timestream for InfluxDB instance "
             f"type is: {get_recommended_influxdb_instance(hypothetical_cardinality)}"
         )
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

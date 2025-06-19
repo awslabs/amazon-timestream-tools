@@ -180,11 +180,6 @@ aws s3 rm s3://<S3 bucket name>/<Timestream database name>/<Timestream table nam
 
 Note that if [validation](../validation/README.md) is required, it is recommended to perform cleanup after the final validation stage.
 
-## Limitations
-
-The following limitations should be considered before transforming Timestream for LiveAnalytics records to line protocol:
-- The finest timestamp precision that Athena supports is **milliseconds**. If you need greater timestamp precision, such as microsecond or nanosecond precision, consider migrating to [Amazon RDS](https://aws.amazon.com/rds/).
-
 ## Troubleshooting
 
 ### Table Already Exists Error

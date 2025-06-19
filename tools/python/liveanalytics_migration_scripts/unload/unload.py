@@ -2,21 +2,19 @@
 
 import argparse
 import boto3
-import json
-from botocore.config import Config
 from datetime import datetime, timezone
 import sys
 import os
 
-sys.path.append("./utils/")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from logger_utils import create_logger
-from timestream_utils import TimestreamUtility
-from s3_utils import S3Utility
+from unload.utils.logger_utils import create_logger
+from unload.utils.timestream_utils import TimestreamUtility
+from unload.utils.s3_utils import S3Utility
 
-if __name__ == "__main__":
+def main(input_args):
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument("-r", "--region", help="AWS region of your Timestream table to be unloaded",default=None,required=False)
     parser.add_argument("-d", "--database", help="Timestream database name", required=False)
     parser.add_argument("-t", "--table", help="Timestream table name to be unloaded", required=False)
@@ -37,7 +35,7 @@ if __name__ == "__main__":
                    default="\\",
                    help="""Character used for escaping in CSV files. Examples:
                    - If value is 'Time"stream' → becomes 'Time\"stream'
-                   - If value is 'Time\stream' → becomes 'Time\\stream'""")
+                   - If value is 'Time\\stream' → becomes 'Time\\\\stream'""")
     parser.add_argument("--field-delimiter", default=",",help="Character used to separate fields in CSV files (default: comma)")
     parser.add_argument("-ik", "--kms-key", help="KMS key to be used to encrypt the data in S3", default=None, required=False)
     parser.add_argument("-en", "--encryption", help="Encryption type", default='SSE_S3', choices=['SSE_KMS', 'SSE_S3'], required=False)
@@ -45,9 +43,10 @@ if __name__ == "__main__":
     parser.add_argument("-cp", "--custom-partition-count", help="Custom partition count", default=99, required=False)
     parser.add_argument("-ob", "--order-by-asc", help="data order by time ascending", default=False, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
     parser.add_argument("-ld", "--logs-dir", help='Directory for export logs (default: timestream-export-logs)', default = None, required = False)
+    parser.add_argument("-at", "--append-timestamps", help="Whether to append extra timestamp columns for preserving nanosecond precision.", default=True, type=lambda x: x.lower() in ['true', '1', 'yes'], required=False)
 
     #assign arguments to args variable
-    args = parser.parse_args()
+    args = parser.parse_args(input_args)
 
     log_dir = args.logs_dir
 
@@ -74,6 +73,7 @@ if __name__ == "__main__":
     recent_first = args.recent_first
     custom_partition_count = args.custom_partition_count
     order_by_asc = args.order_by_asc 
+    append_timestamps = args.append_timestamps
 
     sts_client = boto3.client("sts")
     region = args.region if args.region else sts_client.meta.region_name
@@ -182,7 +182,8 @@ if __name__ == "__main__":
         'field_delimiter': field_delimiter,
         'recent_first' : recent_first,
         'custom_partition_count' : custom_partition_count,
-        'order_by_asc' : order_by_asc
+        'order_by_asc' : order_by_asc,
+        'append_timestamps': append_timestamps
     }
 
     # Create dynamodb logging table if dynamodb logging is enabled
@@ -247,3 +248,6 @@ if __name__ == "__main__":
     if sns_topic_arn is not None:
         timestream_utility.sns_publish_message(message, "Unload Script Completed")
     logger.info(message)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
