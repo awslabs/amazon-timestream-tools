@@ -1,0 +1,78 @@
+version: 1.0
+
+global:
+  aws_region: us-west-2
+  s3_uri: s3://e2e-buk
+  logs_dir: ./migration-logs
+  num_threads: 4
+
+source:
+  # CASE: specific dbs and tables
+  all_databases: False
+  databases:
+    benchmark8:
+      - cpu
+      - memory
+    benchmark7:
+    # benchmark22:
+    #   - cpu
+
+stage:
+  #######################################################################
+  # UNLOAD
+  #######################################################################
+  unload:
+    # migration_tag: unload-YYYY-MM-DD-HH-mm-SS
+    encryption: SSE_S3
+    kms_key: null
+    sns_topic_arn: null
+    start_time: "2000-01-01 00:00:00"
+    end_time:   "2026-01-01 00:00:00"
+    partition: year
+    export_format: PARQUET
+    compression: NONE
+    custom_partition_count: 99
+    recent_first: false
+    append_timestamps: true
+    max_file_size: 78GB
+    enable_dynamodb_logger: false
+    field_delimiter: ","
+    escaped_by: "\\"
+    order_by_asc: false
+    logs_dir: unload-logs
+
+  #######################################################################
+  # TRANSFORM
+  #######################################################################
+  transform:
+    athena_database_name: default
+    # dimensions_to_fields: {}
+    dimensions_to_fields:
+      benchmark8:
+        cpu:
+          - hostname
+        memory:
+          - region
+      # benchmark7:
+      #   cpu:
+      #     - hostname
+    add_validation_field: true
+    logs_dir: transform-logs
+
+  #######################################################################
+  # INGESTION
+  #######################################################################
+  ingest:
+    lines_per_batch: 5000
+    io_multiplier: 5
+    retries: 20
+    precision: ns
+    logs_dir: ingestion-logs
+    continue_on_error: false
+    skip_bucket_check: false
+
+  #######################################################################
+  # VALIDATION
+  #######################################################################
+  validation:
+    logs_dir: validation-logs

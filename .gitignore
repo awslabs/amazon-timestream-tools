@@ -35,6 +35,7 @@ tools/python/influx-migration/**/scripts/temp/*
 # LiveAnalytics to InfluxDB migration log files
 **/influxdb-ingestion-logs/**
 **/timestream-export-logs/**
+**/migration-logs/**
 
 # LiveAnalytics migration to InfluxDB generated test data
 tools/python/liveanalytics_migration_scripts/tests/integration/test-data/*

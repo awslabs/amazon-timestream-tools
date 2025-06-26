@@ -15,8 +15,11 @@ import multiprocessing
 from multiprocessing import Pool, current_process, Value
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
+from unload.utils.logger_utils import update_logger
 
 from dotenv import load_dotenv
+
+ingestion_logger = logging.getLogger("ingestion")
 
 # Custom exceptions for better error handling
 class InfluxDBIngestionError(Exception):
@@ -30,12 +33,13 @@ class FileExtractionError(Exception):
 
 
 # Check that all environment variables have been set
-def check_required_env_vars():
+def check_required_env_vars(skip_bucket_check):
     required_vars = [
         'INFLUXDB_V2_URL',
-        'INFLUXDB_V2_ORG',
         'INFLUXDB_V2_TOKEN'
     ]
+    if not skip_bucket_check:
+        required_vars.append('INFLUXDB_V2_ORG')
 
     missing_vars = []
     for var in required_vars:
@@ -68,13 +72,13 @@ def check_bucket_exists(bucket_name):
         bucket_exists = any(bucket.name == bucket_name for bucket in buckets)
 
         if bucket_exists:
-            logging.info(f"Bucket '{bucket_name}' exists. Proceeding with ingestion.")
+            ingestion_logger.info(f"Bucket '{bucket_name}' exists. Proceeding with ingestion.")
             return True
         else:
-            logging.error(f"Bucket '{bucket_name}' does not exist. Create the bucket before ingestion.")
+            ingestion_logger.error(f"Bucket '{bucket_name}' does not exist. Create the bucket before ingestion.")
             return False
     except Exception as e:
-        logging.error(f"Error checking if bucket '{bucket_name}' exists: {e}")
+        ingestion_logger.error(f"Error checking if bucket '{bucket_name}' exists: {e}")
         return False
     finally:
         if client:
@@ -93,39 +97,15 @@ def check_org_exists():
         org_api = client.organizations_api()
         orgs = org_api.find_organizations(org=client.org)
         if orgs:
-            logging.info("Organization '%s' exists – proceeding.", client.org)
+            ingestion_logger.info("Organization '%s' exists – proceeding.", client.org)
             return True
         return False
     except Exception as exc:
-        logging.error("Error checking if organization '%s' exists: %s", client.org, exc)
+        ingestion_logger.error("Error checking if organization '%s' exists: %s", client.org, exc)
         return False
     finally:
         if client:
             client.close()
-
-def setup_logging(log_dir=None):
-    """Safe logging for multiprocessing"""
-    if log_dir is None:
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'influxdb-ingestion-logs')
-
-    os.makedirs(log_dir, exist_ok=True)
-
-    log_file = os.path.join(log_dir, f'ingestion_log_{time.strftime("%Y%m%d_%H%M%S")}.log')
-
-    log_format = '%(asctime)s - %(processName)s - %(levelname)s - %(message)s'
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format=log_format,
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()  # Also output to console
-        ]
-    )
-
-    logging.info(f"Logging initialized to {log_file}")
-    return log_file
-
 
 def update_tracking_file(file_path, file_name, success=True):
     """
@@ -140,12 +120,11 @@ def update_tracking_file(file_path, file_name, success=True):
         with open(file_path, 'a', encoding='utf-8') as f:
             f.write(f"{file_name}\n")
             f.flush()
-
         log_level = logging.INFO if success else logging.ERROR
         log_message = f"{'Successfully ingested' if success else 'Failed to ingest'}: {file_name}"
-        logging.log(log_level, log_message)
+        ingestion_logger.log(log_level, log_message)
     except Exception as e:
-        logging.error(f"Error updating tracking file {file_path}: {e}")
+        ingestion_logger.error(f"Error updating tracking file {file_path}: {e}")
 
 
 def find_latest_ingested_files(tracking_directory):
@@ -160,17 +139,15 @@ def find_latest_ingested_files(tracking_directory):
     """
     ingested_files = set()
     prev_success_log = os.path.join(tracking_directory, "ingested_files.txt")
-
     if os.path.exists(prev_success_log):
         try:
             with open(prev_success_log, 'r', encoding='utf-8') as f:
                 ingested_files = set(line.strip() for line in f)
-            logging.info(f"Found {len(ingested_files)} previously ingested files in {prev_success_log}")
+            ingestion_logger.info(f"Found {len(ingested_files)} previously ingested files in {prev_success_log}")
         except Exception as e:
-            logging.error(f"Error reading previous successful files: {e}")
+            ingestion_logger.error(f"Error reading previous successful files: {e}")
     else:
-        logging.info(f"No successful files log found in {tracking_directory}")
-
+        ingestion_logger.info(f"No successful files log found in {tracking_directory}")
     return ingested_files
 
 
@@ -189,15 +166,14 @@ def decompress_gzip_file(gz_file_path):
     """
     # Remove .gz extension and add .line
     extracted_file_path = gz_file_path[:-3] if gz_file_path.endswith('.gz') else f"{gz_file_path}.line"
-
-    logging.info(f"Extracting {gz_file_path} to {extracted_file_path}")
+    ingestion_logger.info(f"Extracting {gz_file_path} to {extracted_file_path}")
     try:
         with gzip.open(gz_file_path, 'rb') as f_in:
             with open(extracted_file_path, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
         return extracted_file_path
     except Exception as exc:
-        logging.error(f"Error decompressing file {gz_file_path}: {exc}")
+        ingestion_logger.error(f"Error decompressing file {gz_file_path}: {exc}")
         raise FileExtractionError(f"Failed to decompress {gz_file_path}") from exc
 
 
@@ -229,19 +205,19 @@ def ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retr
     while ingestion_attempt <= max_retries:
         try:
             if ingestion_attempt == 1:
-                logging.info(f"{process_name} - Writing batch {batch_id} of {len(batch)} lines")
+                ingestion_logger.info(f"{process_name} - Writing batch {batch_id} of {len(batch)} lines")
             else:
-                logging.warning(f"{process_name} - Retry attempt {ingestion_attempt} for batch {batch_id}")
+                ingestion_logger.warning(f"{process_name} - Retry attempt {ingestion_attempt} for batch {batch_id}")
 
             write_api.write(bucket=bucket_name, record=batch_content, write_precision=precision)
 
-            logging.info(f"{process_name} - Successfully wrote batch {batch_id} on attempt #{ingestion_attempt}")
+            ingestion_logger.info(f"{process_name} - Successfully wrote batch {batch_id} on attempt #{ingestion_attempt}")
             return len(batch)
 
         except Exception as write_exc:
             ingestion_attempt += 1
             if ingestion_attempt > max_retries:
-                logging.error(f"{process_name} - Failed to write batch {batch_id} after {max_retries} retries: {write_exc}")
+                ingestion_logger.error(f"{process_name} - Failed to write batch {batch_id} after {max_retries} retries: {write_exc}")
                 raise InfluxDBIngestionError(f"Failed to write batch {batch_id} after {max_retries} retries") from write_exc
 
             # Calculate backoff with jitter
@@ -250,8 +226,8 @@ def ingest_batch(write_api, batch, batch_id, process_name, bucket_name, max_retr
             random_jitter = random.uniform(0, jitter_ms)
             delay_with_jitter = delay_ms + random_jitter
 
-            logging.warning(f"{process_name} - Retry attempt for batch {batch_id} due to error: {write_exc}")
-            logging.warning(f"{process_name} - Waiting {delay_with_jitter/1000:.2f} seconds before retry #{ingestion_attempt +1}")
+            ingestion_logger.warning(f"{process_name} - Retry attempt for batch {batch_id} due to error: {write_exc}")
+            ingestion_logger.warning(f"{process_name} - Waiting {delay_with_jitter/1000:.2f} seconds before retry #{ingestion_attempt +1}")
 
             # Sleep before retry (convert ms to seconds)
             time.sleep(delay_with_jitter / 1000)
@@ -335,7 +311,7 @@ def ingest_line_protocol_file(extracted_file_path, lines_per_batch, io_multiplie
     with InfluxDBClient.from_env_properties() as client:
         write_api = client.write_api(write_options=SYNCHRONOUS)
 
-        logging.info(f"ingesting contents of {extracted_file_path}")
+        ingestion_logger.info(f"ingesting contents of {extracted_file_path}")
         with open(extracted_file_path, 'r', encoding='utf-8') as f:
             while True:
                 outer_chunk = read_outer_chunks(f, lines_per_batch, io_multiplier)
@@ -351,7 +327,7 @@ def ingest_line_protocol_file(extracted_file_path, lines_per_batch, io_multiplie
     return total_lines
 
 
-def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries, precision):
+def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, max_retries, precision, logs_dir):
     """
     Ingest a gzip file to InfluxDB.
 
@@ -369,6 +345,7 @@ def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, 
     Raises:
         Exception: If any error occurs during ingestion
     """
+    update_logger(ingestion_logger, logs_dir, f"worker-{current_process().pid}.log")
     process_name = current_process().name
     start_time = time.time()
     total_lines = 0
@@ -381,7 +358,7 @@ def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, 
 
     duration = time.time() - start_time
     lines_per_sec = total_lines/duration if duration > 0 else 0
-    logging.info(
+    ingestion_logger.info(
         "Process %s finished ingesting %s: %d lines in %.2f seconds (%.2f lines/sec)",
         process_name, file_name, total_lines, duration, lines_per_sec
     )
@@ -389,9 +366,9 @@ def ingest_gzip_file(gz_file_path, lines_per_batch, io_multiplier, bucket_name, 
     if extracted_file_path and os.path.exists(extracted_file_path):
         try:
             os.remove(extracted_file_path)
-            logging.info("%s deleted.", extracted_file_path)
+            ingestion_logger.info("%s deleted.", extracted_file_path)
         except Exception as exc:
-            logging.error("Error deleting extracted file %s: %s", extracted_file_path, exc)
+            ingestion_logger.error("Error deleting extracted file %s: %s", extracted_file_path, exc)
 
 
     return total_lines
@@ -421,22 +398,22 @@ def poll_for_result(result, failure_flag, continue_on_error, failed_log, file_na
             if failure_flag.value == 1:
                 update_tracking_file(failed_log, file_name, success=False)
                 if continue_on_error:
-                    logging.warning(f"Error detected in file {file_name}, but continuing with next file")
+                    ingestion_logger.warning(f"Error detected in file {file_name}, but continuing with next file")
                     return 0
                 else:
-                    logging.error("Stopping ingestion due to error in file %s.", file_name)
-                    logging.error("Fix the issue and run with --resume-from with the path to the previous tracking folder.")
+                    ingestion_logger.error("Stopping ingestion due to error in file %s.", file_name)
+                    ingestion_logger.error("Fix the issue and run with --resume-from with the path to the previous tracking folder.")
                     sys.exit(1)
             continue
             # We also need this exception block to handle InfluxDBIngestionError
         except Exception as e:
             update_tracking_file(failed_log, file_name, success=False)
             if continue_on_error:
-                logging.warning(f"Continuing with next file after error {e} in {file_name}")
+                ingestion_logger.warning(f"Continuing with next file after error {e} in {file_name}")
                 return 0
             else:
-                logging.error(f"Stopping ingestion due to error {e} in file {file_name}.")
-                logging.error("Fix the issue and run with --resume-from with the path to the previous tracking folder.")
+                ingestion_logger.error(f"Stopping ingestion due to error {e} in file {file_name}.")
+                ingestion_logger.error("Fix the issue and run with --resume-from with the path to the previous tracking folder.")
                 sys.exit(1)
 
 def main(input_args):
@@ -462,16 +439,19 @@ def main(input_args):
     parser.add_argument('-p', '--precision', type=str, default='ns',
                         choices=['ns', 'ms', 'us', 's'],
                         help='Timestamp precision for InfluxDB write. Note that this must align with the timestamp precision from the data being ingested (default: ns)')
+    parser.add_argument('--skip-bucket-check', action='store_true',
+                        help='Skips bucket and organization check (for ingestions to V3)')
     args = parser.parse_args(input_args)
 
-    setup_logging()
+    log_file_name = f'ingestion_{time.strftime("%Y%m%d_%H%M%S")}.log'
+    update_logger(ingestion_logger, args.logs_dir, log_file_name)
 
-    check_required_env_vars()
-    if not check_bucket_exists(args.bucket) or not check_org_exists():
+    check_required_env_vars(args.skip_bucket_check)
+    if not args.skip_bucket_check and (not check_bucket_exists(args.bucket) or not check_org_exists()):
         sys.exit(1)
 
     if not os.path.isdir(args.data_directory):
-        logging.error(f"Error: {args.data_directory} is not a valid directory")
+        ingestion_logger.error(f"Error: {args.data_directory} is not a valid directory")
         sys.exit(1)
 
     # Create a success and failure file tracking directory
@@ -494,18 +474,18 @@ def main(input_args):
             if os.path.basename(file_path) not in ingested_files:
                 gz_files.append(file_path)
             else:
-                logging.info(f"Skipping already ingested file: {file}")
+                ingestion_logger.info(f"Skipping already ingested file: {file}")
 
     if not gz_files:
-        logging.warning(f"No .gz files found to ingest in {args.data_directory}")
-        sys.exit(1)
+        ingestion_logger.warning(f"No .gz files found to ingest in {args.data_directory}")
+        return
 
-    logging.info(f"Found {len(gz_files)}.gz files in directory {args.data_directory}")
-    logging.info(f"Using {args.workers} workers to handle extraction and ingestion")
+    ingestion_logger.info(f"Found {len(gz_files)}.gz files in directory {args.data_directory}")
+    ingestion_logger.info(f"Using {args.workers} workers to handle extraction and ingestion")
 
     start_time = time.time()
     total_lines_ingested = 0
-    logging.info(f"Continue-on-error mode: {'enabled' if args.continue_on_error else 'disabled'}")
+    ingestion_logger.info(f"Continue-on-error mode: {'enabled' if args.continue_on_error else 'disabled'}")
 
     with Pool(processes=args.workers) as pool:
         async_results = []
@@ -519,45 +499,42 @@ def main(input_args):
             # Closure to capture the specific file's failure flag
             def make_error_callback(file_flag):
                 def error_callback(e):
-                    logging.error(f"Worker ingestion error: {e}")
+                    ingestion_logger.error(f"Worker ingestion error: {e}")
                     with file_flag.get_lock():
                         file_flag.value = 1
                 return error_callback
 
             result = pool.apply_async(
                 ingest_gzip_file,
-                args=(file, args.lines, args.multiplier, args.bucket, args.retries, args.precision),
+                args=(file, args.lines, args.multiplier, args.bucket, args.retries, args.precision, args.logs_dir),
                 error_callback=make_error_callback(failure_flags[file_name])
             )
             async_results.append((file, result))
-
         for file_path, result in async_results:
             file_name = os.path.basename(file_path)
-
             lines = poll_for_result(result, failure_flags[file_name], args.continue_on_error, failed_log, file_name)
-
             if lines > 0:
                 total_lines_ingested += lines
                 update_tracking_file(success_log, file_name, success=True)
-                logging.info(f"Successfully ingested file: {file_name}")
+                ingestion_logger.info(f"Successfully ingested file: {file_name}")
             else:
-                logging.error(f"Failed to ingest: {file_name}")
-                logging.warning(f"Continuing with next file after error in {file_name}")
+                ingestion_logger.error(f"Failed to ingest: {file_name}")
+                ingestion_logger.warning(f"Continuing with next file after error in {file_name}")
 
     # Log summary statistics
     total_time = time.time() - start_time
-    logging.info("Unload ingestion complete with a processing time: %.2f seconds", total_time)
-    logging.info("Total number of lines ingested: %d", total_lines_ingested)
+    ingestion_logger.info("Unload ingestion complete with a processing time: %.2f seconds", total_time)
+    ingestion_logger.info("Total number of lines ingested: %d", total_lines_ingested)
     if total_time > 0:
-        logging.info("Overall ingestion rate: %.2f lines/second", total_lines_ingested / total_time)
+        ingestion_logger.info("Overall ingestion rate: %.2f lines/second", total_lines_ingested / total_time)
 
     successful_count = sum(1 for _ in open(success_log, encoding='utf-8')) if os.path.exists(success_log) else 0
     failed_count = sum(1 for _ in open(failed_log, encoding='utf-8')) if os.path.exists(failed_log) else 0
 
-    logging.info(f"Successfully ingested {successful_count} files.")
+    ingestion_logger.info(f"Successfully ingested {successful_count} files.")
     if failed_count > 0:
-        logging.error(f"Failed to ingest {failed_count} files.")
-        logging.error("To retry failed files, run the script with the --resume-from with the path to the previous tracking folder.")
+        ingestion_logger.error(f"Failed to ingest {failed_count} files.")
+        ingestion_logger.error("To retry failed files, run the script with the --resume-from with the path to the previous tracking folder.")
 
 if __name__ == "__main__":
     main(sys.argv[1:])

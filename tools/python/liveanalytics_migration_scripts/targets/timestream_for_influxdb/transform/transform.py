@@ -1,5 +1,7 @@
 import argparse
 from dataclasses import dataclass
+import logging
+import time
 import os
 import sys
 import pyarrow.parquet as pq
@@ -12,11 +14,10 @@ sys.path.insert(
 from unload.utils.timestream_utils import TimestreamUtility
 from unload.utils.s3_utils import S3Utility
 from unload.utils.athena_utils import AthenaUtility, MAX_WAIT_SECONDS
-from unload.utils.logger_utils import create_logger
+from unload.utils.logger_utils import update_logger
 
 
-transform_logger = create_logger("transform")
-
+transform_logger = logging.getLogger("transform")
 
 @dataclass
 class LineProtocolTranslationResult:
@@ -728,8 +729,17 @@ def main(input_args):
         required=True,
         type=parse_bool_cli_argument,
     )
+    parser.add_argument(
+        "--logs-dir",
+        help="Directory for export logs .",
+        default="transform-logs",
+        required=False
+    )
 
     args = parser.parse_args(input_args)
+
+    log_file_name = f'transform_{time.strftime("%Y%m%d_%H%M%S")}.log'
+    update_logger(transform_logger, args.logs_dir, log_file_name)
 
     timestream_database_name = args.database_name
     s3_bucket_path = args.s3_bucket_path.rstrip("/")
