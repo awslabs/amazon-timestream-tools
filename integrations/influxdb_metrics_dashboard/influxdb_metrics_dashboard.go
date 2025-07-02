@@ -278,7 +278,7 @@ func addInfluxDBSgRuleInfo(influxDBSgRules map[string]influxDBSecurityGroupRule,
 //   - enableHighResolutionMetrics: Whether to enable high resolution metrics collection
 //
 // Returns:
-//   - A comma-separated string of InfluxDB instance names
+//   - A comma-separated string of InfluxDB instance name, InfluxDB instance size and InfluxDB instance storage type
 //   - An error if any operation fails
 func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackProps, influxDBIds string, telegrafSshCidr string, ec2Tags map[string]string, enableHighResolutionMetrics bool) (string, error) {
 	instanceRole := awsiam.NewRole(stack, jsii.String("influxdb-dashboard-ec2-role"), &awsiam.RoleProps{
@@ -308,7 +308,9 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 	cloudwatchPolicy.AttachToRole(instanceRole)
 
 	influxDBSgRules := make(map[string]influxDBSecurityGroupRule)
-	influxDBInstanceNames := ""
+	// Comma separate info for each InfluxDB instance in the format:
+	// db-instance-name:db-instance-size:db-instance-storage-type,...
+	influxDBInstanceInfo := ""
 	instanceEndpoint := ""
 	vpcId := ""
 
@@ -384,10 +386,10 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 
 		telegrafConfig += getTelegrafPluginsConfig(telegrafPluginConfigTemplateVars)
 
-		if influxDBInstanceNames != "" {
-			influxDBInstanceNames += ","
+		if influxDBInstanceInfo != "" {
+			influxDBInstanceInfo += ","
 		}
-		influxDBInstanceNames += *influxDBInstance.Name
+		influxDBInstanceInfo += *influxDBInstance.Name + ":" + string(influxDBInstance.DbInstanceType) + ":" + string(influxDBInstance.DbStorageType)
 	}
 
 	ec2InitScript := getEc2InitScript(
@@ -480,7 +482,7 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 		Description: jsii.String("The instance ID of the EC2 instance running Telegraf"),
 	})
 
-	return influxDBInstanceNames, nil
+	return influxDBInstanceInfo, nil
 }
 
 // addGrafanaWorkspaceToStack creates and configures an Amazon Managed Grafana workspace
@@ -552,15 +554,14 @@ func addGrafanaWorkspaceToStack(stack awscdk.Stack, stackProps awscdk.StackProps
 //   - stackProps: Properties of the CDK stack
 //   - grafanaWorkspaceName: The name of the Grafana workspace
 //   - dashboardName: The name for the Grafana dashboard
-//   - cloudwatchDatasourceName: The name of the CloudWatch data source in Grafana
-//   - dbInstanceNames: Comma-separated list of InfluxDB instance names
+//   - dbClusterInfo: Comma-separated list of InfluxDB instance name, instance size, and instance storage type
 //   - dashboardDataGranularity: The granularity of the dashboard used, default is 60s and fine granularity is 5s
 //
 // Returns:
 //   - The updated CDK stack
 //   - An error if any operation fails
-func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, grafanaWorkspaceName string, dashboardName string, cloudwatchDatasourceName string, dbInstanceNames string, dashboardDataGranularity string) (awscdk.Stack, error) {
-	var lambdaTimeout float64 = 200.0
+func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, grafanaWorkspaceName string, dashboardName string, dbClusterInfo string, dashboardDataGranularity string) (awscdk.Stack, error) {
+	var lambdaTimeout float64 = 600.0
 
 	lambdaHandler := awslambda.NewFunction(stack, jsii.String("influxDBMetricDashboardLambdaHandler"), &awslambda.FunctionProps{
 		Runtime:      awslambda.Runtime_PROVIDED_AL2023(),
@@ -570,9 +571,8 @@ func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, graf
 			"GOARCH":                   jsii.String("arm64"),
 			"GOOS":                     jsii.String("linux"),
 			"GrafanaWorkspaceName":     jsii.String(grafanaWorkspaceName),
-			"CloudWatchDatasourceName": jsii.String(cloudwatchDatasourceName),
 			"DashboardName":            jsii.String(dashboardName),
-			"DbInstanceNames":          jsii.String(dbInstanceNames),
+			"DbClusterInfo":            jsii.String(dbClusterInfo),
 			"dashboardDataGranularity": jsii.String(dashboardDataGranularity),
 		},
 		Code: awslambda.Code_FromCustomCommand(jsii.String("lambda/upload_dashboard/lambda.zip"), &[]*string{
@@ -670,11 +670,6 @@ func main() {
 	if grafanaWorkspaceNameContext != nil {
 		grafanaWorkspaceName = grafanaWorkspaceNameContext.(string)
 	}
-	cloudwatchDatasourceNameContext := stack.Node().TryGetContext(jsii.String("CloudWatchDatasourceName"))
-	cloudwatchDatasourceName := "Amazon CloudWatch Data Source"
-	if cloudwatchDatasourceNameContext != nil {
-		cloudwatchDatasourceName = cloudwatchDatasourceNameContext.(string)
-	}
 	dashboardNameContext := stack.Node().TryGetContext(jsii.String("DashboardName"))
 	dashboardName := "InfluxDB Performance Dashboard"
 	if dashboardNameContext != nil {
@@ -708,7 +703,7 @@ func main() {
 		grafanaWorkspaceTags = parseTagsContext(grafanaWorkspaceTagsContext.(string))
 	}
 
-	influxDBInstanceNames, err := addTelegrafEC2InstanceToStack(stack, stackProps, influxDBIdContext.(string), telegrafSshCidr, ec2InstanceTags, enableHighResolutionMetrics)
+	influxDBClusterInfo, err := addTelegrafEC2InstanceToStack(stack, stackProps, influxDBIdContext.(string), telegrafSshCidr, ec2InstanceTags, enableHighResolutionMetrics)
 	if err != nil {
 		log.Printf("Error adding Telegraf instance to stack: %s", err)
 		return
@@ -719,7 +714,7 @@ func main() {
 		log.Printf("Error adding Grafana workspace to stack: %s", err)
 		return
 	}
-	_, err = createLambdaResource(stack, stackProps, grafanaWorkspaceName, dashboardName, cloudwatchDatasourceName, influxDBInstanceNames, dashboardDataGranularity)
+	_, err = createLambdaResource(stack, stackProps, grafanaWorkspaceName, dashboardName, influxDBClusterInfo, dashboardDataGranularity)
 	if err != nil {
 		log.Printf("Error adding Lambda function to stack: %s", err)
 		return
