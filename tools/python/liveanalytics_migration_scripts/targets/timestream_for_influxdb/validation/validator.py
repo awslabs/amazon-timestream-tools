@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 from io import StringIO
 import os
+import logging
 import sys
 import time
 import datetime as dt
@@ -38,10 +39,38 @@ import requests
 from dotenv import load_dotenv
 import boto3
 import influxdb_client
+from unload.utils.logger_utils import update_logger
+
+validation_logger = logging.getLogger("validation")
 
 
 # ───────────────────────── Helpers ──────────────────────────
 
+def get_quoted_tags(dimensions: list) -> str:
+    """
+    Produces line protocol tags in a format that the validation script
+    expects for its --schema-tags argument. To do this, this function
+    builds a string comprised of comma-separated dimension names, adding
+    quotes to any dimension name that includes commas.
+
+    Args:
+        dimensions (list[dict]): A list of dimensions where each dimension
+            can be a dict with the key "Name".
+
+    Returns:
+        str
+    """
+    # measure_name is assumed to always be present as a tag.
+    quoted_tags = ["measure_name"]
+    for dimension in dimensions:
+        if isinstance(dimension, dict):
+            dimension = dimension["Name"]
+
+        if "," in dimension:
+            quoted_tags.append(f'"{dimension}"')
+        else:
+            quoted_tags.append(dimension)
+    return ",".join(quoted_tags)
 
 def timed(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Tuple[Any, float]:
     """Execute *func* and measure its runtime."""
@@ -128,7 +157,7 @@ def count_timestream_rows(
     rows: list[dict] = []
     next_token: str | None = None
 
-    print(f"--- Timestream ---\n\nRunning query:\n{query}\n")
+    validation_logger.info(f"--- Timestream ---\n\nRunning query:\n{query}\n")
     while True:
         params: Dict[str, str] = {"QueryString": query}
         if next_token:
@@ -145,7 +174,7 @@ def count_timestream_rows(
 
     total = int(rows[0]["Data"][0]["ScalarValue"])
     label = f"{database}.{table} ({start_time or 'begin'} - {end_time or 'now'})"
-    print(f"[TIMESTREAM] Total records in {label}: {total}\n")
+    validation_logger.info(f"[TIMESTREAM] Total records in {label}: {total}\n")
     return total
 
 
@@ -202,7 +231,7 @@ def count_athena_rows(
 
     client = session.client("athena")
 
-    print(f"--- Athena ---\n\nRunning query:\n{query}\n")
+    validation_logger.info(f"--- Athena ---\n\nRunning query:\n{query}\n")
     execution = client.start_query_execution(
         QueryString=query,
         QueryExecutionContext={"Database": database},
@@ -229,7 +258,7 @@ def count_athena_rows(
     rows = client.get_query_results(QueryExecutionId=qid)["ResultSet"]["Rows"]
     count = int(rows[1]["Data"][0]["VarCharValue"])
     label = f"{database}.{table} ({start_time or 'begin'} - {end_time or 'now'})"
-    print(f"[ATHENA] Total records in {label}: {count}\n")
+    validation_logger.info(f"[ATHENA] Total records in {label}: {count}\n")
     return count
 
 
@@ -286,12 +315,12 @@ def count_influx_rows(
             f' |> filter(fn: (r) => r._field == "{row_identifier}")'
             " |> group() |> count()"
         )
-        print(f"--- InfluxDB ---\n\nRunning query:\n{query}\n")
+        validation_logger.info(f"--- InfluxDB ---\n\nRunning query:\n{query}\n")
         tables = client.query_api().query(org=org, query=query)
 
     total = sum(int(rec.get_value()) for tbl in tables for rec in tbl.records)
     label = f"{bucket}.{measurement} ({start_time or 'begin'} - {end_time or 'now'})"
-    print(f"[INFLUXDB] Total LP points in {label}: {total}\n")
+    validation_logger.info(f"[INFLUXDB] Total LP points in {label}: {total}\n")
     return total
 
 
@@ -432,6 +461,12 @@ def parse_args(input_args: list[str]) -> argparse.Namespace:
         help="Skip querying the source engine (Athena/Timestream) and only "
         "return the InfluxDB row count.",
     )
+    parser.add_argument(
+        "--logs-dir",
+        help="Directory for export logs .",
+        default="transform-logs",
+        required=False
+    )
 
     args = parser.parse_args(remaining, namespace=prelim)
     return args
@@ -442,15 +477,19 @@ def parse_args(input_args: list[str]) -> argparse.Namespace:
 
 def main(input_args) -> None:
     args = parse_args(input_args)
-    print("-" * 20)
-    print("Starting validation")
-    print("-" * 20)
+
+    log_file_name = f'validation_{time.strftime("%Y%m%d_%H%M%S")}.log'
+    update_logger(validation_logger, args.logs_dir, log_file_name)
+
+    validation_logger.info("-" * 20)
+    validation_logger.info("Starting validation")
+    validation_logger.info("-" * 20)
 
     poll_interval = int(args.poll_metrics_interval)
     session = requests.Session()
 
     if not args.skip_wal_check:
-        print(
+        validation_logger.info(
             f"\nPolling {args.influxdb_v2_url}/metrics to wait for WAL to complete flushing ...\n"
         )
         while True:
@@ -458,23 +497,23 @@ def main(input_args) -> None:
             try:
                 nz_wals = poll_metrics(session=session, url=args.influxdb_v2_url)
             except requests.RequestException as exc:
-                print(
+                validation_logger.error(
                     f"{timestamp}  request failed ({exc}); retrying in {poll_interval}s"
                 )
                 time.sleep(poll_interval)
                 continue
 
             if nz_wals:
-                print(
+                validation_logger.info(
                     f"{timestamp}  {len(nz_wals):>2} shards with non-zero WAL "
                     f"(largest={max(nz_wals) / 1024:,.1f} KiB)"
                 )
                 time.sleep(poll_interval)
             else:
-                print(f"{timestamp}  WAL empty on all shards — ready for validation.\n")
+                validation_logger.info(f"{timestamp}  WAL empty on all shards — ready for validation.\n")
                 break
     else:
-        print("\nSkipping check for InfluxDB WAL to complete flushing ...\n")
+        validation_logger.info("\nSkipping check for InfluxDB WAL to complete flushing ...\n")
 
     if args.schema_tags:
         reader = csv.reader(StringIO(args.schema_tags))
@@ -484,7 +523,7 @@ def main(input_args) -> None:
 
     boto3_session = initialize_session()
 
-    print("Starting validation ...\n")
+    validation_logger.info("Starting validation ...\n")
 
     futures: Dict[str, Any] = {}
     results: Dict[str, Tuple[Any, float]] = {}
@@ -539,37 +578,36 @@ def main(input_args) -> None:
     src_count, src_elapsed = results.get("Source Engine", (None, None))
 
     if infl_count is None:
-        print("\n❌ InfluxDB query failed - cannot continue comparison.")
+        validation_logger.error("\n❌ InfluxDB query failed - cannot continue comparison.")
     elif infl_count == 0:
-        print(f"\n❗ InfluxDB returned 0 points in {args.influxdb_v2_bucket}.")
-        sys.exit(1)
+        validation_logger.info(f"\n❗ InfluxDB returned 0 points in {args.influxdb_v2_bucket}.")
+        return
 
     if infl_count is not None and args.influx_only:
-        print(f"\n⏱ InfluxDB query time: {infl_elapsed:.2f}s")
-        print("\n--------- Influx-Only Results ---------\n")
-        print(f"InfluxDB row count: {infl_count}\n")
+        validation_logger.info(f"\n⏱ InfluxDB query time: {infl_elapsed:.2f}s")
+        validation_logger.info("\n--------- Influx-Only Results ---------\n")
+        validation_logger.info(f"InfluxDB row count: {infl_count}\n")
 
     if not errors:
-        print("--------- Migration Results ---------\n")
+        validation_logger.info("--------- Migration Results ---------\n")
         if src_elapsed is not None:
             src_label = args.source_engine.title()
-            print(f"⏱ {src_label} query time: {src_elapsed:.2f}s")
+            validation_logger.info(f"⏱ {src_label} query time: {src_elapsed:.2f}s")
         if infl_elapsed is not None:
-            print(f"⏱ InfluxDB query time:   {infl_elapsed:.2f}s\n")
+            validation_logger.info(f"⏱ InfluxDB query time:   {infl_elapsed:.2f}s\n")
 
         if src_count is not None and infl_count is not None:
             if src_count == infl_count:
-                print(f"🎉  {src_label} and InfluxDB row counts match.\n")
+                validation_logger.info(f"🎉  {src_label} and InfluxDB row counts match.\n")
             else:
                 sign = ">" if src_count > infl_count else "<"
-                print(f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n")
-                sys.exit(1)
+                validation_logger.info(f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n")
+                return
     else:
-        print("\n--------- Exceptions ---------\n")
+        validation_logger.info("\n--------- Exceptions ---------\n")
         for name, exc in errors.items():
-            print(f"{name} query failed: {exc}")
-        print()
-        sys.exit(1)
+            validation_logger.error(f"{name} query failed: {exc}")
+        return
 
 
 if __name__ == "__main__":

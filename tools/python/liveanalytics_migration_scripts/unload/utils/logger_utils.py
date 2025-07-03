@@ -22,7 +22,7 @@ def create_logger(logger_name, log_file=None, log_level=logging.INFO):
         logger.handlers.clear()
     
     # Create formatter
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [Thread-%(thread)d] - %(message)s')
     
     # Create console handler and set level
     ch = logging.StreamHandler()
@@ -35,7 +35,7 @@ def create_logger(logger_name, log_file=None, log_level=logging.INFO):
         # Create directory for log file if it doesn't exist
         log_dir = os.path.dirname(log_file)
         if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+            os.makedirs(log_dir, exist_ok=True)
             
         # Create file handler and set level
         fh = logging.FileHandler(log_file)
@@ -44,3 +44,25 @@ def create_logger(logger_name, log_file=None, log_level=logging.INFO):
         logger.addHandler(fh)
     
     return logger
+
+
+def update_logger(logger, log_dir="logs", log_file_name=None, log_level=logging.INFO):
+    os.makedirs(log_dir, exist_ok=True)
+    logger.setLevel(log_level)
+
+    # Clear any existing handlers (to avoid duplicate logs)
+    if logger.handlers:
+        logger.handlers.clear()
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [Thread-%(thread)d] - %(message)s')
+
+    ch = logging.StreamHandler()
+    ch.setLevel(log_level)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    log_file_path = os.path.join(log_dir, log_file_name)
+    fh = logging.FileHandler(log_file_path)
+    fh.setLevel(log_level)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
