@@ -348,3 +348,62 @@ class S3Utility:
                 local_file_path = os.path.join(directory, rel_path)
                 os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
                 self.s3_client.download_file(s3_bucket_name, s3_key, local_file_path)
+
+    def delete_bucket_and_contents(self, bucket_name: str, batch_size: int = 1000):
+        """
+        Deletes every object (and its versions if versioning is enabled) inside the
+        bucket referenced by *bucket_name* and then deletes the bucket itself.
+
+        Args:
+            bucket_name (str): The S3 bucket name.
+            batch_size (int): The number of objects to delete per ``delete_objects`` call.
+                              The AWS API supports a maximum of 1000 per request.
+
+        Raises:
+            RuntimeError: If the bucket does not exist or deletion fails.
+        """
+        if not self.s3_bucket_exists(bucket_name):
+            raise RuntimeError(f"Bucket {bucket_name} does not exist")
+
+        self.logger.info(f"Deleting all objects from bucket '{bucket_name}'")
+
+        # Delete object versions (handles versioned buckets) as well as
+        # any delete markers.
+        paginator = self.s3_client.get_paginator("list_object_versions")
+        delete_batch = []
+        for page in paginator.paginate(Bucket=bucket_name):
+            for version in page.get("Versions", []) + page.get("DeleteMarkers", []):
+                delete_batch.append(
+                    {"Key": version["Key"], "VersionId": version["VersionId"]}
+                )
+                if len(delete_batch) == batch_size:
+                    self.s3_client.delete_objects(
+                        Bucket=bucket_name, Delete={"Objects": delete_batch}
+                    )
+                    delete_batch.clear()
+
+            # Flush remaining items in batch at end of page
+            if delete_batch:
+                self.s3_client.delete_objects(
+                    Bucket=bucket_name, Delete={"Objects": delete_batch}
+                )
+                delete_batch.clear()
+
+        # For non-versioned buckets or if version listing was empty, ensure
+        # current objects are also removed.
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket_name):
+            objects = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
+            if objects:
+                # Batch in chunks of batch_size
+                for i in range(0, len(objects), batch_size):
+                    self.s3_client.delete_objects(
+                        Bucket=bucket_name,
+                        Delete={"Objects": objects[i : i + batch_size]},
+                    )
+
+        self.logger.info(f"Deleting bucket '{bucket_name}'")
+        self.s3_client.delete_bucket(Bucket=bucket_name)
+        self.logger.info(
+            f"Bucket '{bucket_name}' and all of its contents were deleted successfully"
+        )

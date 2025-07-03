@@ -211,31 +211,6 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             if not self.silence_cleanup_logging:
                 logging.warning(f"tearDown: Failed to delete InfluxDB bucket: {e}")
 
-    @staticmethod
-    def get_quoted_tags(dimensions: list) -> str:
-        """
-        Produces line protocol tags in a format that the validation script
-        expects for its --schema-tags argument. To do this, this function
-        builds a string comprised of comma-separated dimension names, adding
-        quotes to any dimension name that includes commas.
-
-        Args:
-            dimensions (list[dict]): A list of dimensions where each dimension
-                is a dict with the key "Name".
-
-        Returns:
-            str
-        """
-        # measure_name is assumed to always be present as a tag.
-        quoted_tags = ["measure_name"]
-        for dimension in dimensions:
-            tag = dimension["Name"]
-            if "," in tag:
-                quoted_tags.append(f'"{tag}"')
-            else:
-                quoted_tags.append(tag)
-        return ",".join(quoted_tags)
-
     def test_single_measure_basic(self):
         current_time = pandas.Timestamp.now()
 
@@ -258,7 +233,7 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             "TimeUnit": "NANOSECONDS",
         }
 
-        schema_tags = self.get_quoted_tags(dimensions)
+        schema_tags = validator.get_quoted_tags(dimensions)
 
         self.put_records([record])
 
@@ -359,7 +334,7 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             "TimeUnit": "NANOSECONDS",
         }
 
-        schema_tags = self.get_quoted_tags(dimensions)
+        schema_tags = validator.get_quoted_tags(dimensions)
 
         self.put_records([record])
         unload.main(
@@ -581,7 +556,7 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             ],
         }
 
-        schema_tags = self.get_quoted_tags(dimensions)
+        schema_tags = validator.get_quoted_tags(dimensions)
 
         self.put_records([record])
         unload.main(
@@ -686,7 +661,7 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             ],
         }
 
-        schema_tags = self.get_quoted_tags(dimensions)
+        schema_tags = validator.get_quoted_tags(dimensions)
 
         self.put_records([record])
         unload.main(
@@ -841,7 +816,7 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             },
         ]
 
-        schema_tags = self.get_quoted_tags(dimensions)
+        schema_tags = validator.get_quoted_tags(dimensions)
 
         self.put_records(records)
         unload.main(
@@ -973,7 +948,7 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             },
         ]
 
-        schema_tags = self.get_quoted_tags(dimensions)
+        schema_tags = validator.get_quoted_tags(dimensions)
 
         self.put_records(records)
         unload.main(

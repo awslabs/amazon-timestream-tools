@@ -24,6 +24,9 @@ target/
 # Ignore common JS files
 node_modules
 
+# Ignore configs
+**/config.yaml
+
 # Ignore AWS Influx migration script backup and performance files and directories
 tools/python/influx-migration/**/performance.txt
 tools/python/influx-migration/**/*influxdb-backup-*
@@ -33,8 +36,7 @@ tools/python/influx-migration/**/scripts/temp/*
 **/query_results.log
 
 # LiveAnalytics to InfluxDB migration log files
-**/influxdb-ingestion-logs/**
-**/timestream-export-logs/**
+**/*-logs/
 
 # LiveAnalytics migration to InfluxDB generated test data
 tools/python/liveanalytics_migration_scripts/tests/integration/test-data/*

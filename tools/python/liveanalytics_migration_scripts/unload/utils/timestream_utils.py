@@ -154,7 +154,7 @@ class TimestreamUtility:
 
         while current < end_time:
             # You cannot have more than 100 partitions for single unload.
-            partition_count = custom_partition_count 
+            partition_count = int(custom_partition_count)
             if partition_by == 'hour':
                 next_time = current + timedelta(hours=partition_count)
             if partition_by == "day":
@@ -703,4 +703,35 @@ class TimestreamUtility:
             return timestamp_columns
         except Exception as e:
             self.logger.error(f"Failed to list timestamp columns for {database}.{table}: {str(e)}", exc_info=True)
+            raise
+
+    def list_dimension_columns(self, database: str, table: str):
+        """
+        Retrieves all columns of type DIMENSION from the specified Timestream table.
+
+        Args:
+            database (str): The name of the Timestream database.
+            table (str): The name of the Timestream table.
+
+        Returns:
+            List[str]: A list of column names that are classified as DIMENSION columns.
+
+        Raises:
+            Exception: If the Timestream query fails or an unexpected error occurs during processing.
+        """
+        query_string = f'DESCRIBE "{database}"."{table}"'
+        try:
+            resp = self.timestream_read_client.query(QueryString=query_string)
+            rows = resp.get("Rows", [])
+            return [
+                r["Data"][0]["ScalarValue"]
+                for r in rows
+                if len(r["Data"]) > 2
+                and r["Data"][2].get("ScalarValue", "").upper() == "DIMENSION"
+            ]
+        except Exception as exc:
+            self.logger.error(
+                f"Failed to list dimension columns for {database}.{table}: {exc}",
+                exc_info=True,
+            )
             raise
