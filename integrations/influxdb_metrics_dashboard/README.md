@@ -6,10 +6,6 @@ The InfluxDB Metrics Dashboard creates a Grafana dashboard to visualize existing
 
 <img src="./images/architecture.png" alt="drawing" width="800"/>
 
-## Demo
-
-![Demo video](./images/demo.gif)
-
 ## Configuration
 
 ### Prerequisites
@@ -213,6 +209,10 @@ The InfluxDB Metrics Dashboard exposes variables for InfluxDB sizing specificati
 | db.influx.24xlarge  | 96  | 824633720832 | 5000000000 | 12000000   | 1200000   | 65 |
 
 Use these variables in math expressions or transformations to customize the panels with any of the metrics that are scraped from the [InfluxDB OSS metrics endpoint](https://docs.influxdata.com/influxdb/v2/reference/internals/metrics/). For an example of how to use variables in math expressions, you can view the math expressions in the "Bucket cardinality" or "Total Go system memory usage" panels.
+
+## Limitations
+
+The InfluxDB Metrics Dashboard only supports counter and gauge types scraped from the `/metrics` endpoint of an InfluxDB instance. This functionality is due to CloudWatch not providing support for histogram types and potentially creating large amounts of metrics if we create histograms for high cardinality datasets.
 
 ## Cleanup
 
