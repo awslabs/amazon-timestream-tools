@@ -854,17 +854,6 @@ func generatePanelFieldConfig(panelType string, panelTitle string, panelUnit str
 func generatePanels(dashboardDataGranularity string) []interface{} {
 
 	panelFields := []panelField{
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 0}, "Query execution duration in seconds", "bargauge", "Sum", "none",
-			[]string{
-				"qc_executing_duration_seconds_3.125",
-				"qc_executing_duration_seconds_0.625",
-				"qc_executing_duration_seconds_0.125",
-				"qc_executing_duration_seconds_0.025",
-				"qc_executing_duration_seconds_0.005",
-				"qc_executing_duration_seconds_0.001",
-			},
-			"",
-		},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 0}, "Memory utilization", "gauge", "Average", "percent", []string{"MemoryUtilization"}, ""},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 8}, "CPU utilization", "gauge", "Average", "percent", []string{"CPUUtilization"}, ""},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 8}, "Disk utilization", "gauge", "Average", "percent", []string{"DiskUtilization"}, ""},

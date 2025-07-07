@@ -25,7 +25,12 @@ import (
 )
 
 // getBaseTelegrafConfig generates the base Telegraf configuration with agent settings
-// and processors for metric conversion and filtering.
+// and processors for metric conversion and filtering. The Starlark processor filters
+// out any tags that are not for the db instance name, bucket, or org. This reduces
+// cardinality of the dataset while providing basic statistics for the Grafana dashboard.
+// As well only counter and gauge metric types are supported as CloudWatch does not natively
+// support histogram types and for high cardinality datasets cause large amounts of metrics
+// to be ingested to CloudWatch.
 //
 // Parameters:
 //   - configVars: A map containing template variables for the configuration,
@@ -53,12 +58,14 @@ func getBaseTelegrafConfig(configVars map[string]string) string {
 [[processors.starlark]]
   source = '\'''\'''\''
 def apply(metric):
- 
-  for tagKey, tagVal in metric.tags.items():
-    if tagKey != "DbInstanceName":
-      metric.tags.pop(tagKey)
-		
-  return metric
+
+  if "counter" in metric.fields or "gauge" in metric.fields:
+    for tagKey, tagVal in metric.tags.items():
+      if tagKey != "DbInstanceName" and tagKey != "bucket" and tagKey != "org":
+        metric.tags.pop(tagKey)
+      return metric
+
+  return None
 '\'''\'''\''
 
 
