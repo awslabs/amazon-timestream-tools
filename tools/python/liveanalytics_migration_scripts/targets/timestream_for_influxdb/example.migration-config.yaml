@@ -55,13 +55,13 @@ stage:
   # INGESTION
   #######################################################################
   ingest:
+    influxdb_version: v2
     lines_per_batch: 5000
     io_multiplier: 5
     retries: 20
     precision: ns
     logs_dir: ingestion-logs
     continue_on_error: true
-    skip_bucket_check: false
 
   #######################################################################
   # VALIDATION

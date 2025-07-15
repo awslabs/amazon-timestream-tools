@@ -31,8 +31,14 @@ import logging
 import sys
 import time
 import datetime as dt
+import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, List, Sequence, Tuple, Dict
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+)
+
 
 from pandas.io.parsers.readers import csv
 import requests
@@ -323,6 +329,73 @@ def count_influx_rows(
     validation_logger.info(f"[INFLUXDB] Total LP points in {label}: {total}\n")
     return total
 
+def count_influx_v3_rows(
+    url: str,
+    token: str,
+    database: str,
+    measurement: str,
+    row_identifier: str = "migration_label",
+    start_time: str | None = None,
+    end_time: str | None = None
+) -> int | None:
+    """
+    Count points in an InfluxDB v3 table via the InfluxDB v3 HTTP query API.
+
+    Args:
+        url: Base URL of the InfluxDB V3 instance.
+        token: InfluxDB access token.
+        database: Name of the database.
+        measurement: Measurement to query.
+        row_identifier: Field that appears exactly once per logical row.
+        start_time: Inclusive lower-bound (ISO-8601).  None = no lower bound.
+        end_time:   Exclusive upper-bound (ISO-8601).  None = no upper bound.
+
+    Returns:
+        Point count, or `None` on failure.
+    """
+    headers = {"Authorization": f"Bearer {token}"}
+    # Build the InfluxQL WHERE clause for the optional time filter
+    where_parts: list[str] = []
+    if start_time:
+        where_parts.append(f"time >= '{start_time}'")
+    if end_time:
+        where_parts.append(f"time < '{end_time}'")
+    time_filter = f" WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+    query = f'SELECT COUNT("{row_identifier}") FROM "{measurement}"{time_filter}'
+    validation_logger.info(f"--- InfluxDB v3 ---\n\nRunning query:\n{query}\n")
+
+    payload = {
+        "db": database,
+        "q": query,
+        "format": "jsonl"
+    }
+
+    try:
+        resp = requests.post(
+            f"{url.rstrip('/')}/api/v3/query_influxql",
+            headers=headers,
+            json=payload
+        )
+        resp.raise_for_status()
+        # JSONL streams lines; pick first
+        lines = resp.text.strip().splitlines()
+        first = json.loads(lines[0]) if lines else {}
+    except Exception as exc:
+        raise RuntimeError(f"InfluxDB v3 request failed: {exc}") from exc
+
+    try:
+        # InfluxQL returns 'count' field
+        total = int(first.get("count") or next(iter(first.values())))
+    except Exception as exc:
+        validation_logger.error(f"InfluxDB v3 response does not contain count, likely due to non-existent table.")
+        return 0
+
+
+    label = f"{database}.{measurement} ({start_time or 'begin'} - {end_time or 'now'})"
+    validation_logger.info(f"[INFLUXDB-v3] Total LP points in {label}: {total}\n")
+
+    return total
 
 # ────────────────────── CLI parsing ─────────────────────────
 
@@ -394,6 +467,12 @@ def parse_args(input_args: list[str]) -> argparse.Namespace:
     )
 
     # - InfluxDB
+    parser.add_argument(
+        "--influxdb-version",
+        choices=["v2", "v3"],
+        default=env("INFLUXDB_VERSION", "v2"),
+        help="Version of InfluxDB instance to validate.",
+    )
     parser.add_argument(
         "--influxdb-v2-url",
         default=env("INFLUXDB_V2_URL"),
@@ -530,18 +609,31 @@ def main(input_args) -> None:
     errors: Dict[str, Exception] = {}
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        futures["InfluxDB"] = pool.submit(
-            timed,
-            count_influx_rows,
-            args.influxdb_v2_url,
-            args.influxdb_v2_token,
-            args.influxdb_v2_org,
-            args.influxdb_v2_bucket,
-            args.influxdb_v2_measurement,
-            "la_unload",
-            args.start_time,
-            args.end_time,
-        )
+        if args.influxdb_version == "v3":
+            futures["InfluxDB"] = pool.submit(
+                timed,
+                count_influx_v3_rows,
+                args.influxdb_v2_url,
+                args.influxdb_v2_token,
+                args.influxdb_v2_bucket,
+                args.influxdb_v2_measurement,
+                "la_unload",
+                args.start_time,
+                args.end_time,
+            )
+        else:
+            futures["InfluxDB"] = pool.submit(
+                timed,
+                count_influx_rows,
+                args.influxdb_v2_url,
+                args.influxdb_v2_token,
+                args.influxdb_v2_org,
+                args.influxdb_v2_bucket,
+                args.influxdb_v2_measurement,
+                "la_unload",
+                args.start_time,
+                args.end_time,
+            )
 
         if not args.influx_only:
             if args.source_engine == "athena":
@@ -579,9 +671,6 @@ def main(input_args) -> None:
 
     if infl_count is None:
         validation_logger.error("\n❌ InfluxDB query failed - cannot continue comparison.")
-    elif infl_count == 0:
-        validation_logger.info(f"\n❗ InfluxDB returned 0 points in {args.influxdb_v2_bucket}.")
-        return
 
     if infl_count is not None and args.influx_only:
         validation_logger.info(f"\n⏱ InfluxDB query time: {infl_elapsed:.2f}s")
@@ -598,7 +687,7 @@ def main(input_args) -> None:
 
         if src_count is not None and infl_count is not None:
             if src_count == infl_count:
-                validation_logger.info(f"🎉  {src_label} and InfluxDB row counts match.\n")
+                validation_logger.info(f"🎉  {src_label} and InfluxDB row counts match ({src_count}).\n")
             else:
                 sign = ">" if src_count > infl_count else "<"
                 validation_logger.info(f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n")
