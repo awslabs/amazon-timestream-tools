@@ -86,13 +86,13 @@ Ensure you have run the steps in [README.md#Installation](../../README.md#instal
 
     InfluxDB V3 supports [backwards compatibility with prior versions (ie. the V2 write API)](https://docs.influxdata.com/influxdb3/enterprise/write-data/compatibility-apis/).
 
-    Define the following environment variables, omitting `INFLUXDB_V2_ORG` (concept of organizations do not apply in V3):
+    1. Define the following environment variables, omitting `INFLUXDB_V2_ORG` (concept of organizations do not apply in V3):
     ```
     export INFLUXDB_V2_URL="https://influxdb_v3_url:8181"
     export INFLUXDB_V2_TOKEN="xxx"
     ```
 
-    - Set `skip_bucket_check` in the config to `True` (concept of buckets do not apply in V3)
+    2. Set `influxdb_version` in your config to `v3`. Note that *buckets* from V2 are called *databases* in V3.
 
 #### Usage
 

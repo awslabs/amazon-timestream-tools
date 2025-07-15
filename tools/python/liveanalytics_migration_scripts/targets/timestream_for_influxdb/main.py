@@ -197,13 +197,13 @@ def main():
     # ---------
     # INGEST configs
     # ---------
+    influxdb_version = config["stage"]["ingest"]["influxdb_version"]
     lines_per_batch = config["stage"]["ingest"]["lines_per_batch"]
     io_multiplier = config["stage"]["ingest"]["io_multiplier"]
     retries = config["stage"]["ingest"]["retries"]
     precision = config["stage"]["ingest"]["precision"]
     ingest_logs_dir = os.path.join(base_logs_dir, config["stage"]["ingest"]["logs_dir"])
     continue_on_error = config["stage"]["ingest"]["continue_on_error"]
-    skip_bucket_check = config["stage"]["ingest"]["skip_bucket_check"]
 
     influx_args = [
         "-w", str(num_threads),
@@ -215,12 +215,15 @@ def main():
     ]
     if continue_on_error:
         influx_args.append("--continue-on-error")
-    if skip_bucket_check:
+
+    skip_bucket_check = False
+    if influxdb_version == "v3":
+        skip_bucket_check = True
         influx_args.append("--skip-bucket-check")
 
-    influxdb_url = os.environ["INFLUXDB_V2_URL"]
-    influxdb_token = os.environ["INFLUXDB_V2_TOKEN"]
-    influxdb_org = os.environ["INFLUXDB_V2_ORG"]
+    influxdb_url = os.environ.get("INFLUXDB_V2_URL")
+    influxdb_token = os.environ.get("INFLUXDB_V2_TOKEN")
+    influxdb_org = os.environ.get("INFLUXDB_V2_ORG")
 
     migration_logger.info(f"InfluxDB URL: {influxdb_url}")
 
@@ -401,31 +404,31 @@ def main():
         except Exception as e:
             migration_logger.error(f"Error during ingestion: {e}")
 
-        # TODO: add v3 support in validation
-        if not skip_bucket_check:
-            migration_logger.info(f"Executing validation(s) for {db_name}")
-            for table in tables:
-                validation_args = validation_common_args + [
-                    "--timestream-database-name",
-                    db_name,
-                    "--timestream-table-name",
-                    table,
-                    "--influxdb-v2-bucket",
-                    db_name,
-                    "--influxdb-v2-measurement",
-                    table,
-                ]
-                if db_name in dimensions_to_fields_map.keys():
-                    dims = timestream_utility.list_dimension_columns(db_name, table)
-                    for table_name, dimensions in dimensions_to_fields_map[db_name].items():
-                        if table_name == table:
-                            schema_tags = [dim for dim in dims if dim not in dimensions]
-                            tags = validator.get_quoted_tags(schema_tags)
-                            validation_args += [
+        migration_logger.info(f"Executing validation(s) for {db_name}")
+        for table in tables:
+            validation_args = validation_common_args + [
+                "--timestream-database-name",
+                db_name,
+                "--timestream-table-name",
+                table,
+                "--influxdb-v2-bucket",
+                db_name,
+                "--influxdb-v2-measurement",
+                table,
+                "--influxdb-version",
+                influxdb_version,
+            ]
+            if db_name in dimensions_to_fields_map.keys():
+                dims = timestream_utility.list_dimension_columns(db_name, table)
+                for table_name, dimensions in dimensions_to_fields_map[db_name].items():
+                    if table_name == table:
+                        schema_tags = [dim for dim in dims if dim not in dimensions]
+                        tags = validator.get_quoted_tags(schema_tags)
+                        validation_args += [
 
-                                "--schema-tags", tags
-                            ]
-                validator.main(validation_args)
+                            "--schema-tags", tags
+                        ]
+            validator.main(validation_args)
 
     migration_logger.info("Validation complete.")
     # ---------
