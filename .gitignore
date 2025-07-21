@@ -42,3 +42,9 @@ tools/python/influx-migration/**/scripts/temp/*
 tools/python/liveanalytics_migration_scripts/tests/integration/test-data/*
 !tools/python/liveanalytics_migration_scripts/tests/integration/test-data/valid/*.gz
 !tools/python/liveanalytics_migration_scripts/tests/integration/test-data/invalid/*.gz
+
+# Ignore InfluxDB Metrics Dashboard generated files
+integrations/influxdb_metrics_dashboard/lambda/upload_dashboard/bootstrap
+integrations/influxdb_metrics_dashboard/lambda/upload_dashboard/lambda.zip
+integrations/influxdb_metrics_dashboard/cdk.out
+integrations/influxdb_metrics_dashboard/cdk.context.json
