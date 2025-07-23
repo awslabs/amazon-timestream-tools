@@ -66,9 +66,6 @@ direction LR
     class AddMetadata blue
 ```
 
-
-## End-to-end Migration
-
 #### Prerequisites
 
 Ensure you have run the steps in [README.md#Installation](../../README.md#installation).
@@ -84,17 +81,17 @@ Ensure you have run the steps in [README.md#Installation](../../README.md#instal
 
 - Migrating to <b>InfluxDB V3</b>
 
-    InfluxDB V3 supports [backwards compatibility with prior versions (ie. the V2 write API)](https://docs.influxdata.com/influxdb3/enterprise/write-data/compatibility-apis/).
+    InfluxDB V3 supports the [V2 write API](https://docs.influxdata.com/influxdb3/enterprise/write-data/compatibility-apis/).
 
-    1. Define the following environment variables, omitting `INFLUXDB_V2_ORG` (concept of organizations do not apply in V3):
+    1. Set `influxdb_version` in the [config](example.migration-config.yaml) to `v3`. Note that *buckets* from V2 are called *databases* in V3.
+
+    2. Define the following environment variables, omitting `INFLUXDB_V2_ORG` (concept of organizations do not apply in V3):
     ```
     export INFLUXDB_V2_URL="https://influxdb_v3_url:8181"
     export INFLUXDB_V2_TOKEN="xxx"
     ```
 
-    2. Set `influxdb_version` in your config to `v3`. Note that *buckets* from V2 are called *databases* in V3.
-
-#### Usage
+### Usage
 
 Run `main.py` with the path to your config file which will handle all 4 stages of the migration:
 
@@ -104,18 +101,44 @@ python main.py --config <path_to_config>
 
 Refer to [the example config](example.migration-config.yaml) for the full set of configurable options.
 
-##### Example Scenarios
+#### Example Scenarios
 
-- Migrate all databases and tables (in given region):
+The migration script supports 2 modes:
 
+1. `batch`: Migrates all specified source databases and tables between `start_time` and `end_time`
+
+2. `live_replication`: Runs the migration as a continuous process with optional hard stop at `cutoff_time`.
+    - `batch_sleep_min`: Number of minutes to sleep between batches.
+    - `backfill_start_time`: The start datetime of the first batch.
+    - `backfill_min_overlap`: Minutes to subtract from each batch's start time to capture late-arriving data.
+    - `cutoff_time`: End datetime of the final batch.
+
+- Migrate all records from all databases between `2020-01-01 00:00:00` and `2021-01-01 00:00:00`
     ```
+    mode: batch
+    batch:
+      start_time: "2020-01-01 00:00:00"
+      end_time:   "2021-01-01 00:00:00"
     source:
       all_databases: true
+    ```
+
+- Live replication every ~30 minutes with 1 minute backfill overlap
+    ```
+    mode: live_replication
+    live_replication:
+      batch_sleep_min: 30
+      backfill_start_time: "2020-01-01 00:00:00"
+      backfill_min_overlap: 1
     ```
 
 - Migrate tables `cpu`, `memory` from database `database1` and all tables from `database2`:
 
     ```
+    mode: batch
+    batch:
+      start_time: "2000-01-01 00:00:00"
+      end_time: "2026-07-01 00:00:00"
     source:
       all_databases: false
       databases:
@@ -128,6 +151,7 @@ Refer to [the example config](example.migration-config.yaml) for the full set of
 - Transform dimension `hostname` to field from `database1`.`cpu`:
 
     ```
+    stage:
       transform:
         dimensions_to_fields:
           database1:
@@ -135,71 +159,9 @@ Refer to [the example config](example.migration-config.yaml) for the full set of
               - hostname
     ```
 
-## Sample Workflow for Manual Migrations
+## Live Migrations
 
-The following is a step-by-step workflow for performing a manual migration from a Timestream for LiveAnalytics database `benchmark` and table `cpu` to bucket `benchmark-bucket` in Timestream for InfluxDB V2.
-
-###  1. Transform data from Timestream
-
-Transform the unloaded data from Timestream for LiveAnalytics to line protocol (LP) using Athena.
-
-```
-cd transform
-python3 transform.py --database-name benchmark --tables cpu --s3-bucket-path <s3_bucket_path> --add-validation-field true
-```
-
-- To transform all tables, use the `--all-tables` flag.
-- If validation (comparing logical row counts between source and destination) is not required, set `--add-validation-field` flag to `false`.
-- To convert dimensions to fields during transformation, use the `--dimensions-to-fields` flag.
-
-See [transform/README.md](./transform/README.md) for more details.
-
-### 2. Ingest line protocol to Timestream for InfluxDB
-
-Download transformed LP dataset from S3:
-```
-aws s3 sync s3://<s3_bucket_name>/benchmark/cpu/unload-<%Y-%m-%d-%H-%M-%S>/line-protocol-output ./line-protocol-output
-```
-
-Define required environment variables:
-```
-export INFLUXDB_V2_URL="https://influxdb_v2_url:8086"
-export INFLUXDB_V2_ORG="org"
-export INFLUXDB_V2_TOKEN="xxx"
-```
-
-Run the ingestion script with the target Timestream for InfluxDB bucket and path to your downloaded LP dataset:
-```
-python3 ingestion/influxdb_ingestion.py benchmark-bucket ./line-protocol-output
-```
-
-- Optionally configure the number of workers (`-w`), batch size (`-l`), and I/O multiplier (`-m`) 
-- Run ingestion with the `--continue-on-error` flag to continue ingesting remaining files even if one fails.
-- On failure or disruption to ingestion, you can resume from a previous run by using the `--resume-from` flag. Specify the path to the tracking directory from a previous run to skip already ingested files.
-    ```
-    python3 ingestion/influxdb_ingestion.py benchmark-bucket ./line-protocol-output --resume-from  ./influxdb-ingestion-logs/tracking_<run_id>
-    ```
-
-See [ingestion/README.md](./ingestion/README.md) for more details.
-
-### 3. Validation
-
-Validate that all records have been ingested to InfluxDB:
-```
-python3 validation/validator.py
-```
-
-- Optionally configure `--start-time` and `--end-time` to validate row counts in time ranges.
-
-- If any dimensions were converted to fields during transformation to LP, provide the full list of tags from the new schema. Refer to the output of the [transformation](transform/README.md#using-dimensions-as-fields) to retrieve tags from the transformed schema.
-
-- To check current ingestion progress without impacting the migration, run the validator with `--influx-only` and `--skip-wal-check` flags. This provides a real-time count of points in Timestream for InfluxDB without querying the source database (Athena/Timestream for LiveAnalytics) and excludes records still in post-processing.
-
-    ```
-    python3 validation/validator.py --skip-wal-check --influx-only
-    ```
-
-See [validation/README.md](./validation/README.md) for more details.
+For performing live migrations, see the [Live Migration Guide](./live_migration_guide.md).
 
 ## Troubleshooting
 

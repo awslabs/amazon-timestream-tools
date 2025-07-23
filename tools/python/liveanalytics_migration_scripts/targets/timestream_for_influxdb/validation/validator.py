@@ -688,15 +688,16 @@ def main(input_args) -> None:
         if src_count is not None and infl_count is not None:
             if src_count == infl_count:
                 validation_logger.info(f"🎉  {src_label} and InfluxDB row counts match ({src_count}).\n")
+                return True
             else:
                 sign = ">" if src_count > infl_count else "<"
                 validation_logger.info(f"⚠️  {src_label} ({src_count}) {sign} InfluxDB ({infl_count})\n")
-                return
+                return False
     else:
         validation_logger.info("\n--------- Exceptions ---------\n")
         for name, exc in errors.items():
             validation_logger.error(f"{name} query failed: {exc}")
-        return
+        return False
 
 
 if __name__ == "__main__":

@@ -478,7 +478,7 @@ def main(input_args):
 
     if not gz_files:
         ingestion_logger.warning(f"No .gz files found to ingest in {args.data_directory}")
-        return
+        return 0
 
     ingestion_logger.info(f"Found {len(gz_files)}.gz files in directory {args.data_directory}")
     ingestion_logger.info(f"Using {args.workers} workers to handle extraction and ingestion")
@@ -535,6 +535,7 @@ def main(input_args):
     if failed_count > 0:
         ingestion_logger.error(f"Failed to ingest {failed_count} files.")
         ingestion_logger.error("To retry failed files, run the script with the --resume-from with the path to the previous tracking folder.")
+    return total_lines_ingested
 
 if __name__ == "__main__":
     main(sys.argv[1:])
