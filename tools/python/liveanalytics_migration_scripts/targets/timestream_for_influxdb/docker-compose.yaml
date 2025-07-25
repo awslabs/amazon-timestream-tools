@@ -1,0 +1,10 @@
+services:
+  dashboard:
+    container_name: migration-dashboard
+    build:
+      context: ./live_migration_dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./migration-logs:/app/migration-logs:ro
+      - ./config.yaml:/app/config.yaml:ro

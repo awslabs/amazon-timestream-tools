@@ -6,6 +6,18 @@ global:
   num_threads: 4
   # s3_uri: s3://amzn-s3-demo-bucket # Must exist
 
+  mode: live_replication  # "batch" or "live_replication"
+
+  batch:
+    start_time: "2000-01-01 00:00:00"
+    end_time:   "2021-01-01 00:00:00"
+
+  live_replication:
+    batch_sleep_min: 15
+    backfill_start_time: "2020-07-13 12:00:00"
+    cutoff_time: "2026-12-01 00:00:00"
+    backfill_min_overlap: 0
+
 source:
   all_databases: false
   databases:
@@ -23,8 +35,6 @@ stage:
     encryption: SSE_S3
     kms_key: null
     sns_topic_arn: null
-    start_time: "2000-01-01 00:00:00"
-    end_time:   "2026-01-01 00:00:00"
     partition: year
     export_format: PARQUET
     compression: NONE
@@ -60,8 +70,8 @@ stage:
     io_multiplier: 5
     retries: 20
     precision: ns
-    logs_dir: ingestion-logs
     continue_on_error: true
+    logs_dir: ingestion-logs
 
   #######################################################################
   # VALIDATION
