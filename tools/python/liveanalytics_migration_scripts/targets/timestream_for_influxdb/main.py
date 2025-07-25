@@ -315,6 +315,8 @@ def main():
             skip_bucket_check = True
             influx_args.append("--skip-bucket-check")
 
+        influxdb_ingestion.check_required_env_vars(skip_bucket_check)
+
         influxdb_url = os.environ.get("INFLUXDB_V2_URL")
         influxdb_token = os.environ.get("INFLUXDB_V2_TOKEN")
         influxdb_org = os.environ.get("INFLUXDB_V2_ORG")
