@@ -64,12 +64,12 @@ node main.js --type unload --csvFilePath=../data/sample_unload.csv
 
 This data can be ingested using the Python sample application, in [`../python/live_analytics/basic_example/SampleApplication.py`](../python/live_analytics/basic_example/SampleApplication.py):
 
-```python
-python SampleApplication.py \
---type csv \
---csv_file_path ../../../data/sample-multi.csv \
---region us-east-2 \
---skip_deletion false
+```shell
+python3 SampleApplication.py \
+    --type csv \
+    --csv_file_path ../../../data/sample-multi.csv \
+    --region us-east-2 \
+    --skip_deletion false
 ```
 
 ### Sample
@@ -78,12 +78,12 @@ python SampleApplication.py \
 
 This data can be ingested using the Python sample application, in [`../python/live_analytics/basic_example/SampleApplication.py`](../python/live_analytics/basic_example/SampleApplication.py):
 
-```python
-python SampleApplication.py \
---type csv \
---csv_file_path ../../../data/sample.csv \
---region us-east-2 \
---skip_deletion false
+```shell
+python3 SampleApplication.py \
+    --type csv \
+    --csv_file_path ../../../data/sample.csv \
+    --region us-east-2 \
+    --skip_deletion false
 ```
 
 ### User Data
