@@ -36,6 +36,7 @@ from(bucket: "<bucket name>")
 ```
 
 This query can be run in [InfluxDB's data explorer](https://docs.influxdata.com/influxdb/v2/query-data/execute-queries/data-explorer/) or with the Influx CLI:
+
 ```
 influx query \
     --host https://<endpoint>:<port> \
@@ -44,3 +45,47 @@ influx query \
     "from(bucket: \"<bucket name>\") \
         |> range(start: 2012-07-08T11:00:00Z)"
 ```
+
+### Free Zip Code Database Primary
+
+[`free-zipcode-database-Primary.csv`](./free-zipcode-database-Primary.csv) contains time-series data for various US zip codes with estimated population and the number of tax returns filed.
+
+### Sample Unload
+
+[`sample_unload.csv`](./sample_unload.csv) contains e-commerce time-series data and is used primarily in sample applications that insert data into Timestream for LiveAnalytics and then unload data into S3. For example, this data can be used with [`../js/main.js`](../js/main.js):
+
+```shell
+node main.js --type unload --csvFilePath=../data/sample_unload.csv
+```
+
+### Sample Multi
+
+[`sample-multi.csv`](./sample-multi.csv) contains DevOps multi-measure Timestream for LiveAnalytics data.
+
+This data can be ingested using the Python sample application, in [`../python/live_analytics/basic_example/SampleApplication.py`](../python/live_analytics/basic_example/SampleApplication.py):
+
+```python
+python SampleApplication.py \
+--type csv \
+--csv_file_path ../../../data/sample-multi.csv \
+--region us-east-2 \
+--skip_deletion false
+```
+
+### Sample
+
+[`sample.csv`](./sample.csv) contains DevOps single-measure Timestream for LiveAnalytics data.
+
+This data can be ingested using the Python sample application, in [`../python/live_analytics/basic_example/SampleApplication.py`](../python/live_analytics/basic_example/SampleApplication.py):
+
+```python
+python SampleApplication.py \
+--type csv \
+--csv_file_path ../../../data/sample.csv \
+--region us-east-2 \
+--skip_deletion false
+```
+
+### User Data
+
+[`user_data.csv`](./user_data.csv) contains mock user data, including first and last names, ZIP code, job, and age.
