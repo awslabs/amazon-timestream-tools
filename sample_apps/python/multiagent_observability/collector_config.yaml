@@ -1,0 +1,38 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 4000
+    spike_limit_mib: 800
+
+exporters:
+  influxdb:
+    endpoint: ${env:INFLUXDB_V2_URL}
+    org: ${env:INFLUXDB_V2_ORG}
+    bucket: ${env:INFLUXDB_BUCKET}
+    token: ${env:INFLUXDB_V2_TOKEN}
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [influxdb]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [influxdb]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [influxdb]
