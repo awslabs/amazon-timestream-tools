@@ -1,0 +1,87 @@
+services:
+  maestro:
+    container_name: maestro
+    build: .
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://host.docker.internal:4318"
+    volumes:
+      - .:/app:rw
+      - ~/.aws:/root/.aws:rw
+    command: ["tail", "-f", "/dev/null"]
+
+  cfn-agent:
+    container_name: cfn_agent
+    build: .
+    ports:
+      - 9002:9002
+    environment:
+      AGENT_NAME: "CloudFormation Expert"
+      AGENT_PORT: 9002
+      AGENT_DESCRIPTION: "An expert in CloudFormation templates."
+      AGENT_MODEL: "us.amazon.nova-pro-v1:0"
+      MCP_SERVERS: "aws_cfn"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://host.docker.internal:4318"
+    volumes:
+      - .:/app:rw
+      - ~/.aws:/root/.aws:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://host.docker.internal:9002/.well-known/agent.json"]
+      interval: 3s
+      timeout: 2s
+      retries: 2
+      start_period: 5s
+    command: ["python", "strands_mcp_agent.py"]
+
+  aws-agent:
+    container_name: aws_agent
+    build: .
+    ports:
+      - 9001:9001
+    environment:
+      AGENT_NAME: "AWS Expert"
+      AGENT_PORT: 9001
+      AGENT_DESCRIPTION: "An expert in AWS CLI, API and documentation."
+      AGENT_MODEL: "us.amazon.nova-premier-v1:0"
+      MCP_SERVERS: "aws_api,aws_docs"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://host.docker.internal:4318"
+    volumes:
+      - .:/app:rw
+      - ~/.aws:/root/.aws:rw
+    command: ["python", "strands_mcp_agent.py"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://host.docker.internal:9001/.well-known/agent.json"]
+      interval: 3s
+      timeout: 2s
+      retries: 2
+      start_period: 5s
+
+  otel-collector:
+    container_name: collector
+    image: otel/opentelemetry-collector-contrib:0.121.0
+    volumes:
+      - ./collector_config.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - 13133:13133
+      - 4318:4318
+    environment:
+      - INFLUXDB_V2_URL=${INFLUXDB_V2_URL}
+      - INFLUXDB_V2_ORG=${INFLUXDB_V2_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_V2_BUCKET}
+      - INFLUXDB_V2_TOKEN=${INFLUXDB_V2_TOKEN}
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://host.docker.internal:3000/api/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 2
+      start_period: 5s
+
+volumes:
+  grafana_data:

@@ -1,0 +1,842 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 7,
+      "panels": [],
+      "title": "Agents",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Response time (s)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 18,
+        "x": 0,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\nimport \"date\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> map(fn: (r) => {\n      attrs       = json.parse(data: bytes(v: r._value))\n      start_time  = time(v: attrs[\"gen_ai.event.start_time\"])\n      end_time    = time(v: attrs[\"gen_ai.event.end_time\"])\n      duration_s  = (int(v: end_time) - int(v: start_time)) / 1000000000\n      return {\n        _time:       r._time,\n        _field:      \"duration\",\n        _value:      duration_s,\n        agent_name:  attrs[\"gen_ai.agent.name\"],\n        operation:   attrs[\"gen_ai.operation.name\"],\n      }\n    })\n  |> filter(fn: (r) => r.operation == \"invoke_agent\")\n  |> group(columns: [\"agent_name\"])\n  |> aggregateWindow(\n       every: 1000ms,\n       fn: sum,\n       column: \"_value\",\n       createEmpty: true\n    )\n  |> filter(fn: (r) => exists r._value)\n  ",
+          "refId": "A"
+        }
+      ],
+      "title": "Invocations over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> group()\n  |> map(fn: (r) => {\n      attrs = json.parse(data: bytes(v: r._value))\n      return {\n        r with\n        span_id:      r.span_id,\n        agent_name: attrs[\"gen_ai.agent.name\"],\n        operation:   attrs[\"gen_ai.operation.name\"],\n      }\n    })\n  |> filter(fn: (r) => exists r.agent_name)\n  |> keep(columns: [\"span_id\", \"operation\", \"agent_name\"])\n  |> count(column: \"span_id\") \n",
+          "refId": "A"
+        }
+      ],
+      "title": "Total agent invocations",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 1
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\n\nfrom(bucket: \"mybucket\")\n|> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n|> filter(fn: (r) => \n    r._measurement == \"spans\" and\n    r._field == \"attributes\" and\n    strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\"))\n|> group()\n|> map(fn: (r) => {\n    attrs = json.parse(data: bytes(v: r._value))\n    return {\n        _time: r._time,\n        total_tokens: int(v: attrs[\"gen_ai.usage.total_tokens\"])\n    }\n})\n|> sum(column: \"total_tokens\")\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Total processed tokens",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "output_tokens": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> group()\n  |> map(fn: (r) => {\n      attrs = json.parse(data: bytes(v: r._value))\n      return {\n        r with\n        span_id:      r.span_id,\n        agent_name: attrs[\"gen_ai.agent.name\"],\n        operation:   attrs[\"gen_ai.operation.name\"],\n      }\n    })\n\n  |> filter(fn: (r) => exists r.agent_name)\n  |> keep(columns: [\"span_id\", \"operation\", \"agent_name\"])\n\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Invocations by agent",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "agent_name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "span_id": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> group()\n  |> map(fn: (r) => {\n      attrs = json.parse(data: bytes(v: r._value))\n      return {\n        r with\n        agent_name: attrs[\"gen_ai.agent.name\"],\n        input_tokens: attrs[\"gen_ai.usage.input_tokens\"],\n        output_tokens: attrs[\"gen_ai.usage.output_tokens\"],\n        model: attrs[\"gen_ai.request.model\"],\n      }\n    })\n\n  |> filter(fn: (r) => exists r.agent_name)\n  |> keep(columns: [\"agent_name\", \"input_tokens\", \"output_tokens\"])\n\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Token usage by agent",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "agent_name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "input_tokens": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              },
+              "model": {
+                "aggregations": []
+              },
+              "output_tokens": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 13,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\nimport \"date\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> map(fn: (r) => {\n      attrs       = json.parse(data: bytes(v: r._value))\n      start_time  = time(v: attrs[\"gen_ai.event.start_time\"])\n      end_time    = time(v: attrs[\"gen_ai.event.end_time\"])\n      duration_s  = (int(v: end_time) - int(v: start_time)) / 1000000000\n      return {\n        _time:       r._time,\n        _field:      \"duration\",\n        _value:      duration_s,\n        agent_name:  attrs[\"gen_ai.agent.name\"],\n        operation:   attrs[\"gen_ai.operation.name\"],\n      }\n    })\n  |> filter(fn: (r) => r.operation == \"invoke_agent\")\n  |> group(columns: [\"agent_name\"])\n  |> mean(column: \"_value\")\n  |> rename(columns: {_value: \"\"})\n\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg response times",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "tokens/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\nimport \"date\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> map(fn: (r) => {\n      attrs         = json.parse(data: bytes(v: r._value))\n      start_time    = time(v: attrs[\"gen_ai.event.start_time\"])\n      end_time      = time(v: attrs[\"gen_ai.event.end_time\"])\n      duration_s    = (int(v: end_time) - int(v: start_time)) / 1000000000\n      output_tokens = int(v: attrs[\"gen_ai.usage.output_tokens\"])\n      tokens_per_s  = output_tokens / duration_s\n\n      return {\n        model: attrs[\"gen_ai.request.model\"],\n        agent_name: attrs[\"gen_ai.agent.name\"],\n        operation: attrs[\"gen_ai.operation.name\"],\n        tokens_per_second: tokens_per_s,\n        duration: duration_s,\n        output_tokens: output_tokens,\n      }\n    })\n  |> filter(fn: (r) => r.operation == \"chat\" and exists r.output_tokens)\n  |> group(columns: [\"model\"])\n  |> keep(columns: [\"tokens_per_second\", \"model\"])\n  |> rename(columns: {tokens_per_second: \"\"})\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Output TPS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 2,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "hide": false,
+          "query": "import \"strings\"\nimport \"experimental/json\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> group()\n  |> map(fn: (r) => {\n      attrs = json.parse(data: bytes(v: r._value))\n      return {\n        r with\n        input_tokens: attrs[\"gen_ai.usage.input_tokens\"],\n        output_tokens: attrs[\"gen_ai.usage.output_tokens\"],\n        model: attrs[\"gen_ai.request.model\"],\n      }\n    })\n  |> filter(fn: (r) => exists r.input_tokens)\n  |> keep(columns: [\"input_tokens\", \"output_tokens\", \"model\"])\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Token usage by model",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "input_tokens": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              },
+              "model": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "output_tokens": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 8,
+      "panels": [],
+      "title": "Tools",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> map(fn: (r) => {\n      attrs = json.parse(data: bytes(v: r._value))\n      return {\n        r with\n        span_id:   r.span_id,\n        tool_name:   attrs[\"gen_ai.tool.name\"],\n        status:      attrs[\"tool.status\"]\n      }\n    })\n  |> filter(fn: (r) => exists r.tool_name)\n  |> keep(columns: [\"span_id\", \"tool_name\"])\n  |> group(columns: [\"tool_name\"])\n  |> distinct(column: \"span_id\")\n  |> count(column: \"_value\")\n  |> rename(columns: {_value: \"\"})\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Tool invocations",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "my_dashboard_id"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.5
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 4,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "query": "import \"strings\"\nimport \"experimental/json\"\n\nfrom(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n      r._measurement == \"spans\" and\n      r._field == \"attributes\" and\n      strings.containsStr(v: r._value, substr: \"gen_ai.event.end_time\")\n  )\n  |> map(fn: (r) => {\n      attrs = json.parse(data: bytes(v: r._value))\n      return {\n        r with\n        tool_name:   attrs[\"gen_ai.tool.name\"],\n        _value:      if attrs[\"tool.status\"] == \"success\" then 1.0 else 0.0\n      }\n    })\n  |> filter(fn: (r) => exists r.tool_name)\n  |> group(columns: [\"tool_name\"])\n  |> mean(column: \"_value\")\n  |> map(fn: (r) => ({ r with col: \"all\" }))\n  |> group()\n  |> pivot(rowKey: [\"col\"], columnKey: [\"tool_name\"], valueColumn: \"_value\")\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Tool success rate",
+      "type": "gauge"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "InfluxDB V2 Dashboard",
+  "uid": "e50b85e0-f51c-451b-9a85-387e605ec6eb",
+  "version": 2
+}

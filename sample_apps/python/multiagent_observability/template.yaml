@@ -1,0 +1,221 @@
+Transform: AWS::Serverless-2016-10-31
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: timestreaminfluxdb-cloudformation-sample
+    Description: "This serverless application deploys a Timestream for InfluxDB instance with public internet access enabled."
+    Author: "Amazon Timestream"
+    HomePageUrl: "https://aws.amazon.com/timestream/"
+    SemanticVersion: "1.0.0"
+
+Parameters:
+  AllocatedStorage:
+    Type: Number
+    MinValue: 20
+    MaxValue: 16384
+    Default: 20
+    Description: "The amount of storage to allocate for your DB storage type in GiB (gibibytes). Update requires replacement."
+
+  Bucket:
+    Type: String
+    AllowedPattern: ^[^_][^"]*$
+    MinLength: 2
+    MaxLength: 64
+    Description: "The name of the initial InfluxDB bucket. All InfluxDB data is stored in a bucket. A bucket combines the concept of a database and a retention period (the duration of time that each data point persists). A bucket belongs to an organization. Update required replacement."
+
+  DbInstanceType:
+    Type: String
+    Default: "db.influx.medium"
+    AllowedValues: [
+      "db.influx.medium",
+      "db.influx.large",
+      "db.influx.xlarge",
+      "db.influx.2xlarge",
+      "db.influx.4xlarge",
+      "db.influx.8xlarge",
+      "db.influx.12xlarge",
+      "db.influx.16xlarge"
+    ]
+    Description: "The Timestream for InfluxDB DB instance type to run on. Update requires replacement."
+
+  DbStorageType:
+    Type: String
+    Default: "InfluxIOIncludedT1"
+    AllowedValues: [
+      "InfluxIOIncludedT1",
+      "InfluxIOIncludedT2",
+      "InfluxIOIncludedT3"
+    ]
+    Description: "The Timestream for InfluxDB DB storage type to read and write InfluxDB data. Update requires replacement."
+
+  DeploymentType:
+    Type: String
+    Default: "SINGLE_AZ"
+    AllowedValues: [
+      "SINGLE_AZ",
+      "WITH_MULTIAZ_STANDBY"
+    ]
+    Description: "Specifies whether the Timestream for InfluxDB is deployed as Single-AZ or with a MultiAZ Standby for High availability. Update requires replacement."
+
+  DbInstanceName:
+    Type: String
+    AllowedPattern: ^[a-zA-z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*$
+    MinLength: 3
+    MaxLength: 40
+    Description: "The name that uniquely identifies the DB instance when interacting with the Amazon Timestream for InfluxDB API and CLI commands. This name will also be a prefix included in the endpoint. DB instance names must be unique per customer and per region. Update requires replacement."
+
+  DbInstancePort:
+    Type: Number
+    Default: 8086
+    MinValue: 1
+    MaxValue: 65535
+    Description: "The port number for InfluxDB access."
+
+  Organization:
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+    Description: "The name of the initial organization for the initial admin user in InfluxDB. An InfluxDB organization is a workspace for a group of users. Update requires replacement."
+
+  Password:
+    Type: String
+    AllowedPattern: ^[a-zA-Z0-9]+$
+    MinLength: 8
+    MaxLength: 64
+    NoEcho: true
+    Description: "The password of the initial admin user created in InfluxDB. This password will allow you to access the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an operator token. These attributes will be stored in a Secret created in Amazon SecretManager in your account. Update requires replacement."
+
+  DbInstanceLogsBucketName:
+    Type: String
+    AllowedPattern: ^[0-9a-z]+[0-9a-z\.\-]*[0-9a-z]+$
+    MinLength: 3
+    MaxLength: 63
+    Default: "timestreaminfluxdb-log-bucket"
+    Description: "The name of the S3 bucket to be created and used to store Timestream for InfluxDB logs."
+
+  Username:
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+    Description: "The username of the initial admin user created in InfluxDB. Must start with a letter and can't end with a hyphen or contain two consecutive hyphens. For example, my-user1. This username will allow you to access the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an operator token. These attributes will be stored in a Secret created in Amazon Secrets Manager in your account. Update requires replacement."
+
+  ClientIp:
+    Type: String
+    Description: "The IPv4 address to be granted access to the Timestream for InfluxDB instance."
+
+Resources:
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+
+  Subnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref "VPC"
+      CidrBlock: "10.0.1.0/24"
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+
+  RouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref "VPC"
+
+  VPCGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !GetAtt VPC.VpcId
+      InternetGatewayId: !Ref "InternetGateway"
+
+  Route:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: !Sub ${ClientIp}/32
+      GatewayId: !Ref "InternetGateway"
+      RouteTableId: !Ref "RouteTable"
+
+  SubnetRouteTableAssociation:
+    DependsOn: Route
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref "RouteTable"
+      SubnetId: !Ref "Subnet"
+
+  SecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security group for Timestream for InfluxDB instance"
+      VpcId: !Ref "VPC"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          Description: "Ingress rule for client access"
+          FromPort: !Ref DbInstancePort
+          ToPort: !Ref DbInstancePort
+          CidrIp: !Sub ${ClientIp}/32
+
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref "DbInstanceLogsBucketName"
+      ObjectLockEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+      VersioningConfiguration:
+       Status: "Enabled"
+      AccessControl: "BucketOwnerFullControl"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "aws:kms"
+
+  S3BucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref "DbInstanceLogsBucketName"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+            - 's3:PutObject'
+            Effect: Allow
+            Resource: !Sub '${S3Bucket.Arn}/InfluxLogs/${DbInstanceName}/*'
+            Principal:
+              Service: 'timestream-influxdb.amazonaws.com'
+
+  TimestreamInfluxDBInstance:
+    DependsOn: [
+      S3Bucket,
+      S3BucketPolicy,
+      SubnetRouteTableAssociation
+    ]
+    Type: "AWS::Timestream::InfluxDBInstance"
+    Properties:
+      AllocatedStorage: !Ref "AllocatedStorage"
+      Bucket: !Ref "Bucket"
+      DbInstanceType: !Ref "DbInstanceType"
+      DbStorageType: !Ref "DbStorageType"
+      DeploymentType: !Ref "DeploymentType"
+      LogDeliveryConfiguration:
+        S3Configuration:
+          BucketName: !Ref "DbInstanceLogsBucketName"
+          Enabled: true
+      Name: !Ref "DbInstanceName"
+      Organization: !Ref "Organization"
+      Password: !Ref "Password"
+      Port: !Ref "DbInstancePort"
+      PubliclyAccessible: true
+      Tags:
+        - Key: "group"
+          Value: "example"
+      Username: !Ref "Username"
+      VpcSecurityGroupIds: [!Ref SecurityGroup]
+      VpcSubnetIds: [!Ref Subnet]
+
+Outputs:
+  TimestreamInfluxDBEndpoint:
+    Description: "The endpoint of the Timestream for InfluxDB instance."
+    Value: !Sub "https://${TimestreamInfluxDBInstance.Endpoint}:${DbInstancePort}"
