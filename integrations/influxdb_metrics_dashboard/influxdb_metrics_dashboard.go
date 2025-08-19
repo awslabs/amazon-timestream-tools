@@ -59,11 +59,12 @@ func getBaseTelegrafConfig(configVars map[string]string) string {
   source = '\'''\'''\''
 def apply(metric):
 
+  supported_tags = ["DbInstanceName", "bucket", "org"]
   if "counter" in metric.fields or "gauge" in metric.fields:
     for tagKey, tagVal in metric.tags.items():
-      if tagKey != "DbInstanceName" and tagKey != "bucket" and tagKey != "org":
+      if tagKey not in supported_tags:
         metric.tags.pop(tagKey)
-      return metric
+    return metric
 
   return None
 '\'''\'''\''

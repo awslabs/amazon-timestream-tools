@@ -6,6 +6,10 @@ The InfluxDB Metrics Dashboard creates a Grafana dashboard to visualize existing
 
 <img src="./images/architecture.png" alt="drawing" width="800"/>
 
+## Demo
+
+![Demo video](./images/demo.gif)
+
 ## Configuration
 
 ### Prerequisites

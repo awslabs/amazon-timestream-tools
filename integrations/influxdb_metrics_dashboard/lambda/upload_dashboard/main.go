@@ -858,7 +858,6 @@ func generatePanels(dashboardDataGranularity string) []interface{} {
 		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 8}, "CPU utilization", "gauge", "Average", "percent", []string{"CPUUtilization"}, ""},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 8}, "Disk utilization", "gauge", "Average", "percent", []string{"DiskUtilization"}, ""},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 16}, "Total Go system memory usage", "gauge", "Maximum", "bytes", []string{"go_memstats_sys_bytes_gauge"}, "($A / ${instanceMemory}) * 100"},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 16}, "Bucket cardinality", "gauge", "Maximum", "none", []string{"storage_bucket_series_num_gauge"}, "($A / ${instanceSeries}) * 100"},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 24}, "Memory cache usage", "stat", "Maximum", "bytes", []string{"go_memstats_mcache_inuse_bytes_gauge"}, ""},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 24}, "BoltDb writes", "stat", "Maximum", "none", []string{"boltdb_writes_total_counter"}, ""},
 		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 32}, "System bytes in-use", "stat", "Maximum", "bytes", []string{"go_memstats_alloc_bytes_gauge"}, ""},
