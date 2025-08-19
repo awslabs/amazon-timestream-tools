@@ -5,7 +5,8 @@ This folder contains a script to generate a continuous stream of records that ar
 --- 
 ## Dependencies
 - Boto3
-- numpy (Tested with version 1.18.5)
+- distutils
+- numpy (Tested with version 2.0.0)
 - Python3 (Tested with version 3.5.2)
 
 ----
@@ -27,7 +28,13 @@ python3 -m venv venv
    pip3 install numpy
    ```
 
-3. Run the following command to continuously generate and ingest sample data into Kinesis.
+3. Install  setuptools
+
+  ```
+  pip3 install setuptools
+  ```
+
+4. Run the following command to continuously generate and ingest sample data into Kinesis.
 
     ```    
     python3 kinesis_data_gen.py --stream <name_of_the_kinesis_stream> --region <the_region_of_kinesis_stream> 

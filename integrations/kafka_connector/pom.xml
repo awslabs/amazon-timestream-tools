@@ -124,6 +124,13 @@
             <version>5.8.0</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.influxdb</groupId>
+            <artifactId>influxdb-client-java</artifactId>
+            <!-- <version>6.6.0</version> -->
+            <version>6.6.0</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -136,6 +143,11 @@
                         <manifest>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                             <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                            <!-- for debugging only -->
+                            <!-- <addClasspath>true</addClasspath>
+                            <classpathPrefix>lib/</classpathPrefix>
+                            <mainClass>com.mypackage.MyClass</mainClass> -->
+                            <!-- end for debugging -->
                         </manifest>
                     </archive>
                 </configuration>

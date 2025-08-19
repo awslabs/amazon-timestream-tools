@@ -29,7 +29,8 @@ under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <flink.version>1.15.3</flink.version>
+        <flink.version>1.18.1</flink.version>
+        <flink.kinesis.version>4.2.0-1.18</flink.kinesis.version>
         <kda.version>2.0.0</kda.version>
         <kda.runtime.version>1.2.0</kda.runtime.version>
         <java.version>1.11</java.version>
@@ -38,6 +39,7 @@ under the License.
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <log4j.version>2.17.1</log4j.version>
+        <slf4j.version>2.0.12</slf4j.version>
     </properties>
 
     <dependencyManagement>
@@ -45,7 +47,7 @@ under the License.
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
-                <version>2.17.203</version>
+                <version>2.26.9</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -68,32 +70,32 @@ under the License.
 
     <dependencies>
         <!-- Apache Flink dependencies -->
-        <!-- These dependencies are provided, because they should not be packaged into the JAR file. -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-java</artifactId>
             <version>${flink.version}</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-streaming-java</artifactId>
             <version>${flink.version}</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-clients</artifactId>
             <version>${flink.version}</version>
-            <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-core</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
         <!-- Add connector dependencies here. They must be in the default scope (compile). -->
         <!-- For reading from Kinesis -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-kinesis</artifactId>
-            <version>${flink.version}</version>
+            <version>${flink.kinesis.version}</version>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>
@@ -115,13 +117,13 @@ under the License.
         <dependency>
             <groupId>software.amazon.timestream</groupId>
             <artifactId>flink-connector-timestream</artifactId>
-            <version>0.3</version>
+            <version>0.5</version>
         </dependency>
-
         <!-- sdk dependencies -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>timestreamwrite</artifactId>
+            <version>2.26.9</version>
         </dependency>
 
         <!-- Test & compile dependencies -->
@@ -149,13 +151,12 @@ under the License.
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId> slf4j-api</artifactId>
-            <version>1.7.32</version>
+            <version>${slf4j.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.32</version>
-            <scope>runtime</scope>
+            <version>${slf4j.version}</version>
         </dependency>
         <dependency>
             <groupId>de.javakaffee</groupId>
@@ -233,7 +234,6 @@ under the License.
                                 <excludes>
                                     <exclude>org.apache.flink:force-shading</exclude>
                                     <exclude>com.google.code.findbugs:jsr305</exclude>
-                                    <exclude>org.slf4j:*</exclude>
                                     <exclude>log4j:*</exclude>
                                 </excludes>
                             </artifactSet>

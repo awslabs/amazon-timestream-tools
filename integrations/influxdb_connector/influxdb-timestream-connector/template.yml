@@ -1,0 +1,615 @@
+Transform: AWS::Serverless-2016-10-31
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: influxdb-timestream-connector
+    Description: This serverless application deployes an AWS Lambda function and an Amazon REST API Gateway that listens for POST requests with line protocol bodies. The line protocol data will be translated and stored in Timestream for LiveAnalytics. This application allows configuration over the resources it creates.
+    Author: Amazon Timestream
+    SpdxLicenseId: MIT-0
+    LicenseUrl: ../../../LICENSE
+    ReadmeUrl: ./README.md
+    HomePageUrl: https://aws.amazon.com/timestream/
+    SemanticVersion: 1.0.0
+
+Parameters:
+  CustomPartitionKeyDimension:
+    Description: The dimension to use as the partition key. This parameter is required if the CustomPartitionKeyType parameter is set to 'dimension'.
+    Type: String
+    Default: ''
+  CustomPartitionKeyType:
+    Description: The type of custom partition key to use. Valid options are 'dimension' or 'measure'. The 'dimension' option requires the CustomPartitionKeyDimension parameter to also be set. If this parameter is not provided, newly-created tables will use default partitioning and none of the parameters relating to custom partition keys will be used.
+    Type: String
+    AllowedValues:
+      - 'dimension'
+      - 'measure'
+      - ''
+    Default: ''
+  DatabaseName:
+    Type: String
+    Default: influxdb-line-protocol
+    Description: The Timestream for LiveAnalytics database name to use.
+  KmsKeyId:
+    Type: String
+    Description: AWS KMS key for the database. If the KMS key is not specified, the database will be encrypted with a Timestream managed KMS key located in your account.
+    Default: ''
+  DatabaseTags:
+    Type: String
+    Description: A comma-separated string of key-value pairs to label the database. For example, `example_key1=example_value1,example_key2=example_value2`
+    Default: ''
+  TableTags:
+    Type: String
+    Description: A comma-separated string of key-value pairs to label the table(s). For example, `example_key1=example_value1,example_key2=example_value2`
+    Default: ''
+  MeasureNameForMultiMeasureRecords:
+    Type: String
+    Default: influxdb-measure
+    Description: The value to use in records as the measure name.
+  TableMapping:
+    Type: String
+    Default: multi-table
+    Description: Maps records ingested to a single table or multiple tables.
+  SingleTableName:
+    Type: String
+    Default: influxdb-measures
+    Description: Name of the table when table_mapping is set to single-table.
+  EnableAsyncInvocation:
+    Type: String
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+  EnableDatabaseCreation:
+    Description: Whether to allow database creation upon ingestion of records.
+    Type: String
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+  EnableTableCreation:
+    Description: Whether to allow table creation upon ingestion of records. When using multi-table multi measure schema, each unique line protocol measurement in a request will result in the creation of a new table with the same name as the measurement.
+    Type: String
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+  EnableMagStoreWrites:
+    Type: String
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+  EnforceCustomPartitionKey:
+    Description: Whether to only allow the ingestion of records that contain the custom partition key.
+    Type: String
+    AllowedValues:
+      - 'true'
+      - 'false'
+      - ''
+    Default: ''
+  MagStoreRetentionPeriod:
+    Type: Number
+    Default: 8000
+  MemStoreRetentionPeriod:
+    Type: Number
+    Default: 12
+  RestApiGatewayName:
+    Type: String
+    Default: InfluxDB-Timestream-Connector-REST-API-Gateway
+  RestApiGatewayStageName:
+    Type: String
+    Default: dev
+    Description: The default stage name of the REST API Gateway.
+  LambdaMemorySize:
+    Type: Number
+    Default: 128
+    MinValue: 128
+    MaxValue: 8192
+    Description: The memory size of the Lambda function.
+  LambdaName:
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9]+[a-zA-Z0-9-]+[a-zA-Z0-9]+'
+    Default: influxdb-timestream-connector-lambda
+  RestApiGatewayTimeoutInMillis:
+    Type: Number
+    Default: 29000
+    MinValue: 50
+    MaxValue: 29000
+    Description: The maximum amount of time in milliseconds an API Gateway event will wait before timing out.
+  RustLog:
+    Type: String
+    Default: 'INFO'
+    Description: The log level to use for the Lambda function. Typical values are error, warn, info, debug, trace, and off. Use trace in order to log the execution time of each function. Defaults to INFO.
+  LambdaTimeoutInSeconds:
+    Type: Number
+    Default: 60
+    MinValue: 3
+    Description: The amount of time in seconds to run the connector on AWS Lambda before timing out.
+  WriteThrottlingBurstLimit:
+    Type: Number
+    Default: 1200
+    Description: The number of burst requests per second that the REST API Gateway permits.
+
+Conditions:
+  IsAsyncEnabled: !Equals [ !Ref EnableAsyncInvocation, 'true' ]
+  IsSyncEnabled: !Equals [ !Ref EnableAsyncInvocation, 'false' ]
+  CustomPartitionKeyTypeProvided: !Not [ !Equals [ !Ref CustomPartitionKeyType, '' ] ]
+  CustomPartitionKeyDimensionProvided: !Not [ !Equals [ !Ref CustomPartitionKeyDimension, '' ] ]
+  EnforceCustomPartitionKeyProvided: !Not [ !Equals [ !Ref EnforceCustomPartitionKey, '' ] ]
+
+Resources:
+  RestApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${RestApiGatewayName}-${AWS::StackName}"
+      MinimumCompressionSize: 0
+
+  ApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt RestApiGateway.RootResourceId
+      PathPart: api
+      RestApiId: !Ref RestApiGateway
+
+  V2Resource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref ApiResource
+      PathPart: v2
+      RestApiId: !Ref RestApiGateway
+
+  WriteResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref V2Resource
+      PathPart: write
+      RestApiId: !Ref RestApiGateway
+
+  SyncRestApiGatewayPostMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: IsSyncEnabled
+    Properties:
+      ResourceId: !Ref WriteResource
+      RestApiId: !Ref RestApiGateway
+      AuthorizationType: AWS_IAM
+      HttpMethod: POST
+      ApiKeyRequired: false
+      Integration:
+        TimeoutInMillis: !Ref RestApiGatewayTimeoutInMillis
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - LambdaArn: !GetAtt LambdaFunction.Arn
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: '2\d{2}'
+            ResponseTemplates:
+              application/json: |
+                {
+                  "statusCode": 200,
+                  "body": "$input.body"
+                }
+          - StatusCode: '500'
+            SelectionPattern: '5\d{2}'
+            ResponseTemplates:
+              application/json: |
+                {
+                  "statusCode": "Internal error",
+                  "error": "$util.escapeJavaScript($input.path('$.errorMessage'))"
+                }
+      MethodResponses:
+        - StatusCode: '200' # Synchronous response, success
+        - StatusCode: '500'
+
+  AsyncRestApiGatewayPostMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: IsAsyncEnabled
+    Properties:
+      ResourceId: !Ref WriteResource
+      RestApiId: !Ref RestApiGateway
+      AuthorizationType: AWS_IAM
+      HttpMethod: POST
+      ApiKeyRequired: false
+      Integration:
+        TimeoutInMillis: !Ref RestApiGatewayTimeoutInMillis
+        IntegrationHttpMethod: POST
+        Type: AWS
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          text/plain: |
+            {
+              "path": "$context.path",
+              "httpMethod": "$context.httpMethod",
+              "body" : "$util.escapeJavaScript($input.body)",
+              "queryStringParameters": {
+                #foreach($param in $input.params().querystring.keySet())
+                "$param": "$util.escapeJavaScript($input.params().querystring.get($param))" #if($foreach.hasNext),#end
+                #end
+              },
+              "requestContext": {
+                "accountId": "$context.identity.accountId",
+                "resourceId": "$context.resourceId",
+                "stage": "$context.stage",
+                "requestId": "$context.requestId",
+                "requestTimeEpoch": "$context.requestTimeEpoch",
+                "identity": {
+                  "cognitoIdentityPoolId": "$context.identity.cognitoIdentityPoolId",
+                  "accountId": "$context.identity.accountId",
+                  "cognitoIdentityId": "$context.identity.cognitoIdentityId",
+                  "caller": "$context.identity.caller",
+                  "apiKey": "$context.apiKey",
+                  "sourceIp": "$context.identity.sourceIp",
+                  "cognitoAuthenticationType": "$context.identity.cognitoAuthenticationType",
+                  "cognitoAuthenticationProvider": "$context.identity.cognitoAuthenticationProvider",
+                  "userArn": "$context.identity.userArn",
+                  "userAgent": "$context.identity.userAgent",
+                  "user": "$context.identity.user"
+                },
+                "resourcePath": "$context.resourcePath",
+                "httpMethod": "$context.httpMethod",
+                "apiId": "$context.apiId"
+              },
+              "isBase64Encoded": false
+            }
+          text/plain; charset=utf-8: |
+            {
+              "path": "$context.path",
+              "httpMethod": "$context.httpMethod",
+              "body" : "$util.escapeJavaScript($input.body)",
+              "queryStringParameters": {
+                #foreach($param in $input.params().querystring.keySet())
+                "$param": "$util.escapeJavaScript($input.params().querystring.get($param))" #if($foreach.hasNext),#end
+                #end
+              },
+              "requestContext": {
+                "accountId": "$context.identity.accountId",
+                "resourceId": "$context.resourceId",
+                "stage": "$context.stage",
+                "requestId": "$context.requestId",
+                "requestTimeEpoch": "$context.requestTimeEpoch",
+                "identity": {
+                  "cognitoIdentityPoolId": "$context.identity.cognitoIdentityPoolId",
+                  "accountId": "$context.identity.accountId",
+                  "cognitoIdentityId": "$context.identity.cognitoIdentityId",
+                  "caller": "$context.identity.caller",
+                  "apiKey": "$context.apiKey",
+                  "sourceIp": "$context.identity.sourceIp",
+                  "cognitoAuthenticationType": "$context.identity.cognitoAuthenticationType",
+                  "cognitoAuthenticationProvider": "$context.identity.cognitoAuthenticationProvider",
+                  "userArn": "$context.identity.userArn",
+                  "userAgent": "$context.identity.userAgent",
+                  "user": "$context.identity.user"
+                },
+                "resourcePath": "$context.resourcePath",
+                "httpMethod": "$context.httpMethod",
+                "apiId": "$context.apiId"
+              },
+              "isBase64Encoded": false
+            }
+          text/csv: |
+            {
+              "path": "$context.path",
+              "httpMethod": "$context.httpMethod",
+              "body" : "$util.escapeJavaScript($input.body)",
+              "queryStringParameters": {
+                #foreach($param in $input.params().querystring.keySet())
+                "$param": "$util.escapeJavaScript($input.params().querystring.get($param))" #if($foreach.hasNext),#end
+                #end
+              },
+              "requestContext": {
+                "accountId": "$context.identity.accountId",
+                "resourceId": "$context.resourceId",
+                "stage": "$context.stage",
+                "requestId": "$context.requestId",
+                "requestTimeEpoch": "$context.requestTimeEpoch",
+                "identity": {
+                  "cognitoIdentityPoolId": "$context.identity.cognitoIdentityPoolId",
+                  "accountId": "$context.identity.accountId",
+                  "cognitoIdentityId": "$context.identity.cognitoIdentityId",
+                  "caller": "$context.identity.caller",
+                  "apiKey": "$context.apiKey",
+                  "sourceIp": "$context.identity.sourceIp",
+                  "cognitoAuthenticationType": "$context.identity.cognitoAuthenticationType",
+                  "cognitoAuthenticationProvider": "$context.identity.cognitoAuthenticationProvider",
+                  "userArn": "$context.identity.userArn",
+                  "userAgent": "$context.identity.userAgent",
+                  "user": "$context.identity.user"
+                },
+                "resourcePath": "$context.resourcePath",
+                "httpMethod": "$context.httpMethod",
+                "apiId": "$context.apiId"
+              },
+              "isBase64Encoded": false
+            }
+          application/json: |
+            {
+              "path": "$context.path",
+              "httpMethod": "$context.httpMethod",
+              "body" : "$util.escapeJavaScript($input.body)",
+              "queryStringParameters": {
+                #foreach($param in $input.params().querystring.keySet())
+                "$param": "$util.escapeJavaScript($input.params().querystring.get($param))" #if($foreach.hasNext),#end
+                #end
+              },
+              "requestContext": {
+                "accountId": "$context.identity.accountId",
+                "resourceId": "$context.resourceId",
+                "stage": "$context.stage",
+                "requestId": "$context.requestId",
+                "requestTimeEpoch": "$context.requestTimeEpoch",
+                "identity": {
+                  "cognitoIdentityPoolId": "$context.identity.cognitoIdentityPoolId",
+                  "accountId": "$context.identity.accountId",
+                  "cognitoIdentityId": "$context.identity.cognitoIdentityId",
+                  "caller": "$context.identity.caller",
+                  "apiKey": "$context.apiKey",
+                  "sourceIp": "$context.identity.sourceIp",
+                  "cognitoAuthenticationType": "$context.identity.cognitoAuthenticationType",
+                  "cognitoAuthenticationProvider": "$context.identity.cognitoAuthenticationProvider",
+                  "userArn": "$context.identity.userArn",
+                  "userAgent": "$context.identity.userAgent",
+                  "user": "$context.identity.user"
+                },
+                "resourcePath": "$context.resourcePath",
+                "httpMethod": "$context.httpMethod",
+                "apiId": "$context.apiId"
+              },
+              "isBase64Encoded": false
+            }
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - LambdaArn: !GetAtt LambdaFunction.Arn
+        RequestParameters:
+          integration.request.header.X-Amz-Invocation-Type: "'Event'"
+        IntegrationResponses:
+          - StatusCode: '202'
+      MethodResponses:
+        - StatusCode: '202' # Asynchronous response, accepted but not yet processed
+
+  AsyncRestApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Condition: IsAsyncEnabled
+    DependsOn: AsyncRestApiGatewayPostMethod
+    Properties:
+      RestApiId: !Ref RestApiGateway
+
+  SyncRestApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Condition: IsSyncEnabled
+    DependsOn: SyncRestApiGatewayPostMethod
+    Properties:
+      RestApiId: !Ref RestApiGateway
+
+  AsyncRestApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Condition: IsAsyncEnabled
+    Properties:
+      StageName: !Ref RestApiGatewayStageName
+      RestApiId: !Ref RestApiGateway
+      DeploymentId: !Ref AsyncRestApiGatewayDeployment
+      MethodSettings:
+        - DataTraceEnabled: true
+          HttpMethod: "*"
+          ResourcePath: "/*"
+          LoggingLevel: INFO
+          MetricsEnabled: true
+      AccessLogSetting:
+        DestinationArn: !GetAtt RestApiGatewayLogGroup.Arn
+        Format: |
+          {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","errorMessage":"$context.error.message"}
+      TracingEnabled: true
+      Variables:
+        lambdaAlias: !Ref RestApiGatewayStageName
+
+  SyncRestApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Condition: IsSyncEnabled
+    Properties:
+      StageName: !Ref RestApiGatewayStageName
+      RestApiId: !Ref RestApiGateway
+      DeploymentId: !Ref SyncRestApiGatewayDeployment
+      MethodSettings:
+        - DataTraceEnabled: true
+          HttpMethod: "*"
+          ResourcePath: "/*"
+          LoggingLevel: INFO
+          MetricsEnabled: true
+      AccessLogSetting:
+        DestinationArn: !GetAtt RestApiGatewayLogGroup.Arn
+        Format: |
+          {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","errorMessage":"$context.error.message"}
+      TracingEnabled: true
+      Variables:
+        lambdaAlias: !Ref RestApiGatewayStageName
+
+  AsyncRestApiGatewayUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: IsAsyncEnabled
+    DependsOn: AsyncRestApiGatewayStage
+    Properties:
+      ApiStages:
+        - ApiId: !Ref RestApiGateway
+          Stage: !Ref RestApiGatewayStageName
+      Throttle:
+        BurstLimit: !Ref WriteThrottlingBurstLimit
+
+  SyncRestApiGatewayUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: IsSyncEnabled
+    DependsOn: SyncRestApiGatewayStage
+    Properties:
+      ApiStages:
+        - ApiId: !Ref RestApiGateway
+          Stage: !Ref RestApiGatewayStageName
+      Throttle:
+        BurstLimit: !Ref WriteThrottlingBurstLimit
+
+  RestApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/apigateway/${AWS::StackName}-${RestApiGatewayName}"
+      RetentionInDays: 14
+
+  RestApiGatewayLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+
+  RestApiGatewayLogAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt RestApiGatewayLogsRole.Arn
+
+  LambdaDeadLetterQueue:
+    Type: AWS::SQS::Queue
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Policies:
+        - PolicyName: LambdaLogPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Effect: Allow
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-LambdaFunction-*:*"
+        - PolicyName: LambdaSQSDlqPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                - sqs:SendMessage
+                Effect: Allow
+                Resource: !GetAtt LambdaDeadLetterQueue.Arn
+        - PolicyName: LambdaTimestreamDescribeEndpointsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                - timestream:DescribeEndpoints
+                Effect: Allow
+                Resource: "*"
+        - PolicyName: LambdaTimestreamWritePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                - timestream:DescribeTable
+                - timestream:WriteRecords
+                - timestream:CreateTable
+                - timestream:TagResource
+                Effect: Allow
+                Resource: !Sub arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${DatabaseName}/table/*
+        - PolicyName: LambdaTimestreamDatabasePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                - timestream:DescribeDatabase
+                - timestream:CreateDatabase
+                - timestream:TagResource
+                Effect: Allow
+                Resource: !Sub arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${DatabaseName}
+        - PolicyName: LambdaKMSPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                - kms:DescribeKey
+                - kms:CreateGrant
+                Effect: Allow
+                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${KmsKeyId}
+
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: provided.al2023
+      Handler: influxdb-timestream-connector
+      Architectures:
+        - arm64
+      CodeUri: ./target/lambda/influxdb-timestream-connector/bootstrap.zip
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
+      Events:
+        RestApiGatewayEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApiGateway
+            Path: /api/v2/write
+            Method: POST
+      EventInvokeConfig:
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt LambdaDeadLetterQueue.Arn
+        MaximumEventAgeInSeconds: 3600
+        MaximumRetryAttempts: 0
+      Environment:
+        Variables:
+          custom_partition_key_type: !If [CustomPartitionKeyTypeProvided, !Ref CustomPartitionKeyType, !Ref "AWS::NoValue"]
+          custom_partition_key_dimension: !If [CustomPartitionKeyDimensionProvided, !Ref CustomPartitionKeyDimension, !Ref "AWS::NoValue"]
+          database_name: !Ref DatabaseName
+          kms_key_id: !Ref KmsKeyId
+          database_tags: !Ref DatabaseTags
+          table_tags: !Ref TableTags
+          measure_name_for_multi_measure_records: !Ref MeasureNameForMultiMeasureRecords
+          table_mapping: !Ref TableMapping
+          single_table_name: !Ref SingleTableName
+          region: !Ref AWS::Region
+          enable_database_creation: !Ref EnableDatabaseCreation
+          enable_table_creation: !Ref EnableTableCreation
+          enable_mag_store_writes: !Ref EnableMagStoreWrites
+          enforce_custom_partition_key: !If [EnforceCustomPartitionKeyProvided, !Ref EnforceCustomPartitionKey, !Ref "AWS::NoValue"]
+          mag_store_retention_period: !Ref MagStoreRetentionPeriod
+          mem_store_retention_period: !Ref MemStoreRetentionPeriod
+          RUST_LOG: !Ref RustLog
+      PackageType: Zip
+      Timeout: !Ref LambdaTimeoutInSeconds
+      MemorySize: !Ref LambdaMemorySize
+  
+Outputs:
+  Endpoint:
+    Description: The endpoint for the REST API Gateway.
+    Value: !Sub https://${RestApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${RestApiGatewayStageName}
+  ExecutionPolicy:
+    Description: The IAM policy permissions required for invoking the InfluxDB Timestream Connector.
+    Value: !Sub |
+      {
+          "Version": "2012-10-17",
+          "Statement": [
+              {
+                  "Effect": "Allow",
+                  "Action": "execute-api:Invoke",
+                  "Resource": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiGateway}/${RestApiGatewayStageName}/POST/api/v2/write"
+              }
+          ]
+      }
+  LambdaDeadLetterQueueName:
+    Description: The name of the dead letter queue used by the Lambda function.
+    Condition: IsAsyncEnabled
+    Value: !GetAtt LambdaDeadLetterQueue.QueueName
+

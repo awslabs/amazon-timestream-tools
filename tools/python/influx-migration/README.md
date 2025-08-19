@@ -114,7 +114,7 @@ The following is a formatted version of the output:
 
 **`--dest-bucket DEST_BUCKET`**: Optional. The name of the InfluxDB bucket in the destination server, must not be an already existing bucket. Defaults to value of `--src-bucket` or `None` if `--src-bucket` not provided.
 
-**`--dest-host DEST_HOST`**: The host for the destination server. Example: http://localhost:8086.
+**`--dest-host DEST_HOST`**: The host for the destination server. Must have a scheme, domain or IP address, and port, e.g., `http://127.0.0.1:8086` or `https://<domain>:<port>`.
 
 **`--dest-org DEST_ORG`**: Optional. The name of the organization to restore buckets to in the destination server. If this is omitted, then all migrated buckets from the source server will retain their original organization and migrated buckets may not be visible in the destination server without creating and switching organizations. This value will be used in all forms of restoration whether a single bucket, a full migration, or any migration using csv files for backup and restoration.
 
@@ -134,7 +134,7 @@ The following is a formatted version of the output:
 
 **`--src-bucket SRC_BUCKET`**: Optional. The name of the InfluxDB bucket in the source server. If not provided, then `--full` must be provided.
 
-**`--src-host SRC_HOST`**: Optional. The host for the source server. Defaults to http://localhost:8086.
+**`--src-host SRC_HOST`**: Optional. The host for the source server. Must have a scheme, domain or IP address, and port, e.g., `http://127.0.0.1:8086` or `https://<domain>:<port>`. Defaults to http://localhost:8086 if no value is specified.
 
 > As mentioned previously, `mountpoint-s3` and `rclone` are needed if `--s3-bucket` is to be used, but can be ignored if the user doesn't provide a value for `--s3-bucket`, in which case backup files will be stored in a unique directory locally.
 
@@ -146,15 +146,35 @@ After meeting the prerequisites:
 
 2. **Provide Credentials**: Provide host addresses and ports as CLI options.
 
-3. **Verify Data**: Ensure the data is correctly transferred by:
+3. **Verify Data**: To manually verify data migration run the following commands before, on the source instance, and after migrating, on the destination instance:
 
-    a. Using the InfluxDB UI and inspecting buckets.
+    - **i**. List all buckets using the Influx CLI, where `<token>` is an operator token and `<host>` is the host of the source or destination instance, e.g., `https://<hostname>:8086` or `http://localhost:8086`.
 
-    b. Listing buckets with `influx bucket list -t <destination token> --host <destination host address> --skip-verify`.
+      ```shell
+      influx bucket list -t <token> --host <host>
+      ```
+    
+      This will help get an idea of the buckets in the source instance, whether you are doing a full migration or migrating just one bucket.
 
-    c. Using `influx v1 shell -t <destination token> --host <destination host address> --skip-verify` and running `SELECT * FROM <migrated bucket>.<retention period>.<measurement name> LIMIT 100` to view contents of a bucket or `SELECT COUNT(*) FROM <migrated bucket>.<retention period>.<measurment name>` to verify the correct number of records have been migrated.
+    - **ii**. Start the Influx CLI v1 shell.
 
-    d. By running a query using `influx query -t <destination token> --host <destination host address> --skip-verify 'from(bucket: "<migrated bucket>") |> range(start: <desired start>, stop: <desired stop>)'`. Adding `|> count()` to the query is also a way to verify the correct number of records have been migrated.
+      ```shell
+      influx v1 shell -t <token> --host <host> --org <org name>
+      ```
+
+    - **iii**. Query the number of records in a bucket with the Influx CLI v1 shell.
+
+      ```sql
+      SELECT COUNT(*) FROM "<bucket name>"."<retention period>"."<measurement name>"
+      ```
+
+      For reference, if a bucket has an infinite retention period then the value of `<retention period>` will be `autogen`.
+    
+    - **iv**. Exit the Influx v1 shell and use the Influx CLI to query the number of records in each table within a bucket using [`count()`](https://docs.influxdata.com/flux/v0/stdlib/universe/count/) and the largest possible range. Note that this will show **different** results compared to the previous step, as the total number of records are not being queried.
+
+      ```shell
+      influx query 'from(bucket: "<bucket name>") |> range(start: 1680-01-01T00:00:00Z, stop: 2800-01-01T00:00:00Z) |> count()' -t <token> --org <org name> --host <host>
+      ```
 
 ## Example Run
 
@@ -178,7 +198,7 @@ After meeting the prerequisites:
 
     - (optional) S3 bucket name and credentials, AWS CLI credentials should be set in the OS environment variables.
       ```
-      # AWS credentials (for timestream testing)
+      # AWS credentials
       export AWS_ACCESS_KEY_ID="xxx"
       export AWS_SECRET_ACCESS_KEY="xxx"
       ```
@@ -651,3 +671,17 @@ Possible reasons for a restore failing include:
 - Invalid InfluxDB destination token.
 - A bucket existing in the destination instance with the same name as in the source instance. For individual bucket migrations use the `--dest-bucket` option to set a unique name for the migrated bucket.
 - Connectivity failure, either with the source or destination hosts or with an optional S3 bucket.
+
+### Determining Amount of Data Migrated
+
+By default, the number of shards migrated, as reported by the Influx CLI, and the
+number of rows migrated when `--csv` is used, are logged.
+When the log level is set to `debug`, with the option `--log-level debug`, the
+number of [series](https://docs.influxdata.com/influxdb/v2/reference/key-concepts/data-elements/#series) as reported by
+the [InfluxDB `/metrics` endpoint](https://docs.influxdata.com/influxdb/v2/api/#operation/GetMetrics), under [bucket series number](https://docs.influxdata.com/influxdb/v2/reference/internals/metrics/#bucket-series-number),
+will be logged.
+
+If a bucket is empty or has not been migrated, it will not be listed under bucket series number and an error indicating as such will be logged.
+This can help determine whether data is successfully being migrated.
+
+To manually verify migrated records, see the recommended queries listed in the [Migration Overview](#migration-overview) section, step 3.

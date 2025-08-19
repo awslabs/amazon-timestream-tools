@@ -1,0 +1,166 @@
+Metadata: 
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Amazon Timestream for InfluxDB Configuration"
+        Parameters:
+          - DbInstanceName
+          - InfluxDBPassword
+    ParameterLabels:
+      VPCCIDR:
+        default: VPC CIDR
+
+Parameters:
+  DbInstanceName:
+    Description: The name that uniquely identifies the DB instance when interacting with the Amazon Timestream for InfluxDB API and CLI commands. This name will also be a prefix included in the endpoint. DB instance names must be unique per customer and per region.
+    Type: String
+    Default: mydbinstance
+    MinLength: 3
+    MaxLength: 40
+    AllowedPattern: ^[a-zA-z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*$
+  InfluxDBPassword:
+    Description: The password of the initial admin user created in InfluxDB. This password will allow you to access the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an operator token. These attributes will be stored in a Secret created in AWS SecretManager in your account.
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 64
+    AllowedPattern: ^[a-zA-Z0-9]+$
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Select [0, !Cidr [!GetAtt VPC.CidrBlock, 2, 12 ]]
+      MapPublicIpOnLaunch: true
+  Subnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs  '']
+      CidrBlock: !Select [1, !Cidr [!GetAtt VPC.CidrBlock, 2, 12 ]]
+      MapPublicIpOnLaunch: true
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  Subnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref Subnet1
+  Subnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref Subnet2
+  InfluxDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "influxdb-sg"
+      GroupDescription: "Security group allowing port 8086 ingress for InfluxDB"
+      VpcId: !Ref VPC
+  InfluxDBSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref InfluxDBSecurityGroup
+      IpProtocol: tcp
+      CidrIp: 0.0.0.0/0
+      FromPort: 8086
+      ToPort: 8086
+  InfluxDBLogsS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+  InfluxDBLogsS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref InfluxDBLogsS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: "s3:PutObject"
+            Effect: Allow
+            Resource: !Sub arn:aws:s3:::${InfluxDBLogsS3Bucket}/InfluxLogs/*
+            Principal:
+              Service: timestream-influxdb.amazonaws.com
+          - Action: "s3:*"
+            Effect: Deny
+            Resource:
+              - !Sub arn:aws:s3:::${InfluxDBLogsS3Bucket}/*
+              - !Sub arn:aws:s3:::${InfluxDBLogsS3Bucket}
+            Principal: "*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+  DbInstance:
+    Type: AWS::Timestream::InfluxDBInstance
+    DependsOn: InfluxDBLogsS3BucketPolicy
+    Properties:
+      AllocatedStorage: 20
+      DbInstanceType: db.influx.medium
+      Name: !Ref DbInstanceName
+      Password: !Ref InfluxDBPassword
+      PubliclyAccessible: true
+      DeploymentType: WITH_MULTIAZ_STANDBY
+      VpcSecurityGroupIds: 
+        - !Ref InfluxDBSecurityGroup
+      VpcSubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+      LogDeliveryConfiguration:
+        S3Configuration:
+          BucketName: !Ref InfluxDBLogsS3Bucket
+          Enabled: true
+
+Outputs:
+  # Network Resources
+  VPC:
+    Description: A reference to the VPC used to create network resources
+    Value: !Ref VPC
+  Subnets:
+    Description: A list of the subnets created
+    Value: !Join [",", [!Ref Subnet1, !Ref Subnet2]]
+  Subnet1:
+    Description: A reference to the subnet in the 1st Availability Zone
+    Value: !Ref Subnet1
+  Subnet2:
+    Description: A reference to the subnet in the 2nd Availability Zone
+    Value: !Ref Subnet2
+  InfluxDBSecurityGroup:
+    Description: Security group with port 8086 ingress rule
+    Value: !Ref InfluxDBSecurityGroup
+
+  # Timestream for InfluxDB Resources
+  InfluxDBLogsS3Bucket:
+    Description: S3 Bucket containing InfluxDB logs from the DB instance
+    Value: !Ref InfluxDBLogsS3Bucket
+  DbInstance:
+    Description: A reference to the Timestream for InfluxDB DB instance
+    Value: !Ref DbInstance
+  InfluxAuthParametersSecretArn:
+    Description: "The Amazon Resource Name (ARN) of the Amazon Secrets Manager secret containing the initial InfluxDB authorization parameters. The secret value is a JSON formatted key-value pair holding InfluxDB authorization values: organization, bucket, username, and password."
+    Value: !GetAtt DbInstance.InfluxAuthParametersSecretArn
+  Endpoint:
+    Description: The endpoint URL to connect to InfluxDB
+    Value: !Join ["", ["https://", !GetAtt DbInstance.Endpoint, ":8086"]]
+    

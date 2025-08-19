@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Test Plan">
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Puchase History Thread Group">
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">300</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+      </ThreadGroup>
+      <hashTree>
+        <LoopController guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <stringProp name="LoopController.loops">1</stringProp>
+        </LoopController>
+        <hashTree>
+          <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Purchase History Ingestor">
+            <stringProp name="cacheKey">false</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters">${channel} ${ip_address} ${session_id} ${user_id} ${event} ${user_group} ${current_time} ${query} ${product_id} ${product} ${quantityrequired}</stringProp>
+            <stringProp name="script">import org.apache.kafka.clients.producer.KafkaProducer
+import org.apache.kafka.clients.producer.ProducerRecord
+import groovy.json.JsonOutput
+
+try {
+  //Set connection properties
+    Properties properties = new Properties()
+    properties.put(&apos;bootstrap.servers&apos;, props.get(&apos;bootstrapServer&apos;))
+    properties.put(&apos;key.serializer&apos;, &apos;org.apache.kafka.common.serialization.StringSerializer&apos;)
+    properties.put(&apos;value.serializer&apos;, &apos;org.apache.kafka.common.serialization.StringSerializer&apos;)
+    properties.put(&apos;security.protocol&apos;, &apos;SASL_SSL&apos;)
+    properties.put(&apos;sasl.mechanism&apos;, &apos;AWS_MSK_IAM&apos;)
+    properties.put(&apos;sasl.jaas.config&apos;, &apos;software.amazon.msk.auth.iam.IAMLoginModule required;&apos;)
+    properties.put(&apos;sasl.client.callback.handler.class&apos;, &apos;software.amazon.msk.auth.iam.IAMClientCallbackHandler&apos;)
+  //Establish Connection
+    KafkaProducer &lt; String, String &gt; producer = new KafkaProducer &lt; String, String &gt; (properties)
+    int fail = 0
+    try {
+        message = JsonOutput.toJson([current_time: new Date().getTime(),
+            channel: vars.get(&apos;channel&apos;), ip_address: vars.get(&apos;ip_address&apos;),
+            session_id: vars.get(&apos;session_id&apos;),
+            user_id: vars.get(&apos;user_id&apos;),
+            event: vars.get(&apos;event&apos;), user_group: vars.get(&apos;user_group&apos;),
+            query: vars.get(&apos;query&apos;), product_id: vars.get(&apos;product_id&apos;),
+            product: vars.get(&apos;product&apos;), quantityrequired: vars.get(&apos;quantityrequired&apos;)])
+        log.info(&apos;Message to be published--&gt;: &apos; + message)
+        ProducerRecord &lt; String, String &gt; producerRecord =
+            new ProducerRecord &lt; String, String &gt;(props.get(&apos;topic&apos;), vars.get(&apos;user_id&apos;), message)
+        producer.send(producerRecord)
+        log.info(&apos;Published message&apos;)
+        producerRecord = null
+    } catch (Exception e) {
+        log.error(&apos;Error Publishing: &apos; + e)
+        fail = fail + 1
+    }
+  //Set results as per executions
+    if (fail &gt; 0) {
+        SampleResult.setErrorCount(fail)
+        SampleResult.setSuccessful(false)
+    } else {
+        SampleResult.setSuccessful(true)
+    }
+} catch (Exception e) {
+    log.error(&apos;ERROR: &apos;, e)
+    SampleResult.setSuccessful(false)
+} finally {
+    producer.close()
+    producer = null
+    props = null
+}
+</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+          </JSR223Sampler>
+          <hashTree/>
+          <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="Purchase History CSV File">
+            <stringProp name="delimiter">,</stringProp>
+            <stringProp name="fileEncoding">UTF-8</stringProp>
+            <stringProp name="filename">purchase_history.csv</stringProp>
+            <boolProp name="ignoreFirstLine">true</boolProp>
+            <boolProp name="quotedData">false</boolProp>
+            <boolProp name="recycle">true</boolProp>
+            <stringProp name="shareMode">shareMode.all</stringProp>
+            <boolProp name="stopThread">false</boolProp>
+            <stringProp name="variableNames">channel,ip_address,session_id,user_id,event,user_group,current_time,query,product_id,product,quantity</stringProp>
+          </CSVDataSet>
+          <hashTree/>
+        </hashTree>
+        <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
+      </hashTree>
+      <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="UDV Check">
+        <stringProp name="cacheKey">true</stringProp>
+        <stringProp name="filename"></stringProp>
+        <stringProp name="parameters">${topic} ${bootstrap_server}</stringProp>
+        <stringProp name="script">topic = vars.get(&apos;topic&apos;)
+bootstrapServer = vars.get(&apos;bootstrap_server&apos;)
+stop = false
+if (topic == null || &apos;null&apos;.equals(topic)) {
+    log.error(&apos;ERROR: topic is not passed in the arguments&apos;)
+    println(&apos;ERROR: topic is not passed in the arguments&apos;)
+    stop = true
+} else {
+    log.info(&apos;INFO: topic is set to {}&apos;, topic)
+    props.put(&apos;topic&apos;, topic)
+}
+
+if (bootstrapServer == null || &apos;null&apos;.equals(bootstrapServer)) {
+    println(&apos;ERROR: bootstrapServer is not passed in the arguments&apos;)
+    log.error(&apos;ERROR: bootstrapServer is not passed in the arguments&apos;)
+    stop = true
+} else {
+    log.info(&apos;INFO: bootstrapServer is set to {}&apos;, bootstrapServer)
+    try {
+        String[] splits = bootstrapServer.split(&apos;:&apos;)
+        String uri = splits[0]
+        String port = Integer.valueOf(splits[1])
+        log.info(&apos;INFO: URI: [{}], port: [{}]&apos;, uri, port)
+        props.put(&apos;bootstrapServer&apos;, bootstrapServer)
+    } catch (Throwable e) {
+        stop = true
+        println(&apos;ERROR: bootstrapServer &apos; +  bootstrapServer +
+            &apos; is NOT valid. It must be of format HOSTNAME:PORT&apos;)
+        log.error(&apos;ERROR: bootstrapServer {} is NOT valid. It must be of format HOSTNAME:PORT&apos;, bootstrapServer)
+     }
+}
+if (stop == true) {
+    prev.setStopTestNow(true)
+    exit(1)
+}</stringProp>
+        <stringProp name="scriptLanguage">groovy</stringProp>
+      </JSR223PreProcessor>
+      <hashTree/>
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="UDV">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="topic" elementType="Argument">
+            <stringProp name="Argument.name">topic</stringProp>
+            <stringProp name="Argument.value">${__P(topic,null)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="bootstrap_server" elementType="Argument">
+            <stringProp name="Argument.name">bootstrap_server</stringProp>
+            <stringProp name="Argument.value">${__P(bootstrap_server,null)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree/>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
