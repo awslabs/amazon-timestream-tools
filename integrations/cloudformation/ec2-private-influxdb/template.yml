@@ -1,0 +1,262 @@
+Transform: AWS::Serverless-2016-10-31
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: timestreaminfluxdb-cloudformation-sample
+    Description: "This serverless application deploys an Amazon EC2 instance as a bastion host and an Amazon Timestream for InfluxDB instance without public internet access enabled."
+    Author: "Amazon Timestream"
+    HomePageUrl: "https://aws.amazon.com/timestream/"
+    SemanticVersion: "1.0.0"
+
+Parameters:
+  AllocatedStorage:
+    Type: Number
+    MinValue: 20
+    MaxValue: 16384
+    Default: 20
+    Description: "The amount of storage to allocate for your DB storage type in GiB (gibibytes). Update requires replacement."
+
+  Bucket:
+    Type: String
+    AllowedPattern: ^[^_][^"]*$
+    MinLength: 2
+    MaxLength: 64
+    Default: "bucket"
+    Description: "The name of the initial InfluxDB bucket. All InfluxDB data is stored in a bucket. A bucket combines the concept of a database and a retention period (the duration of time that each data point persists). A bucket belongs to an organization. Update required replacement."
+
+  Port:
+    Type: Number
+    Default: 8086
+    Description: "The port to use for the Timestream for InfluxDB instance."
+
+  DbInstanceType:
+    Type: String
+    Default: "db.influx.medium"
+    AllowedValues: [
+      "db.influx.medium",
+      "db.influx.large",
+      "db.influx.xlarge",
+      "db.influx.2xlarge",
+      "db.influx.4xlarge",
+      "db.influx.8xlarge",
+      "db.influx.12xlarge",
+      "db.influx.16xlarge",
+      "db.influx.24xlarge"
+    ]
+    Description: "The Timestream for InfluxDB DB instance type to run on. Update requires replacement."
+
+  DbStorageType:
+    Type: String
+    Default: "InfluxIOIncludedT1"
+    AllowedValues: [
+      "InfluxIOIncludedT1",
+      "InfluxIOIncludedT2",
+      "InfluxIOIncludedT3"
+    ]
+    Description: "The Timestream for InfluxDB DB storage type to read and write InfluxDB data. Update requires replacement."
+
+  DeploymentType:
+    Type: String
+    Default: "SINGLE_AZ"
+    AllowedValues: [
+      "SINGLE_AZ",
+      "WITH_MULTIAZ_STANDBY"
+    ]
+    Description: "Specifies whether the Timestream for InfluxDB is deployed as Single-AZ or with a MultiAZ Standby for High availability. Update requires replacement."
+
+  DbInstanceName:
+    Type: String
+    AllowedPattern: ^[a-zA-z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*$
+    MinLength: 3
+    MaxLength: 40
+    Default: "test-db-instance"
+    Description: "The name that uniquely identifies the DB instance when interacting with the Amazon Timestream for InfluxDB API and CLI commands. This name will also be a prefix included in the endpoint. DB instance names must be unique per customer and per region. Update requires replacement."
+
+  Organization:
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+    Default: "organization"
+    Description: "The name of the initial organization for the initial admin user in InfluxDB. An InfluxDB organization is a workspace for a group of users. Update requires replacement."
+
+  Password:
+    Type: String
+    AllowedPattern: ^[a-zA-Z0-9]+$
+    MinLength: 8
+    MaxLength: 64
+    NoEcho: true
+    Description: "The password of the initial admin user created in InfluxDB. This password will allow you to access the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an operator token. These attributes will be stored in a Secret created in Amazon SecretManager in your account. Update requires replacement."
+
+  Username:
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+    Description: "The username of the initial admin user created in InfluxDB. Must start with a letter and can't end with a hyphen or contain two consecutive hyphens. For example, my-user1. This username will allow you to access the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an operator token. These attributes will be stored in a Secret created in Amazon Secrets Manager in your account. Update requires replacement."
+
+  NetworkType:
+    Type: String
+    Default: "IPV4"
+    AllowedValues: [
+      "IPV4",
+      "DUAL"
+    ]
+    Description: "Specifies whether the networkType of the Timestream for InfluxDB instance is IPV4, which can communicate over IPv4 protocol only, or DUAL, which can communicate over both IPv4 and IPv6 protocols."
+
+  ClientIp:
+    Type: String
+    Description: "The IPv4 address to be granted access to the EC2 bastion host."
+
+  Ec2KeyName:
+    Type: String
+    Description: "The name of the key pair to use for SSH access to the EC2 instance."
+
+  Ec2InstanceType:
+    Type: String
+    Default: 't4g.medium'
+    Description: "The EC2 instance type."
+
+  Ec2StorageAmount:
+    Type: Number
+    Default: 30
+    Description: "The size of the EC2 instance's storage in GiBs"
+
+  Ec2AmiId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
+    Description: "The ID of the AMI to use for the EC2 instance."
+
+  Ec2KmsKeyId:
+    Type: String
+    Default: ""
+    Description: "The ID of the KMS key to use to encrypt the EC2 instance's storage. If not specified, your KMS key for EBS is used."
+
+  Ec2InstanceName:
+    Type: String
+    Default: "TimestreamInfluxDBBastionHost" 
+    Description: "The name to use for the EC2 instance."
+
+Conditions:
+  UseCustomKmsKey: !Not [!Equals [!Ref Ec2KmsKeyId, ""]]
+
+Resources:
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+
+  PrivateSubnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref "VPC"
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: false
+
+  PublicSubnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref "VPC"
+      CidrBlock: "10.0.2.0/24"
+      MapPublicIpOnLaunch: true
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+
+  RouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref "VPC"
+
+  VPCGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !GetAtt VPC.VpcId
+      InternetGatewayId: !Ref "InternetGateway"
+
+  Route:
+    Type: "AWS::EC2::Route"
+    Properties:
+      # The EC2 instance needs to be able to install tools such as the Influx CLI.
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref "InternetGateway"
+      RouteTableId: !Ref "RouteTable"
+
+  PublicSubnetRouteTableAssociation:
+    DependsOn: Route
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref "RouteTable"
+      SubnetId: !Ref "PublicSubnet"
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows SSH from the IP in the ClientIp parameter.
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Sub "${ClientIp}/32"
+
+  DbInstanceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security group for Timestream for InfluxDB instance, allowing access only from the bastion host."
+      VpcId: !Ref "VPC"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          Description: "Ingress rule for client access"
+          FromPort: !Ref "Port"
+          ToPort: !Ref "Port"
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
+
+  Ec2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: !Ref Ec2InstanceType
+      ImageId: !Ref Ec2AmiId
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      KeyName: !Ref Ec2KeyName
+      BlockDeviceMappings:
+      - DeviceName: "/dev/xvda"
+        Ebs: 
+          VolumeType: "io1"
+          Iops: "200"
+          DeleteOnTermination: true
+          VolumeSize: !Ref Ec2StorageAmount
+          Encrypted: true
+          KmsKeyId: !If
+            - UseCustomKmsKey
+            - !Ref Ec2KmsKeyId
+            - !Ref 'AWS::NoValue'
+      Tags:
+        - Key: "Name"
+          Value: !Ref Ec2InstanceName
+
+  TimestreamInfluxDBInstance:
+    Type: "AWS::Timestream::InfluxDBInstance"
+    Properties:
+      AllocatedStorage: !Ref "AllocatedStorage"
+      Bucket: !Ref "Bucket"
+      DbInstanceType: !Ref "DbInstanceType"
+      DbStorageType: !Ref "DbStorageType"
+      DeploymentType: !Ref "DeploymentType"
+      Name: !Ref "DbInstanceName"
+      NetworkType: !Ref "NetworkType"
+      Organization: !Ref "Organization"
+      Password: !Ref "Password"
+      PubliclyAccessible: false
+      Port: !Ref "Port"
+      Username: !Ref "Username"
+      VpcSecurityGroupIds: [!Ref DbInstanceSecurityGroup]
+      VpcSubnetIds: [!Ref PrivateSubnet]
+
+Outputs:
+  TimestreamInfluxDBEndpoint:
+    Description: "The endpoint of the Timestream for InfluxDB instance."
+    Value: !Sub "https://${TimestreamInfluxDBInstance.Endpoint}:${Port}"
+  Ec2PublicIp:
+    Description: "The public IP of the EC2 bastion host."
+    Value: !GetAtt Ec2Instance.PublicIp
