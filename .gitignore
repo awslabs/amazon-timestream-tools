@@ -48,3 +48,9 @@ integrations/influxdb_metrics_dashboard/lambda/upload_dashboard/bootstrap
 integrations/influxdb_metrics_dashboard/lambda/upload_dashboard/lambda.zip
 integrations/influxdb_metrics_dashboard/cdk.out
 integrations/influxdb_metrics_dashboard/cdk.context.json
+
+# Ignore common Terraform files
+**/.terraform/**
+**/*.tfstate
+**/*.tfstate.backup
+**/*.lock.hcl

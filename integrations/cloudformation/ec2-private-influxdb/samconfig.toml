@@ -1,0 +1,10 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+capabilities = "CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+profile = "default"
+region = "us-west-2"
+stack_name = "Ec2PrivateInfluxDb"
+resolve_s3 = true
