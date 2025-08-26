@@ -3,17 +3,14 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.96.0"
+      version = "~> 6.10.0"
     }
   }
 }
 
-provider "aws" {
-  region = "us-west-2"
-}
-
 resource "aws_vpc" "vpc" {
   cidr_block = "10.0.0.0/16"
+  region     = var.region
 }
 
 # Private subnet used by the Timestream for InfluxDB instance.
@@ -21,6 +18,7 @@ resource "aws_subnet" "private_subnet" {
   vpc_id                  = aws_vpc.vpc.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = false
+  region                  = var.region
 }
 
 # Public subnet used by the EC2 bastion host.
@@ -28,21 +26,25 @@ resource "aws_subnet" "public_subnet" {
   vpc_id                  = aws_vpc.vpc.id
   cidr_block              = "10.0.2.0/24"
   map_public_ip_on_launch = true
+  region                  = var.region
 }
 
 resource "aws_internet_gateway" "internet_gateway" {
   vpc_id = aws_vpc.vpc.id
+  region = var.region
 }
 
 resource "aws_route" "test_route" {
   route_table_id         = aws_vpc.vpc.main_route_table_id
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = aws_internet_gateway.internet_gateway.id
+  region                 = var.region
 }
 
 resource "aws_route_table_association" "route_table_association" {
   subnet_id      = aws_subnet.public_subnet.id
   route_table_id = aws_vpc.vpc.main_route_table_id
+  region         = var.region
 }
 
 resource "aws_security_group" "ec2_security_group" {
@@ -64,6 +66,7 @@ resource "aws_security_group" "ec2_security_group" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  region = var.region
 }
 
 resource "aws_security_group" "timestream_influxdb_security_group" {
@@ -78,6 +81,7 @@ resource "aws_security_group" "timestream_influxdb_security_group" {
     protocol        = "tcp"
     security_groups = [aws_security_group.ec2_security_group.id]
   }
+  region = var.region
 }
 
 data "aws_ami" "amzn-linux-2023-ami" {
@@ -88,6 +92,7 @@ data "aws_ami" "amzn-linux-2023-ami" {
     name   = "name"
     values = ["al2023-ami-2023.*-arm64"]
   }
+  region = var.region
 }
 
 resource "aws_instance" "ec2_instance" {
@@ -109,6 +114,7 @@ resource "aws_instance" "ec2_instance" {
   tags = {
     Name = var.ec2_instance_name
   }
+  region = var.region
 }
 
 resource "aws_timestreaminfluxdb_db_instance" "timestream_influxdb_instance" {
@@ -123,6 +129,7 @@ resource "aws_timestreaminfluxdb_db_instance" "timestream_influxdb_instance" {
   port                   = 8086
   organization           = "organization"
   publicly_accessible    = false
+  region                 = var.region
 }
 
 output "instance_url" {
