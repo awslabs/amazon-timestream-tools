@@ -1,3 +1,8 @@
+variable "region" {
+  type = string
+  default = "us-west-2"
+}
+
 variable "username" {
   type    = string
   default = "admin"

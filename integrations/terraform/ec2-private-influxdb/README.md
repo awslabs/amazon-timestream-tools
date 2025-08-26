@@ -39,7 +39,7 @@ The EC2 instance deployed by this sample is referred to as a "bastion host," mea
 
 ### Tags
 
-[Tagging AWS resources](https://aws.amazon.com/solutions/guidance/tagging-on-aws/) is useful. To tag all resources, define `default_tags` in the `aws` provider block, at the top of [`main.tf`](./main.tf):
+[Tagging AWS resources](https://aws.amazon.com/solutions/guidance/tagging-on-aws/) is useful. To tag all resources, define `default_tags` in an `aws` provider block, in [`main.tf`](./main.tf):
 
 ```terraform
 provider "aws" {
