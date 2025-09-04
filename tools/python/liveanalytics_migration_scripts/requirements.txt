@@ -1,7 +1,7 @@
 boto3==1.38.23
 influxdb-client==1.48.0
 python-dotenv==1.1.0
-requests==2.32.3
+requests==2.32.4
 psycopg2-binary==2.9.10
 pyarrow==20.0.0
 pyyaml==6.0.2

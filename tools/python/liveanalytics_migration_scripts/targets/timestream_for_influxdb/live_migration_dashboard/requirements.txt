@@ -1,4 +1,4 @@
-streamlit==1.35.0
+streamlit==1.37.0
 pandas==2.2.2
 pyyaml==6.0.1
 streamlit-autorefresh==1.0.1
