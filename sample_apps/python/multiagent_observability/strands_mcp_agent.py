@@ -74,6 +74,7 @@ if mcp_clients:
         )
         a2a_server = A2AServer(
             agent=agent,
+            host="0.0.0.0",
             port=agent_port,
             http_url=http_url
         )

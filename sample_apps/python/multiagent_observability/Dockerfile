@@ -6,6 +6,6 @@ RUN apt-get update && \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
-	pip install awslabs.aws-api-mcp-server==0.1.4
+	pip install awslabs.aws-api-mcp-server
 COPY . .
 EXPOSE 9000
