@@ -54,6 +54,11 @@ All agents are **MCP-connected** and collaborate via **A2A**, including dependen
   | aws-agent      | 9001  | AWS general agent endpoint    |
   | maestro        | -     | Entrypoint for invocations    |
 
+
+<p align="center">
+  <img src="./assets/flow.png" alt="drawing" width="500"/>
+</p>
+
 ---
 
 ## Grafana Dashboard (Overview)
