@@ -12,6 +12,7 @@ import os
 import sys
 import time
 from typing import List, Optional
+import httpx
 
 from strands import Agent
 from strands.telemetry import StrandsTelemetry
@@ -107,8 +108,8 @@ def parse_arguments() -> argparse.Namespace:
         "--agent-urls",
         nargs="+",
         default=[
-            "http://aws-agent:9001",
-            "http://cfn-agent:9002",
+            "http://host.docker.internal:9001",
+            "http://host.docker.internal:9002",
         ],
         help="List of known agent URLs"
     )
