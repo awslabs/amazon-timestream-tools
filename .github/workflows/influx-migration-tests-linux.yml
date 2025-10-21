@@ -22,6 +22,9 @@ defaults:
     shell: bash
     working-directory: 'tools/python/influx-migration'
 
+permissions:
+  contents: read
+
 jobs:
   linux64:
     runs-on: ubuntu-latest
