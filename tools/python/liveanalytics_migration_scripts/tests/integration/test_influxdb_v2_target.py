@@ -937,6 +937,20 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                     },
                 ],
             },
+            {
+                "Dimensions": dimensions,
+                "MeasureName": "multiple_back_slashes_measure_name",
+                "MeasureValueType": "MULTI",
+                "Time": str(start_time.value),
+                "TimeUnit": "NANOSECONDS",
+                "MeasureValues": [
+                    {
+                        "Name": "multiple_back_slashes_measure_value_name",
+                        "Value": "multiple\\backslashes\\\\in\\\\\\measure\\\\\\\\value",
+                        "Type": "VARCHAR",
+                    },
+                ],
+            },
         ]
 
         schema_tags = validator.get_quoted_tags(dimensions)
