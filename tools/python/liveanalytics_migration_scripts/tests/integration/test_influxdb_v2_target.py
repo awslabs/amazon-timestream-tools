@@ -739,6 +739,109 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             ]
         )
 
+    def test_multi_measure_object(self):
+        current_time = pandas.Timestamp.now()
+
+        start_time = current_time - Timedelta(days=30)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = start_time + Timedelta(days=1)
+        assert isinstance(end_time, pandas.Timestamp)
+
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+        ]
+
+        record = {
+            "Dimensions": dimensions,
+            "MeasureName": "metrics",
+            "MeasureValueType": "MULTI",
+            "Time": str(start_time.value),
+            "TimeUnit": "NANOSECONDS",
+            "MeasureValues": [
+                {"Name": "value", "Value": "{\"dog_walk + run addition\": 0.1, \"dogsneakinteraction_smell\": 0.63}", "Type": "VARCHAR"},
+                {"Name": "memory_utilization", "Value": "33.8", "Type": "DOUBLE"},
+            ],
+        }
+
+        schema_tags = validator.get_quoted_tags(dimensions)
+
+        self.put_records([record])
+        unload.main(
+            [
+                "--database",
+                self.database_name,
+                "--table",
+                self.table_name,
+                "--s3-uri",
+                f"s3://{self.s3_bucket_name}",
+                "--start-time",
+                start_time.strftime(UNLOAD_TIMESTAMP_FORMAT),
+                "--end-time",
+                end_time.strftime(UNLOAD_TIMESTAMP_FORMAT),
+                "--export-table",
+            ]
+        )
+        transform.main(
+            [
+                "--database-name",
+                self.database_name,
+                "--tables",
+                self.table_name,
+                "--athena-database-name",
+                self.athena_database_name,
+                "--s3-bucket-path",
+                self.s3_bucket_name,
+                "--add-validation-field",
+                "true",
+            ]
+        )
+        self.s3_utility.sync_line_protocol_to_storage(
+            s3_bucket_path=self.s3_bucket_name,
+            directory=self.lp_directory,
+            timestream_database_name=self.database_name,
+            timestream_table_name=self.table_name,
+        )
+        influxdb_ingestion.main(
+            [
+                "-w",
+                "5",
+                "-l",
+                "5000",
+                "-m",
+                "5",
+                self.influxdb_bucket_name,
+                self.lp_directory,
+            ]
+        )
+        validator.main(
+            [
+                "--source-engine",
+                "athena",
+                "--athena-output",
+                "s3://" + self.s3_bucket_name,
+                "--athena-database-name",
+                self.athena_database_name,
+                "--athena-table-name",
+                self.athena_table_name,
+                "--influxdb-v2-url",
+                os.environ["INFLUXDB_V2_URL"],
+                "--influxdb-v2-token",
+                os.environ["INFLUXDB_V2_TOKEN"],
+                "--influxdb-v2-org",
+                os.environ["INFLUXDB_V2_ORG"],
+                "--influxdb-v2-bucket",
+                self.influxdb_bucket_name,
+                "--influxdb-v2-measurement",
+                self.table_name,
+                "--schema-tags",
+                schema_tags,
+                "--start-time",
+                start_time.strftime(ISO_8601_TIMESTAMP_FORMAT),
+                "--skip-wal-check",
+            ]
+        )
+
     def test_multi_measure_special_characters(self):
         """
         Tests the migration of data with special characters, characters
