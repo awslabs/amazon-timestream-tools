@@ -759,7 +759,8 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
             "Time": str(start_time.value),
             "TimeUnit": "NANOSECONDS",
             "MeasureValues": [
-                {"Name": "value", "Value": "{\"dog_walk + run addition\": 0.1, \"dogsneakinteraction_smell\": 0.63}", "Type": "VARCHAR"},
+                {"Name": "value_uno", "Value": "{\"dog_walk_double + run addition\": 0.1, \"dogsneakinteraction_smell_double\": 0.63}", "Type": "VARCHAR"},
+                {"Name": "value_dos", "Value": "{'dog_walk_single + run addition': 0.1, 'dogsneakinteraction_smell_single': 0.63}", "Type": "VARCHAR"},
                 {"Name": "memory_utilization", "Value": "33.8", "Type": "DOUBLE"},
             ],
         }
