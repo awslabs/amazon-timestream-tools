@@ -595,7 +595,11 @@ def translate_athena_table_to_line_protocol(
                 delimiter = ")) ||"
             if measure_value_type == "varchar":
                 lp_translation_query += f"""
-                CASE WHEN \"{measure_value_name}\" IS NOT NULL THEN REGEXP_REPLACE('{measure_value_name}', '([, =])', '\\\\$1') || '="' || CAST(\"{measure_value_name}\" AS VARCHAR) || '",' ELSE '' END {delimiter}
+                CASE WHEN \"{measure_value_name}\" IS NOT NULL
+                THEN REGEXP_REPLACE('{measure_value_name}', '([, =])', '\\\\$1') || '="' || 
+                     REGEXP_REPLACE(REGEXP_REPLACE(CAST(\"{measure_value_name}\" AS VARCHAR), '\\\\', '\\\\\\\\'), '"', '\\\\"') || '",'
+                ELSE ''
+                END {delimiter}
                 """
             elif measure_value_type == "bigint":
                 lp_translation_query += f"""
