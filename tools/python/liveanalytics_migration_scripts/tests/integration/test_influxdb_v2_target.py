@@ -873,6 +873,11 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                 "Value": "equals=in=dimension=value",
                 "DimensionValueType": "VARCHAR",
             },
+            {
+                "Name": "emojis🚀in🚀dimension🚀name",
+                "Value": "emojis🚀in🚀dimension🚀value",
+                "DimensionValueType": "VARCHAR",
+            },
         ]
 
         records = [
@@ -914,6 +919,20 @@ class InfluxDbV2TargetTestCase(BaseIntegrationTestCase):
                     {
                         "Name": "equals=in=measure=value=name",
                         "Value": "equals=in=measure=value",
+                        "Type": "VARCHAR",
+                    },
+                ],
+            },
+            {
+                "Dimensions": dimensions,
+                "MeasureName": "emojis🚀in🚀measure🚀name",
+                "MeasureValueType": "MULTI",
+                "Time": str(start_time.value),
+                "TimeUnit": "NANOSECONDS",
+                "MeasureValues": [
+                    {
+                        "Name": "emojies🚀in🚀measure🚀value🚀name",
+                        "Value": "emojis🚀in🚀measure🚀value",
                         "Type": "VARCHAR",
                     },
                 ],
