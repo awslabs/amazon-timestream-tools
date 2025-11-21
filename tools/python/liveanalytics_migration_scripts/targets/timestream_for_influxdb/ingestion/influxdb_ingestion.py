@@ -15,9 +15,12 @@ import multiprocessing
 from multiprocessing import Pool, current_process, Value
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
+from dotenv import load_dotenv
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
+
 from unload.utils.logger_utils import update_logger
 
-from dotenv import load_dotenv
 
 ingestion_logger = logging.getLogger("ingestion")
 
