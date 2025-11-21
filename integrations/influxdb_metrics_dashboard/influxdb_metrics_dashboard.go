@@ -92,10 +92,11 @@ def apply(metric):
 // Parameters:
 //   - configVars: A map containing template variables for the configuration,
 //     including region, instance name, endpoint, and high resolution metrics flag
+//   - influxDBVersion: The version of InfluxDB instances
 //
 // Returns:
 //   - A string containing the rendered Telegraf plugin configuration
-func getTelegrafPluginsConfig(configVars map[string]string) string {
+func getTelegrafPluginsConfig(configVars map[string]string, influxDBVersion string) string {
 	telegrafPluginConf := `[[outputs.cloudwatch]]
   region = "{{.Region}}"
   namespace = "AWS/Timestream/InfluxDB"
@@ -103,11 +104,22 @@ func getTelegrafPluginsConfig(configVars map[string]string) string {
   [outputs.cloudwatch.tagpass]
     DbInstanceName = ["{{.InstanceName}}"]
 
-[[inputs.prometheus]]
+`
+	if influxDBVersion == "3" {
+		telegrafPluginConf += `[[inputs.prometheus]]
+  urls = ["{{.InstanceEndpoint}}"]
+  tags = { DbInstanceName = "{{.InstanceName}}" }
+  bearer_token_string = "{{.InstanceToken}}"
+
+`
+	} else {
+		telegrafPluginConf += `[[inputs.prometheus]]
   urls = ["{{.InstanceEndpoint}}"]
   tags = { DbInstanceName = "{{.InstanceName}}" }
 
 `
+	}
+
 	telegrafTmpl, err := template.New("telegrafConfigTemplate").Parse(telegrafPluginConf)
 	if err != nil {
 		log.Printf("Failed creating new template for Telegraf plugin config: " + err.Error())
@@ -280,15 +292,16 @@ func addInfluxDBSgRuleInfo(influxDBSgRules map[string]influxDBSecurityGroupRule,
 // Parameters:
 //   - stack: The CDK stack to add resources to
 //   - stackProps: Properties of the CDK stack
-//   - influxDBIds: Comma-separated list of InfluxDB instance IDs
+//   - influxDBInstances Map of InfluxDB instance IDs and optional tokens
 //   - telegrafSshCidr: CIDR range for SSH access to the EC2 instance (optional)
 //   - ec2Tags: Map of tags for the EC2 instance running Telegraf (optional)
 //   - enableHighResolutionMetrics: Whether to enable high resolution metrics collection
+//   - influxDBVersion: The verson of InfluxDB instances
 //
 // Returns:
 //   - A comma-separated string of InfluxDB instance name, InfluxDB instance size and InfluxDB instance storage type
 //   - An error if any operation fails
-func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackProps, influxDBIds string, telegrafSshCidr string, ec2Tags map[string]string, enableHighResolutionMetrics bool) (string, error) {
+func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackProps, influxDBInstances map[string]string, telegrafSshCidr string, ec2Tags map[string]string, enableHighResolutionMetrics bool, influxDBVersion string) (string, error) {
 	instanceRole := awsiam.NewRole(stack, jsii.String("influxdb-dashboard-ec2-role"), &awsiam.RoleProps{
 		AssumedBy: awsiam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), nil),
 	})
@@ -348,16 +361,14 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 		Region:      *stack.Region(),
 	})
 
-	// Split the comma separated list of Ids
-	influxDBIdArr := strings.Split(influxDBIds, ",")
-	for _, instanceId := range influxDBIdArr {
+	for instanceId, instanceToken := range influxDBInstances {
 
 		influxDBInstance, err := influxDBClient.GetDbInstance(ctx, &timestreaminfluxdb.GetDbInstanceInput{
 			Identifier: &instanceId,
 		})
 
 		if err != nil {
-			log.Printf("Error describing InfluxDB instance: %s", err)
+			log.Printf("Error describing InfluxDB instance %s: %s", instanceId, err)
 			os.Exit(1)
 		}
 		instanceEndpoint = fmt.Sprintf("https://%s:%d", *influxDBInstance.Endpoint, *influxDBInstance.Port)
@@ -383,6 +394,7 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 			"InstanceName":                *influxDBInstance.Name,
 			"Region":                      *stackProps.Env.Region,
 			"InstanceEndpoint":            instanceEndpoint,
+			"InstanceToken":               instanceToken,
 			"EnableHighResolutionMetrics": "false",
 		}
 
@@ -392,7 +404,7 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 			telegrafPluginConfigTemplateVars["EnableHighResolutionMetrics"] = "false"
 		}
 
-		telegrafConfig += getTelegrafPluginsConfig(telegrafPluginConfigTemplateVars)
+		telegrafConfig += getTelegrafPluginsConfig(telegrafPluginConfigTemplateVars, influxDBVersion)
 
 		if influxDBInstanceInfo != "" {
 			influxDBInstanceInfo += ","
@@ -564,11 +576,12 @@ func addGrafanaWorkspaceToStack(stack awscdk.Stack, stackProps awscdk.StackProps
 //   - dashboardName: The name for the Grafana dashboard
 //   - dbClusterInfo: Comma-separated list of InfluxDB instance name, instance size, and instance storage type
 //   - dashboardDataGranularity: The granularity of the dashboard used, default is 60s and fine granularity is 5s
+//   - influxDBVersion: The version of InfluxDB instances
 //
 // Returns:
 //   - The updated CDK stack
 //   - An error if any operation fails
-func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, grafanaWorkspaceName string, dashboardName string, dbClusterInfo string, dashboardDataGranularity string) (awscdk.Stack, error) {
+func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, grafanaWorkspaceName string, dashboardName string, dbClusterInfo string, dashboardDataGranularity string, influxDBVersion string) (awscdk.Stack, error) {
 	var lambdaTimeout float64 = 600.0
 
 	lambdaHandler := awslambda.NewFunction(stack, jsii.String("influxDBMetricDashboardLambdaHandler"), &awslambda.FunctionProps{
@@ -582,6 +595,7 @@ func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, graf
 			"DashboardName":            jsii.String(dashboardName),
 			"DbClusterInfo":            jsii.String(dbClusterInfo),
 			"dashboardDataGranularity": jsii.String(dashboardDataGranularity),
+			"influxDBVersion":          jsii.String(influxDBVersion),
 		},
 		Code: awslambda.Code_FromCustomCommand(jsii.String("lambda/upload_dashboard/lambda.zip"), &[]*string{
 			jsii.String("go"),
@@ -631,14 +645,14 @@ func createLambdaResource(stack awscdk.Stack, stackProps awscdk.StackProps, graf
 	return stack, nil
 }
 
-// parseTagsContext parses tags in the format "key1:val1,Key2:val2" and returns the associated map.
+// parseKeyValueContext parses context parameters in the format "key1:val1,Key2:val2" and returns the associated map.
 //
 // Parameters:
 //   - contextStr: String map to parse
 //
 // Returns:
-//   - Map of parsed tags
-func parseTagsContext(contextStr string) map[string]string {
+//   - Map of parsed parameters
+func parseKeyValueContext(contextStr string) map[string]string {
 	tagsMap := make(map[string]string)
 	tagPairs := strings.Split(contextStr, ",")
 	for _, pair := range tagPairs {
@@ -647,8 +661,11 @@ func parseTagsContext(contextStr string) map[string]string {
 			tagKey := strings.TrimSpace(keyVal[0])
 			tagValue := strings.TrimSpace(keyVal[1])
 			tagsMap[tagKey] = tagValue
+		} else if len(keyVal) == 1 {
+			tagKey := strings.TrimSpace(keyVal[0])
+			tagsMap[tagKey] = ""
 		} else {
-			log.Printf("Failed to parse context tags, ensure you are using the format \"key1:val1,Key2:val2\". Failed tags string: %s", contextStr)
+			log.Printf("Failed to parse context tags, ensure you are using the format \"key1:val1,Key2:val2\", or \"key1,key2\". Failed tags string: %s", contextStr)
 			os.Exit(1)
 		}
 	}
@@ -666,10 +683,29 @@ func main() {
 
 	// Need to use context to access variables at time of App Synthesization
 	// Required context
-	influxDBIdContext := stack.Node().TryGetContext(jsii.String("InfluxDBIds"))
-	if influxDBIdContext == nil {
+	influxDBVersionContext := stack.Node().TryGetContext(jsii.String("InfluxDBVersion"))
+	if influxDBVersionContext == nil {
+		log.Printf("InfluxDBVersion context is required")
+		os.Exit(1)
+	}
+	if influxDBVersionContext.(string) != "2" && influxDBVersionContext.(string) != "3" {
+		log.Printf("InfluxDBVersion must be either \"2\" or \"3\"")
+		os.Exit(1)
+	}
+	influxDBInstanceContext := stack.Node().TryGetContext(jsii.String("InfluxDBIds"))
+	var influxDBInstances map[string]string
+	if influxDBInstanceContext == nil {
 		log.Printf("InfluxDBIds context is required to scrape metric endpoints")
 		os.Exit(1)
+	}
+	influxDBInstances = parseKeyValueContext(influxDBInstanceContext.(string))
+	if influxDBVersionContext.(string) == "3" {
+		for instanceId, instanceToken := range influxDBInstances {
+			if instanceToken == "" {
+				log.Printf("No token provided for db instance %s. A token value must be provided for each database instance for version 3 instances.", instanceId)
+				os.Exit(1)
+			}
+		}
 	}
 
 	// Optional context
@@ -703,15 +739,15 @@ func main() {
 	ec2InstanceTagsContext := stack.Node().TryGetContext(jsii.String("TelegrafEc2Tags"))
 	var ec2InstanceTags map[string]string
 	if ec2InstanceTagsContext != nil {
-		ec2InstanceTags = parseTagsContext(ec2InstanceTagsContext.(string))
+		ec2InstanceTags = parseKeyValueContext(ec2InstanceTagsContext.(string))
 	}
 	grafanaWorkspaceTagsContext := stack.Node().TryGetContext(jsii.String("GrafanaWorkspaceTags"))
 	var grafanaWorkspaceTags map[string]string = nil
 	if grafanaWorkspaceTagsContext != nil {
-		grafanaWorkspaceTags = parseTagsContext(grafanaWorkspaceTagsContext.(string))
+		grafanaWorkspaceTags = parseKeyValueContext(grafanaWorkspaceTagsContext.(string))
 	}
 
-	influxDBClusterInfo, err := addTelegrafEC2InstanceToStack(stack, stackProps, influxDBIdContext.(string), telegrafSshCidr, ec2InstanceTags, enableHighResolutionMetrics)
+	influxDBClusterInfo, err := addTelegrafEC2InstanceToStack(stack, stackProps, influxDBInstances, telegrafSshCidr, ec2InstanceTags, enableHighResolutionMetrics, influxDBVersionContext.(string))
 	if err != nil {
 		log.Printf("Error adding Telegraf instance to stack: %s", err)
 		return
@@ -722,7 +758,7 @@ func main() {
 		log.Printf("Error adding Grafana workspace to stack: %s", err)
 		return
 	}
-	_, err = createLambdaResource(stack, stackProps, grafanaWorkspaceName, dashboardName, influxDBClusterInfo, dashboardDataGranularity)
+	_, err = createLambdaResource(stack, stackProps, grafanaWorkspaceName, dashboardName, influxDBClusterInfo, dashboardDataGranularity, influxDBVersionContext.(string))
 	if err != nil {
 		log.Printf("Error adding Lambda function to stack: %s", err)
 		return

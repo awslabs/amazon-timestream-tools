@@ -21,7 +21,8 @@ The InfluxDB Metrics Dashboard creates a Grafana dashboard to visualize existing
 
 The following context options are required when deploying the CDK application:
 
-  1. **InfluxDBIds**: The comma separated list of Id(s) for Timestream for InfluxDB instances.
+  1. **InfluxDBIds**: The comma separated list of Id(s) and InfluxDB 3 token(s) if applicable. If using InfluxDB 2, use the format `"instance1Id,instance2Id"`, and when using InfluxDB 3, use the format `"instance1Id:instance1Token,instance2Id:instance2Token"`
+  2. **InfluxDBVersion**: The version of InfluxDB instances; supported values include `2` and `3`.
 
 The following context options are optional when deploying the CDK application:
 
