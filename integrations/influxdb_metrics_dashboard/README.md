@@ -24,6 +24,8 @@ The following context options are required when deploying the CDK application:
   1. **InfluxDBIds**: The comma separated list of Id(s) and InfluxDB 3 token(s) if applicable. If using InfluxDB 2, use the format `"instance1Id,instance2Id"`, and when using InfluxDB 3, use the format `"instance1Id:instance1Token,instance2Id:instance2Token"`
   2. **InfluxDBVersion**: The version of InfluxDB instances; supported values include `2` and `3`.
 
+  ***(note)*** &mdash; When using InfluxDB 3 instances, the db instances in a cluster can be retrieved with [list-db-instances-for-cluster](https://docs.aws.amazon.com/cli/latest/reference/timestream-influxdb/list-db-instances-for-cluster.html).
+
 The following context options are optional when deploying the CDK application:
 
   1. **GrafanaWorkspaceName**: The name used for the Grafana workspace. The context defaults to `InfluxDBMetricDashboardWorkspace`.

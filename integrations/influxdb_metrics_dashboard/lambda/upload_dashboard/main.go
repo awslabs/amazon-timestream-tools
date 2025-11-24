@@ -58,6 +58,7 @@ var influxDBInstanceTypes = map[influxDBTypes.DbInstanceType]influxDBInstanceSpe
 	influxDBTypes.DbInstanceTypeDbInflux8xlarge:  influxDBInstanceSpecs{vCpu: 32, memory: 274877906944, networkBandwidth: 1500000000, seriesThreshold: 7500000, lineWritesPerSecondThreshold: 500000, queriesPerSecondThreshold: 50},
 	influxDBTypes.DbInstanceTypeDbInflux12xlarge: influxDBInstanceSpecs{vCpu: 48, memory: 412316860416, networkBandwidth: 2500000000, seriesThreshold: 10000000, lineWritesPerSecondThreshold: 750000, queriesPerSecondThreshold: 55},
 	influxDBTypes.DbInstanceTypeDbInflux16xlarge: influxDBInstanceSpecs{vCpu: 64, memory: 549755813888, networkBandwidth: 3125000000, seriesThreshold: 10000000, lineWritesPerSecondThreshold: 1000000, queriesPerSecondThreshold: 60},
+	influxDBTypes.DbInstanceTypeDbInflux24xlarge: influxDBInstanceSpecs{vCpu: 96, memory: 824633720832, networkBandwidth: 5000000000, seriesThreshold: 10000000, lineWritesPerSecondThreshold: 1250000, queriesPerSecondThreshold: 75},
 }
 
 // getWorkspaceByName retrieves a Grafana workspace by its name.
