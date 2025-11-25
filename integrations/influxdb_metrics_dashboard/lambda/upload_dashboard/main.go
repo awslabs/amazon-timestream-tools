@@ -914,15 +914,10 @@ func generatePanels(dashboardDataGranularity string, influxDBVersion string) []i
 				"metricQueryType":  0,
 				"metricEditorMode": 0,
 				"sqlExpression":    "",
-				"matchExact":       true,
+				"matchExact":       false,
 				"refId":            string(refId),
 				"hide":             hidePanel,
 				"label":            "",
-			}
-			// For InfluxDB 3 the MemoryUtilization and DiskUtilization panels require the DbClusterName in the query
-			if influxDBVersion == "3" &&
-				(panel.metricNames[0] == "MemoryUtilization" || panel.metricNames[0] == "CPUUtilization") {
-				panelQuery["dimensions"].(map[string]interface{})["DbClusterName"] = "*"
 			}
 
 			panelTargets = append(
