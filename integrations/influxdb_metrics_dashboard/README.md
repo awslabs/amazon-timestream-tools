@@ -21,8 +21,9 @@ The InfluxDB Metrics Dashboard creates a Grafana dashboard to visualize existing
 
 The following context options are required when deploying the CDK application:
 
-  1. **InfluxDBIds**: The comma separated list of Id(s) and InfluxDB 3 token(s) if applicable. If using InfluxDB 2, use the format `"instance1Id,instance2Id"`, and when using InfluxDB 3, use the format `"instance1Id:instance1Token,instance2Id:instance2Token"`
-  2. **InfluxDBVersion**: The version of InfluxDB instances; supported values include `2` and `3`.
+  1. **InfluxDBIds**: The comma separated list of Id(s) and InfluxDB 3 token(s) if applicable. If using InfluxDB 2, use the format `"instance1Id,instance2Id"`, and when using InfluxDB 3, use the format `"instance1Id:instance1Token,instance2Id:instance2Token"`. InfluxDBIds is a required context when InfluxDBClusterIds is not used.
+  2. **InfluxDBClusterIds**: The comma separated list of cluster Id(s) and InfluxDB 3 token(s) if applicable. If using InfluxDB 2, use the format `"cluster1Id,cluster2Id"`, and when using InfluxDB 3, use the format `"cluster1Id:cluster1Token,cluster2Id:cluster2Token"`. `InfluxDBClusterIds` is required when `InfluxDBIds` is not used.
+  3. **InfluxDBVersion**: The version of InfluxDB instances; supported values include `2` and `3`.
 
   ***(note)*** &mdash; When using InfluxDB 3 instances, the db instances in a cluster can be retrieved with [list-db-instances-for-cluster](https://docs.aws.amazon.com/cli/latest/reference/timestream-influxdb/list-db-instances-for-cluster.html).
 
@@ -71,6 +72,13 @@ Replace the following values in the IAM policy with values from your AWS account
 			"Action": "timestream-influxdb:GetDbInstance",
 			"Resource": [
 				"arn:aws:timestream-influxdb:{region}:{account-id}:db-instance/*"
+			]
+		},
+		{
+			"Effect": "Allow",
+			"Action": "timestream-influxdb:ListDbInstancesForCluster",
+			"Resource": [
+				"arn:aws:timestream-influxdb:{region}:{account-id}:db-cluster/*"
 			]
 		},
 		{
@@ -219,7 +227,14 @@ Use these variables in math expressions or transformations to customize the pane
 
 ## Limitations
 
+**Metric types**
+
 The InfluxDB Metrics Dashboard only supports counter and gauge types scraped from the `/metrics` endpoint of an InfluxDB instance. This functionality is due to CloudWatch not providing support for histogram types and potentially creating large amounts of metrics if we create histograms for high cardinality datasets.
+
+
+**Static deployments**
+
+When the InfluxDB Metrics Dashboard is deployed, the instances are considered static and any changes to cluster configuration will require a re-deployment. This limitation is due to the Telegraf config that is generated requires updates for and changes to instance endpoints.
 
 ## Cleanup
 

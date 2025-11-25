@@ -74,13 +74,13 @@ def apply(metric):
 
 	telegrafTmpl, err := template.New("telegrafConfigTemplate").Parse(telegrafBaseConf)
 	if err != nil {
-		log.Printf("Failed creating new template for Telegraf base config: " + err.Error())
+		log.Printf("Failed creating new template for Telegraf base config: %s", err.Error())
 		os.Exit(1)
 	}
 
 	var templateBuf bytes.Buffer
 	if err := telegrafTmpl.Execute(&templateBuf, configVars); err != nil {
-		log.Printf("Failed to execute template for Telegraf base config: " + err.Error())
+		log.Printf("Failed to execute template for Telegraf base config: %s", err.Error())
 		os.Exit(1)
 	}
 	return templateBuf.String()
@@ -122,13 +122,13 @@ func getTelegrafPluginsConfig(configVars map[string]string, influxDBVersion stri
 
 	telegrafTmpl, err := template.New("telegrafConfigTemplate").Parse(telegrafPluginConf)
 	if err != nil {
-		log.Printf("Failed creating new template for Telegraf plugin config: " + err.Error())
+		log.Printf("Failed creating new template for Telegraf plugin config: %s", err.Error())
 		os.Exit(1)
 	}
 
 	var templateBuf bytes.Buffer
 	if err := telegrafTmpl.Execute(&templateBuf, configVars); err != nil {
-		log.Printf("Failed to execute template for Telegraf plugins config: " + err.Error())
+		log.Printf("Failed to execute template for Telegraf plugins config: %s", err.Error())
 		os.Exit(1)
 	}
 	return templateBuf.String()
@@ -292,7 +292,8 @@ func addInfluxDBSgRuleInfo(influxDBSgRules map[string]influxDBSecurityGroupRule,
 // Parameters:
 //   - stack: The CDK stack to add resources to
 //   - stackProps: Properties of the CDK stack
-//   - influxDBInstances Map of InfluxDB instance IDs and optional tokens
+//   - influxDBInstances: Map of InfluxDB instance IDs and optional tokens
+//   - influxDBClusters: Map of InfluxDB cluster IDs
 //   - telegrafSshCidr: CIDR range for SSH access to the EC2 instance (optional)
 //   - ec2Tags: Map of tags for the EC2 instance running Telegraf (optional)
 //   - enableHighResolutionMetrics: Whether to enable high resolution metrics collection
@@ -301,7 +302,7 @@ func addInfluxDBSgRuleInfo(influxDBSgRules map[string]influxDBSecurityGroupRule,
 // Returns:
 //   - A comma-separated string of InfluxDB instance name, InfluxDB instance size and InfluxDB instance storage type
 //   - An error if any operation fails
-func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackProps, influxDBInstances map[string]string, telegrafSshCidr string, ec2Tags map[string]string, enableHighResolutionMetrics bool, influxDBVersion string) (string, error) {
+func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackProps, influxDBInstances map[string]string, influxDBClusters map[string]string, telegrafSshCidr string, ec2Tags map[string]string, enableHighResolutionMetrics bool, influxDBVersion string) (string, error) {
 	instanceRole := awsiam.NewRole(stack, jsii.String("influxdb-dashboard-ec2-role"), &awsiam.RoleProps{
 		AssumedBy: awsiam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), nil),
 	})
@@ -348,7 +349,7 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 	var awsCredentials aws.CredentialsProvider
 	awsConfig, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		log.Printf("Error loading AWS config: " + err.Error())
+		log.Printf("Error loading AWS config: %s", err.Error())
 		os.Exit(1)
 	}
 	awsCredentials = awsConfig.Credentials
@@ -360,6 +361,24 @@ func addTelegrafEC2InstanceToStack(stack awscdk.Stack, stackProps awscdk.StackPr
 		Credentials: awsCredentials,
 		Region:      *stack.Region(),
 	})
+
+	// List each db instance in the cluster and add to the influxDBInstances map
+	for clusterId, clusterToken := range influxDBClusters {
+		clusterInstances, err := influxDBClient.ListDbInstancesForCluster(ctx, &timestreaminfluxdb.ListDbInstancesForClusterInput{
+			DbClusterId: &clusterId,
+		})
+		if err != nil {
+			log.Printf("Error listing DB instances for cluster %s: %s", clusterId, err)
+			os.Exit(1)
+		}
+
+		if influxDBInstances == nil {
+			influxDBInstances = make(map[string]string)
+		}
+		for _, instanceId := range clusterInstances.Items {
+			influxDBInstances[*instanceId.Id] = clusterToken
+		}
+	}
 
 	for instanceId, instanceToken := range influxDBInstances {
 
@@ -692,18 +711,37 @@ func main() {
 		log.Printf("InfluxDBVersion must be either \"2\" or \"3\"")
 		os.Exit(1)
 	}
+
+	influxDBClusterContext := stack.Node().TryGetContext(jsii.String("InfluxDBClusterIds"))
 	influxDBInstanceContext := stack.Node().TryGetContext(jsii.String("InfluxDBIds"))
 	var influxDBInstances map[string]string
-	if influxDBInstanceContext == nil {
-		log.Printf("InfluxDBIds context is required to scrape metric endpoints")
+	var influxDBClusters map[string]string
+
+	if influxDBInstanceContext == nil && influxDBClusterContext == nil {
+		log.Printf("InfluxDBIds or InfluxDBClusters context is required to scrape metric endpoints")
 		os.Exit(1)
 	}
-	influxDBInstances = parseKeyValueContext(influxDBInstanceContext.(string))
-	if influxDBVersionContext.(string) == "3" {
-		for instanceId, instanceToken := range influxDBInstances {
-			if instanceToken == "" {
-				log.Printf("No token provided for db instance %s. A token value must be provided for each database instance for version 3 instances.", instanceId)
-				os.Exit(1)
+
+	if influxDBInstanceContext != nil {
+		influxDBInstances = parseKeyValueContext(influxDBInstanceContext.(string))
+		if influxDBVersionContext.(string) == "3" {
+			for instanceId, instanceToken := range influxDBInstances {
+				if instanceToken == "" {
+					log.Printf("No token provided for db instance %s. A token value must be provided for each database instance for version 3 instances.", instanceId)
+					os.Exit(1)
+				}
+			}
+		}
+	}
+
+	if influxDBClusterContext != nil {
+		influxDBClusters = parseKeyValueContext(influxDBClusterContext.(string))
+		if influxDBVersionContext.(string) == "3" {
+			for clusterId, clusterToken := range influxDBClusters {
+				if clusterToken == "" {
+					log.Printf("No token provided for db cluster %s. A token value must be provided for each cluster for version 3 clusters.", clusterId)
+					os.Exit(1)
+				}
 			}
 		}
 	}
@@ -747,7 +785,7 @@ func main() {
 		grafanaWorkspaceTags = parseKeyValueContext(grafanaWorkspaceTagsContext.(string))
 	}
 
-	influxDBClusterInfo, err := addTelegrafEC2InstanceToStack(stack, stackProps, influxDBInstances, telegrafSshCidr, ec2InstanceTags, enableHighResolutionMetrics, influxDBVersionContext.(string))
+	influxDBClusterInfo, err := addTelegrafEC2InstanceToStack(stack, stackProps, influxDBInstances, influxDBClusters, telegrafSshCidr, ec2InstanceTags, enableHighResolutionMetrics, influxDBVersionContext.(string))
 	if err != nil {
 		log.Printf("Error adding Telegraf instance to stack: %s", err)
 		return

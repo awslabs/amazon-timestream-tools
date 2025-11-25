@@ -879,7 +879,7 @@ func generatePanels(dashboardDataGranularity string, influxDBVersion string) []i
 		panelFields = []panelField{
 			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 0}, "Memory utilization", "gauge", "Average", "percent", []string{"MemoryUtilization"}, ""},
 			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 8}, "CPU utilization", "gauge", "Average", "percent", []string{"CPUUtilization"}, ""},
-			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 24}, "Parquet cache size bytes", "stat", "Maximum", "bytes", []string{"influxdb3_parquet_cache_size_bytes_gauge"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 24}, "Parquet cache size", "stat", "Maximum", "bytes", []string{"influxdb3_parquet_cache_size_bytes_gauge"}, ""},
 			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 24}, "Total bytes written", "stat", "Maximum", "bytes", []string{"influxdb3_write_bytes_total_counter"}, ""},
 			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 32}, "Database bytes in-use", "stat", "Maximum", "bytes", []string{"jemalloc_memstats_bytes_gauge"}, ""},
 			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 32}, "HTTP requests count", "stat", "Maximum", "none", []string{"http_requests_total_counter"}, ""},
