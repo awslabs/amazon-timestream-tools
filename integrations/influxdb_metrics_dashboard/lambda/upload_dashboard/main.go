@@ -50,7 +50,7 @@ type influxDBInstanceInfo struct {
 // Estimates based off developer documentation: https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influxdb.html#timestream-for-influx-dbi-classt-hw
 // Additional factors are not included for IOPS with options: InfluxIOIncludedT1, InfluxIOIncludedT2, InfluxIOIncludedT3
 var influxDBInstanceTypes = map[influxDBTypes.DbInstanceType]influxDBInstanceSpecs{
-	influxDBTypes.DbInstanceTypeDbInfluxMedium:		influxDBInstanceSpecs{vCpu: 1, memory: 8589934592, networkBandwidth: 1250000000, seriesThreshold: 10000, lineWritesPerSecondThreshold: 5000, queriesPerSecondThreshold: 5},
+	influxDBTypes.DbInstanceTypeDbInfluxMedium:   influxDBInstanceSpecs{vCpu: 1, memory: 8589934592, networkBandwidth: 1250000000, seriesThreshold: 10000, lineWritesPerSecondThreshold: 5000, queriesPerSecondThreshold: 5},
 	influxDBTypes.DbInstanceTypeDbInfluxLarge:    influxDBInstanceSpecs{vCpu: 2, memory: 17179869184, networkBandwidth: 1250000000, seriesThreshold: 100000, lineWritesPerSecondThreshold: 50000, queriesPerSecondThreshold: 10},
 	influxDBTypes.DbInstanceTypeDbInfluxXlarge:   influxDBInstanceSpecs{vCpu: 4, memory: 34359738368, networkBandwidth: 1250000000, seriesThreshold: 500000, lineWritesPerSecondThreshold: 100000, queriesPerSecondThreshold: 15},
 	influxDBTypes.DbInstanceTypeDbInflux2xlarge:  influxDBInstanceSpecs{vCpu: 8, memory: 68719476736, networkBandwidth: 1250000000, seriesThreshold: 1000000, lineWritesPerSecondThreshold: 150000, queriesPerSecondThreshold: 25},
@@ -58,6 +58,7 @@ var influxDBInstanceTypes = map[influxDBTypes.DbInstanceType]influxDBInstanceSpe
 	influxDBTypes.DbInstanceTypeDbInflux8xlarge:  influxDBInstanceSpecs{vCpu: 32, memory: 274877906944, networkBandwidth: 1500000000, seriesThreshold: 7500000, lineWritesPerSecondThreshold: 500000, queriesPerSecondThreshold: 50},
 	influxDBTypes.DbInstanceTypeDbInflux12xlarge: influxDBInstanceSpecs{vCpu: 48, memory: 412316860416, networkBandwidth: 2500000000, seriesThreshold: 10000000, lineWritesPerSecondThreshold: 750000, queriesPerSecondThreshold: 55},
 	influxDBTypes.DbInstanceTypeDbInflux16xlarge: influxDBInstanceSpecs{vCpu: 64, memory: 549755813888, networkBandwidth: 3125000000, seriesThreshold: 10000000, lineWritesPerSecondThreshold: 1000000, queriesPerSecondThreshold: 60},
+	influxDBTypes.DbInstanceTypeDbInflux24xlarge: influxDBInstanceSpecs{vCpu: 96, memory: 824633720832, networkBandwidth: 5000000000, seriesThreshold: 10000000, lineWritesPerSecondThreshold: 1250000, queriesPerSecondThreshold: 75},
 }
 
 // getWorkspaceByName retrieves a Grafana workspace by its name.
@@ -302,11 +303,12 @@ func addDataSourceToWorkspace(datasourceConfig map[string]interface{}, workspace
 //   - workspaceUrl: The URL of the Grafana workspace
 //   - dashboardName: The name for the dashboard
 //   - dbClusterInfo: Array of influxDBInstanceInfo
+//   - influxDBVersion: The version of InfluxDB
 //
 // Returns:
 //   - string: A success message if the dashboard was created successfully
 //   - error: An error if any step fails
-func uploadDashboard(serviceAccountTokenKey string, workspaceUrl string, dashboardName string, dbClusterInfo []influxDBInstanceInfo, dashboardDataGranularity string) (string, error) {
+func uploadDashboard(serviceAccountTokenKey string, workspaceUrl string, dashboardName string, dbClusterInfo []influxDBInstanceInfo, dashboardDataGranularity string, influxDBVersion string) (string, error) {
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -345,7 +347,7 @@ func uploadDashboard(serviceAccountTokenKey string, workspaceUrl string, dashboa
 		return "", err
 	}
 
-	jsonDashboard, err := json.Marshal(generateDashboard(dashboardName, dbClusterInfo, dashboardDataGranularity))
+	jsonDashboard, err := json.Marshal(generateDashboard(dashboardName, dbClusterInfo, dashboardDataGranularity, influxDBVersion))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %v", err)
 	}
@@ -414,6 +416,10 @@ func createGrafanaDashboard() (string, error) {
 	dashboardDataGranularity := os.Getenv("dashboardDataGranularity")
 	if dashboardDataGranularity == "" {
 		return "", fmt.Errorf("Failed to get dashboardDataGranularity environment variable")
+	}
+	influxDBVersion := os.Getenv("influxDBVersion")
+	if influxDBVersion == "" {
+		return "", fmt.Errorf("Failed to get influxDBVersion environment variable")
 	}
 
 	awsConfig, err := config.LoadDefaultConfig(context.TODO())
@@ -543,7 +549,7 @@ func createGrafanaDashboard() (string, error) {
 		time.Sleep(SleepDuration * time.Second)
 	}
 
-	ret, err := uploadDashboard(serviceAccountTokenKey, *grafanaWorkspace.Endpoint, dashboardName, clusterInfo, dashboardDataGranularity)
+	ret, err := uploadDashboard(serviceAccountTokenKey, *grafanaWorkspace.Endpoint, dashboardName, clusterInfo, dashboardDataGranularity, influxDBVersion)
 	if err != nil {
 		return "", err
 	}
@@ -583,6 +589,7 @@ func lambdaHandler(ctx context.Context, event map[string]interface{}) (events.AP
 func debugDashboard() error {
 	dashboardName := "debugDashboard"
 	dbClusterInfo := "dbInstance1:db.influx.16xlarge:InfluxIOIncludedT3,dbInstance2:db.influx.12large:InfluxIOIncludedT2"
+	influxDBVersion := "3"
 
 	clusterInfo := []influxDBInstanceInfo{}
 	for _, instanceInfo := range strings.Split(dbClusterInfo, ",") {
@@ -600,7 +607,7 @@ func debugDashboard() error {
 	}
 
 	dashboardDataGranularity := "10s"
-	dashboard := generateDashboard(dashboardName, clusterInfo, dashboardDataGranularity)
+	dashboard := generateDashboard(dashboardName, clusterInfo, dashboardDataGranularity, influxDBVersion)
 	prettyJSON, err := json.MarshalIndent(dashboard, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %v", err)
@@ -848,21 +855,36 @@ func generatePanelFieldConfig(panelType string, panelTitle string, panelUnit str
 //
 // Parameters:
 //   - dashboardDataGranularity: Granularity of data to use in dashboard 60s by default and 5s for high granularity
+//   - influxDBVersion: The version of InfluxDB
 //
 // Returns:
 //   - []interface{}: An array of panel configurations
-func generatePanels(dashboardDataGranularity string) []interface{} {
+func generatePanels(dashboardDataGranularity string, influxDBVersion string) []interface{} {
 
-	panelFields := []panelField{
-		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 0}, "Memory utilization", "gauge", "Average", "percent", []string{"MemoryUtilization"}, ""},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 8}, "CPU utilization", "gauge", "Average", "percent", []string{"CPUUtilization"}, ""},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 8}, "Disk utilization", "gauge", "Average", "percent", []string{"DiskUtilization"}, ""},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 16}, "Total Go system memory usage", "gauge", "Maximum", "bytes", []string{"go_memstats_sys_bytes_gauge"}, "($A / ${instanceMemory}) * 100"},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 24}, "Memory cache usage", "stat", "Maximum", "bytes", []string{"go_memstats_mcache_inuse_bytes_gauge"}, ""},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 24}, "BoltDb writes", "stat", "Maximum", "none", []string{"boltdb_writes_total_counter"}, ""},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 32}, "System bytes in-use", "stat", "Maximum", "bytes", []string{"go_memstats_alloc_bytes_gauge"}, ""},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 32}, "HTTP write requests count", "stat", "Maximum", "none", []string{"http_write_request_count_counter"}, ""},
-		{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 40}, "HTTP query requests count", "stat", "Maximum", "none", []string{"http_query_request_count_counter"}, ""},
+	var panelFields []panelField
+
+	if influxDBVersion == "2" {
+		panelFields = []panelField{
+			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 0}, "Memory utilization", "gauge", "Average", "percent", []string{"MemoryUtilization"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 8}, "CPU utilization", "gauge", "Average", "percent", []string{"CPUUtilization"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 8}, "Disk utilization", "gauge", "Average", "percent", []string{"DiskUtilization"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 16}, "Total Go system memory usage", "gauge", "Maximum", "bytes", []string{"go_memstats_sys_bytes_gauge"}, "($A / ${instanceMemory}) * 100"},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 24}, "Memory cache usage", "stat", "Maximum", "bytes", []string{"go_memstats_mcache_inuse_bytes_gauge"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 24}, "BoltDb writes", "stat", "Maximum", "none", []string{"boltdb_writes_total_counter"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 32}, "System bytes in-use", "stat", "Maximum", "bytes", []string{"go_memstats_alloc_bytes_gauge"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 32}, "HTTP write requests count", "stat", "Maximum", "none", []string{"http_write_request_count_counter"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 40}, "HTTP query requests count", "stat", "Maximum", "none", []string{"http_query_request_count_counter"}, ""},
+		}
+	} else {
+		panelFields = []panelField{
+			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 0}, "Memory utilization", "gauge", "Average", "percent", []string{"MemoryUtilization"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 8}, "CPU utilization", "gauge", "Average", "percent", []string{"CPUUtilization"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 24}, "Parquet cache size", "stat", "Maximum", "bytes", []string{"influxdb3_parquet_cache_size_bytes_gauge"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 24}, "Total bytes written", "stat", "Maximum", "bytes", []string{"influxdb3_write_bytes_total_counter"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 32}, "Database bytes in-use", "stat", "Maximum", "bytes", []string{"jemalloc_memstats_bytes_gauge"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 12, "y": 32}, "HTTP requests count", "stat", "Maximum", "none", []string{"http_requests_total_counter"}, ""},
+			{map[string]interface{}{"h": 8, "w": 12, "x": 0, "y": 40}, "Grpc requests count", "stat", "Maximum", "none", []string{"grpc_requests_total_counter"}, ""},
+		}
 	}
 
 	var panelConfig []interface{}
@@ -875,29 +897,32 @@ func generatePanels(dashboardDataGranularity string) []interface{} {
 			if panel.mathQuery != "" {
 				hidePanel = true
 			}
+
+			panelQuery := map[string]interface{}{
+				"datasource": "Amazon CloudWatch DataSource",
+				"region":     "default",
+				"logGroups":  []interface{}{},
+				"queryMode":  "Metrics",
+				"namespace":  "AWS/Timestream/InfluxDB",
+				"metricName": metricName,
+				"expression": "",
+				"dimensions": map[string]interface{}{
+					"DbInstanceName": "$instanceName",
+				},
+				"statistic":        panel.statisticType,
+				"period":           dashboardDataGranularity,
+				"metricQueryType":  0,
+				"metricEditorMode": 0,
+				"sqlExpression":    "",
+				"matchExact":       false,
+				"refId":            string(refId),
+				"hide":             hidePanel,
+				"label":            "",
+			}
+
 			panelTargets = append(
 				panelTargets,
-				map[string]interface{}{
-					"datasource": "Amazon CloudWatch DataSource",
-					"region":     "default",
-					"logGroups":  []interface{}{},
-					"queryMode":  "Metrics",
-					"namespace":  "AWS/Timestream/InfluxDB",
-					"metricName": metricName,
-					"expression": "",
-					"dimensions": map[string]interface{}{
-						"DbInstanceName": "$instanceName",
-					},
-					"statistic":        panel.statisticType,
-					"period":           dashboardDataGranularity,
-					"metricQueryType":  0,
-					"metricEditorMode": 0,
-					"sqlExpression":    "",
-					"matchExact":       true,
-					"refId":            string(refId),
-					"hide":             hidePanel,
-					"label":            "",
-				},
+				panelQuery,
 			)
 			// Optional additional math query for using instance specifications
 			if panel.mathQuery != "" {
@@ -996,11 +1021,12 @@ func getInfinityVariableConfig(instanceSpec map[string]interface{}, variableName
 // Parameters:
 //   - dashboardName: The name of the dashboard
 //   - dbClusterInfo: An array of influxDBInstanceInfo
-//   - dashboardDataGranularity: Granularity of data to use in dashboard 60s by default and 5s for high granularity.
+//   - dashboardDataGranularity: Granularity of data to use in dashboard 60s by default and 5s for high granularity
+//   - influxDBVersion: The version of InfluxDB
 //
 // Returns:
 //   - map[string]interface{}: The complete dashboard configuration
-func generateDashboard(dashboardName string, dbClusterInfo []influxDBInstanceInfo, dashboardDataGranularity string) map[string]interface{} {
+func generateDashboard(dashboardName string, dbClusterInfo []influxDBInstanceInfo, dashboardDataGranularity string, influxDBVersion string) map[string]interface{} {
 
 	currentTemplateOptions := map[string]interface{}{}
 	templateOptions := []interface{}{}
@@ -1056,7 +1082,7 @@ func generateDashboard(dashboardName string, dbClusterInfo []influxDBInstanceInf
 		"overwrite": true,
 		"folder":    0,
 		"dashboard": map[string]interface{}{
-			"panels": generatePanels(dashboardDataGranularity),
+			"panels": generatePanels(dashboardDataGranularity, influxDBVersion),
 			"title":  dashboardName,
 			"templating": map[string]interface{}{
 				"list": append([]interface{}{

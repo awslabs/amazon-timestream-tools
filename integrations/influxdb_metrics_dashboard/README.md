@@ -16,12 +16,25 @@ The InfluxDB Metrics Dashboard creates a Grafana dashboard to visualize existing
 
   1. If not already installed, install the AWS CDK CLI using the [Getting started with the AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html) guide.
   2. If you don't already have a database instance, create a new Timestream for InfluxDB instance with the [Getting started with Timestream for InfluxDB](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influx-getting-started.html) guide.
+  3. Retrieve the database instance and cluster Ids from the [Timestream console](https://console.aws.amazon.com/timestream/) or with the AWS CLI and the following commands:
+  - [list-db-clusters](https://docs.aws.amazon.com/cli/latest/reference/timestream-influxdb/list-db-clusters.html)
+  - [list-db-instances](https://docs.aws.amazon.com/cli/latest/reference/timestream-influxdb/list-db-instances.html)
+  - [list-db-instances-for-cluster](https://docs.aws.amazon.com/cli/latest/reference/timestream-influxdb/list-db-instances-for-cluster.html)
+  4. If using InfluxDB 3 you will need to set access tokens for each cluster or instance. See [Finding the connection information for an Amazon Timestream for InfluxDB DB instance](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influx-db-connecting.html#timestream-for-influx-db-connecting-finding-connection-info) for how to retrieve and manage tokens with Timestream for InfluxDB.
 
 ### Context options
 
 The following context options are required when deploying the CDK application:
 
-  1. **InfluxDBIds**: The comma separated list of Id(s) for Timestream for InfluxDB instances.
+  1. **InfluxDBVersion**: The version of InfluxDB instances. Supported values are 2 and 3.
+  2. **InfluxDBIds**: The comma-separated list of instance ID(s) and token(s) if applicable.
+  - For InfluxDB 2, use the format: `"instance1Id,instance2Id"`
+  - For InfluxDB 3, use the format: `"instance1Id:instance1Token,instance2Id:instance2Token"`
+  - This parameter is required when InfluxDBClusterIds is not used.
+  3. **InfluxDBClusterIds**: The comma-separated list of cluster ID(s) and InfluxDB 3 token(s) if applicable. Only supported for InfluxDB 3.
+  - For InfluxDB 2, use the format: `"cluster1Id,cluster2Id"`
+  - For InfluxDB 3, use the format: `"cluster1Id:cluster1Token,cluster2Id:cluster2Token"`
+  - This parameter is required when InfluxDBIds is not used.
 
 The following context options are optional when deploying the CDK application:
 
@@ -68,6 +81,13 @@ Replace the following values in the IAM policy with values from your AWS account
 			"Action": "timestream-influxdb:GetDbInstance",
 			"Resource": [
 				"arn:aws:timestream-influxdb:{region}:{account-id}:db-instance/*"
+			]
+		},
+		{
+			"Effect": "Allow",
+			"Action": "timestream-influxdb:ListDbInstancesForCluster",
+			"Resource": [
+				"arn:aws:timestream-influxdb:{region}:{account-id}:db-cluster/*"
 			]
 		},
 		{
@@ -216,7 +236,14 @@ Use these variables in math expressions or transformations to customize the pane
 
 ## Limitations
 
+**Metric types**
+
 The InfluxDB Metrics Dashboard only supports counter and gauge types scraped from the `/metrics` endpoint of an InfluxDB instance. This functionality is due to CloudWatch not providing support for histogram types and potentially creating large amounts of metrics if we create histograms for high cardinality datasets.
+
+
+**Static deployments**
+
+When the InfluxDB Metrics Dashboard is deployed, the instances are considered static and any changes to cluster configuration will require a re-deployment. This limitation is due to the Telegraf config that is generated requires updates for and changes to instance endpoints.
 
 ## Cleanup
 
