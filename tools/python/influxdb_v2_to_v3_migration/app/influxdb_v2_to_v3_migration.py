@@ -5,7 +5,7 @@ This script is designed to run as an ECS task and handles both backup and restor
 """
 
 import argparse
-from concurrent.futures import InterpreterPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 import shutil
@@ -26,18 +26,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger: logging.Logger = logging.getLogger("influxdb_v2_to_v3_migration")
-
-
-def parse_bucket_and_org_names(
-    bucket_and_org_names: str, bucket_separator: str, bucket_org_separator: str
-) -> list[tuple[str, ...]]:
-    """
-    Parses a string of buckets and their organization names separated first by a bucket separator and then a bucket and org separator.
-    """
-    return [
-        tuple(bucket_org_pair.split(bucket_org_separator))
-        for bucket_org_pair in bucket_and_org_names.split(bucket_separator)
-    ]
 
 
 def verify_required_subprocess_tools() -> bool:
@@ -110,7 +98,7 @@ def backup_influxdb_v2_buckets(
     results: list[str] = list()
     failed_buckets: list[tuple[str, ...]] = list()
 
-    with InterpreterPoolExecutor(max_workers=num_backup_workers) as executor:
+    with ProcessPoolExecutor(max_workers=num_backup_workers) as executor:
         futures = {
             executor.submit(
                 backup_influxdb_v2_bucket,
@@ -195,20 +183,20 @@ def backup_influxdb_v2_bucket(
 def export_influxdb_v2_buckets_to_lp(
     influxdb_v2_url: str,
     influxdb_v2_token: str,
-    bucket_org_pairs: list[tuple[str, ...]],
+    bucket_org_pairs: list[tuple[str, str]],
     backup_path: Path,
     start_time: str | None = None,
     end_time: str | None = None,
     num_export_lp_workers: int = 5,
     lp_filename: str = "output.lp",
-) -> tuple[bool, list[tuple[str, int]]]:
+) -> tuple[bool, list[tuple[str, str]]]:
     if not backup_path.exists():
         raise RuntimeError(f"Backup path {backup_path} does not exist")
 
-    bucket_name_id_pairs: list[tuple[str, int]] = list()
-    failed_buckets: list[tuple[str, ...]] = list()
+    bucket_name_id_pairs: list[tuple[str, str]] = list()
+    failed_buckets: list[tuple[str, str]] = list()
 
-    with InterpreterPoolExecutor(max_workers=num_export_lp_workers) as executor:
+    with ProcessPoolExecutor(max_workers=num_export_lp_workers) as executor:
         futures = {
             executor.submit(
                 export_influxdb_v2_bucket_to_lp,
@@ -246,19 +234,19 @@ def export_influxdb_v2_buckets_to_lp(
 def export_influxdb_v2_bucket_to_lp(
     influxdb_v2_url: str,
     influxdb_v2_token: str,
-    bucket_org_pair: tuple[str, ...],
+    bucket_org_pair: tuple[str, str],
     backup_path: Path,
     start_time: str | None = None,
     end_time: str | None = None,
     lp_filename: str = "output.lp",
-) -> tuple[str, int]:
+) -> tuple[str, str]:
     bucket_name, org_name = bucket_org_pair
     client: InfluxDBClient = InfluxDBClient(
         url=influxdb_v2_url, org=org_name, token=influxdb_v2_token
     )
     bucket_api: BucketsApi = client.buckets_api()
     bucket: Bucket = bucket_api.find_bucket_by_name(bucket_name)
-    bucket_id: int = bucket.id
+    bucket_id: str = bucket.id
 
     lp_output_path = backup_path / Path(str(bucket_id)) / Path(lp_filename)
 
@@ -275,7 +263,7 @@ def export_influxdb_v2_bucket_to_lp(
         "inspect",
         "export-lp",
         "--bucket-id",
-        str(bucket_id),
+        bucket_id,
         "--engine-path",
         str(engine_path),
         "--output-path",
@@ -301,7 +289,7 @@ def export_influxdb_v2_bucket_to_lp(
         raise RuntimeError("Exporting to line protocol failed")
 
     logger.info(f"Exported {bucket_name} to {str(lp_output_path)}")
-    return bucket_name, bucket_id
+    return (bucket_name, bucket_id)
 
 
 def main(input_args: list[str]) -> int:
@@ -410,11 +398,14 @@ def main(input_args: list[str]) -> int:
     num_export_lp_workers: int = args.num_export_lp_workers
     line_protocol_filename: str = args.line_protocol_filename
     backup_path_root = args.backup_path_root
-    bucket_org_pairs: list[tuple[str, ...]] = parse_bucket_and_org_names(
-        args.influxdb_v2_buckets_and_orgs,
-        args.bucket_separator,
-        args.bucket_org_separator,
-    )
+
+    bucket_org_pairs: list[tuple[str, str]] = [
+        (bucket_name, org_name)
+        for bucket_name, org_name in (
+            pair.split(args.bucket_org_separator, 1)
+            for pair in args.influxdb_v2_buckets_and_orgs.split(args.bucket_separator)
+        )
+    ]
 
     backup_path = Path(backup_path_root).expanduser() / Path("engine/data")
 
@@ -450,13 +441,16 @@ def main(input_args: list[str]) -> int:
         backup_path,
         num_backup_workers,
     )
+
+    if backup_result:
+        logger.info("Backing up bucket data complete")
     if not backup_result:
         logger.error("Backup failed")
         return 1
 
     utils.extract_all_tar_files_in_path(backup_path)
 
-    export_lp_result: tuple[bool, list[tuple[str, int]]] = (
+    export_lp_result: tuple[bool, list[tuple[str, str]]] = (
         export_influxdb_v2_buckets_to_lp(
             influxdb_v2_url,
             influxdb_v2_token,
@@ -469,43 +463,25 @@ def main(input_args: list[str]) -> int:
         )
     )
 
-    if not export_lp_result[0]:
+    if export_lp_result[0]:
+        logger.info("Exporting bucket data to line protocol complete")
+    else:
         logger.error("Exporting to line protocol failed")
         return 1
 
-    # Line protocol files are kept in directories using bucket IDs
-    # as their names, so bucket IDs are required for later writing.
-    # Bucket names are required for creating new databases in InfluxDB v3.
-    bucket_name_id_pairs: list[tuple[str, int]] = export_lp_result[1]
-    bucket_name_id_pairs_str: str = f"{args.bucket_separator}".join(
-        f"{bucket_name}{args.bucket_org_separator}{bucket_id}"
-        for bucket_name, bucket_id in bucket_name_id_pairs
+    ingestion_result = influxdb_v3_ingestion.ingest_line_protocol_files(
+        influxdb_v3_url=args.influxdb_v3_url,
+        influxdb_v3_token=influxdb_v3_token,
+        backup_path=backup_path,
+        bucket_id_pairs=export_lp_result[1],
+        num_workers=args.num_ingestion_workers,
+        lp_filename=args.line_protocol_filename,
+        retention_period=args.influxdb_v3_database_retention_period,
     )
 
-    influxdb_v3_ingestion_arguments: list[str] = [
-        "--influxdb-v3-url",
-        args.influxdb_v3_url,
-        "--tokens-secret-name",
-        args.tokens_secret_name,
-        "--num-workers",
-        str(args.num_ingestion_workers),
-        "--influxdb-v2-buckets-and-ids",
-        bucket_name_id_pairs_str,
-        "--bucket-separator",
-        args.bucket_separator,
-        "--bucket-id-separator",
-        args.bucket_org_separator,
-        "--backup-path",
-        str(backup_path),
-        "--line-protocol-filename",
-        args.line_protocol_filename,
-        "--retention-period",
-        args.influxdb_v3_database_retention_period,
-    ]
-
-    ingestion_result = influxdb_v3_ingestion.main(influxdb_v3_ingestion_arguments)
-
-    if not ingestion_result:
+    if ingestion_result:
+        logger.info("Ingesting line protocol files complete")
+    else:
         logger.error("Ingestion failed")
         return 1
 

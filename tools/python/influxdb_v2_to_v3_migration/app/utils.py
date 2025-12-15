@@ -23,18 +23,6 @@ def get_secret(secret_name: str, region_name: str | None = None) -> dict[str, st
     return dict(json.loads(response["SecretString"]))
 
 
-def parse_string_with_multiple_separators(
-    buckets_and_ids: str, bucket_separator: str, bucket_id_separator: str
-) -> list[tuple[str, ...]]:
-    """
-    Parses a string of buckets and their IDs separated first by a bucket separator and then a bucket and ID separator.
-    """
-    return [
-        tuple(bucket_id_pair.split(bucket_id_separator))
-        for bucket_id_pair in buckets_and_ids.split(bucket_separator)
-    ]
-
-
 def extract_all_tar_files_in_path(backup_path: Path):
     for tar_file_path in backup_path.glob("*.tar"):
         with tarfile.open(tar_file_path, "r") as tar_file:
