@@ -16,6 +16,9 @@ import sys
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.bucket_api import BucketsApi
 from influxdb_client.domain.bucket import Bucket
+import requests
+from requests.models import HTTPError
+import httpx
 
 import influxdb_v3_ingestion
 import utils
@@ -81,6 +84,30 @@ def verify_timestamps(start_time: str | None, end_time: str | None) -> bool:
             logger.error(f"End timestamp {end_time} is invalid")
             return False
 
+    return True
+
+
+def health_check(host: str, token: str) -> bool:
+    """
+    Pings the InfluxDB instance to determine health. Compatible with InfluxDB v2 and v3.
+
+    Args:
+        host: The address of the host to ping.
+        token: The token for the database instance.
+
+    Returns:
+        bool: Whether the InfluxDB v2 or v3 instance can be reached.
+    """
+    # Ensure host can be connected to.
+    logger.info(f"Checking connectivity to {host}")
+    health_check_response = httpx.get(
+        f"{host}/health", headers={"Authorization": f"Bearer {token}"}, follow_redirects=False
+    )
+    try:
+        _ = health_check_response.raise_for_status()
+    except httpx.HTTPStatusError as error:
+        logger.error(str(error))
+        return False
     return True
 
 
@@ -162,18 +189,23 @@ def backup_influxdb_v2_bucket(
         backup_path,
     ]
 
+    subprocess_error_output: str = ""
     try:
-        _ = subprocess.run(
+        call_result = subprocess.run(
             bucket_backup_command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
-            check=True,
+            check=False,
             env=env,
         )
+        subprocess_error_output = call_result.stderr
+        call_result.check_returncode()
         logger.info("Backup command completed successfully")
     except subprocess.CalledProcessError as e:
-        error_message: str = f"Backup failed for bucket {bucket_name}: {e}"
+        error_message: str = (
+            f"Backup failed for bucket {bucket_name}: {e}:\n{subprocess_error_output}"
+        )
         logger.error(error_message)
         raise RuntimeError(error_message)
 
@@ -307,7 +339,7 @@ def main(input_args: list[str]) -> int:
     )
     _ = parser.add_argument(
         "--backup-path-root",
-        default="/",
+        default="~",
         help=(
             "The root of the backup path. The backup directory must have the following "
             "structure and naming: 'engine/data/'. By default, the 'engine' directory is "
@@ -433,6 +465,18 @@ def main(input_args: list[str]) -> int:
 
     logger.info(f"Using InfluxDB v2 URL: {influxdb_v2_url}")
     logger.info(f"Using InfluxDB v3 URL: {influxdb_v3_url}")
+
+    if not health_check(influxdb_v2_url, influxdb_v2_token):
+        logger.error("Unable to reach InfluxDB v2 instance")
+        return 1
+    else:
+        logger.info("InfluxDB v2 instance is reachable")
+
+    if not health_check(influxdb_v3_url, influxdb_v3_token):
+        logger.error("Unable to reach InfluxDB v3 instance")
+        return 1
+    else:
+        logger.info("InfluxDB v3 instance is reachable")
 
     backup_result: bool = backup_influxdb_v2_buckets(
         influxdb_v2_url,

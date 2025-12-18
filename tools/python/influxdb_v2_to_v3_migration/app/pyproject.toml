@@ -9,6 +9,8 @@ version = "1.0.0"
 dependencies = [
     "boto3==1.42.5",
     "boto3-stubs[secretsmanager]",
+    "botocore==1.42.10",
+    "httpx==0.28.1",
     "influxdb-client==1.48.0",
     "influxdb3-python==0.16.0",
     "requests==2.32.5"
@@ -24,6 +26,11 @@ classifiers = [
     "Topic :: Database :: Database Engines/Servers",
 ]
 keywords = ["InfluxDB", "Timestream", "migration"]
+
+[project.optional-dependencies]
+test = [
+    "testcontainers==4.13.3"
+]
 
 [project.urls]
 Homepage = "https://aws.amazon.com/timestream"

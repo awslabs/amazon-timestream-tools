@@ -13,37 +13,25 @@ provider "aws" {
   region = "us-west-2"
 }
 
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
+data "aws_vpc" "main" {
+  id = var.vpc_id
 }
 
-resource "aws_subnet" "subnet" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, 1)
-  map_public_ip_on_launch = true
+data "aws_subnet" "subnet" {
+  id = var.subnet_id
 }
 
-resource "aws_internet_gateway" "internet_gateway" {
-  vpc_id = aws_vpc.main.id
-}
-
-resource "aws_route_table" "route_table" {
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.internet_gateway.id
-  }
-}
-
-resource "aws_route_table_association" "subnet_route" {
-  subnet_id      = aws_subnet.subnet.id
-  route_table_id = aws_route_table.route_table.id
-}
-
-resource "aws_security_group" "security_group" {
+resource "aws_security_group" "runner_security_group" {
   name   = "influxdb-v2-to-v3-migration-security-group"
-  vpc_id = aws_vpc.main.id
+  vpc_id = data.aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.ssh_access_ip]
+    description = "User SSH access permission"
+  }
 
   egress {
     from_port   = 443
@@ -68,69 +56,10 @@ resource "aws_security_group" "security_group" {
     cidr_blocks = ["0.0.0.0/0"]
     description = "Outbound InfluxDB v3 instance traffic permission"
   }
-
-  egress {
-    from_port   = 2049
-    to_port     = 2049
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
-    description = "EFS access permission"
-  }
 }
 
-resource "aws_ecr_repository" "migration_repository" {
-  name                 = "influxdb_v2_to_v3_migration_ecr_repository"
-  image_tag_mutability = "MUTABLE"
-}
-
-resource "aws_efs_file_system" "migration_file_system" {
-  creation_token = "influxdb_v2_to_v3_migration"
-}
-
-resource "aws_cloudwatch_log_group" "migration_log_group" {
-  name = "influxdb_v2_to_v3_migration_log_group"
-
-  tags = {
-    Environment = "production"
-    Application = "influxdb_v2_to_v3_migration"
-  }
-}
-
-resource "aws_efs_access_point" "migration_access_point" {
-  file_system_id = aws_efs_file_system.migration_file_system.id
-  posix_user {
-    gid = "1000"
-    uid = "1000"
-  }
-
-  root_directory {
-    path = "/engine"
-    creation_info {
-      owner_gid   = "1000"
-      owner_uid   = "1000"
-      permissions = "777"
-    }
-  }
-}
-
-resource "aws_iam_role" "migration_execution_role" {
-  name = "influxdb_v2_to_v3_migration_execution_role"
-
-  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"]
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Sid    = ""
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
+data "aws_ssm_parameter" "influxdb_v2_to_v3_migration_runner_ami" {
+  name = "/amis/influxdb-v2-to-v3-migration-runner/latest"
 }
 
 resource "aws_secretsmanager_secret" "migration_secret" {
@@ -143,8 +72,8 @@ resource "aws_secretsmanager_secret_version" "migration_secret_version" {
   secret_string = jsonencode(var.tokens)
 }
 
-resource "aws_iam_role" "migration_task_role" {
-  name = "influxdb_v2_to_v3_migration_task_role"
+resource "aws_iam_role" "runner_role" {
+  name = "influxdb_v2_to_v3_migration_runner_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -154,99 +83,84 @@ resource "aws_iam_role" "migration_task_role" {
         Effect = "Allow"
         Sid    = ""
         Principal = {
-          Service = "ecs-tasks.amazonaws.com"
+          Service = "ec2.amazonaws.com"
         }
       }
     ]
   })
-
-  inline_policy {
-    name = "influxdb_v2_to_v3_migration_inline_policy"
-
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Action = [
-            "elasticfilesystem:ClientMount",
-            "elasticfilesystem:ClientWrite",
-            "elasticfilesystem:ClientRootAccess"
-          ]
-          Effect   = "Allow"
-          Resource = "${aws_efs_access_point.migration_access_point.arn}"
-        },
-        {
-          Action   = ["secretsmanager:GetSecretValue"]
-          Effect   = "Allow"
-          Resource = "${aws_secretsmanager_secret.migration_secret.arn}"
-        },
-      ]
-    })
-  }
 }
 
-data "aws_region" "current_region" {}
+resource "aws_iam_policy" "runner_policy" {
+  name = "influxdb_v2_to_v3_migration_runner_policy"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = ["secretsmanager:GetSecretValue"]
+        Effect   = "Allow"
+        Resource = "${aws_secretsmanager_secret.migration_secret.arn}"
+      },
+      {
+        Action = [
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeVpcs"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  })
+}
 
-resource "aws_ecs_task_definition" "migration_task_definition" {
-  family                   = "influxdb_v2_to_v3_migration"
-  network_mode             = "awsvpc"
-  cpu                      = 1024
-  memory                   = 2048
-  requires_compatibilities = ["FARGATE"]
-  execution_role_arn       = aws_iam_role.migration_execution_role.arn
-  task_role_arn            = aws_iam_role.migration_task_role.arn
+resource "aws_iam_role_policy_attachment" "runner_policy_attachment" {
+  role       = aws_iam_role.runner_role.name
+  policy_arn = aws_iam_policy.runner_policy.arn
+}
 
-  container_definitions = jsonencode([
-    {
-      name      = "influxdb_v2_to_v3_migration_container"
-      image     = "${aws_ecr_repository.migration_repository.repository_url}:latest"
-      essential = true
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = "influxdb_v2_to_v3_migration_log_group"
-          awslogs-region        = "${data.aws_region.current_region.region}"
-          awslogs-stream-prefix = "ecs"
-        }
-        environment = {
-          name  = "TOKEN_SECRET_NAME"
-          value = "influxdb_v2_to_v3_migration_secret"
-        }
-      }
-    }
-  ])
+resource "aws_iam_instance_profile" "runner_profile" {
+  name = "influxdb_v2_to_v3_migration_runner_profile"
+  role = aws_iam_role.runner_role.name
+}
 
-  runtime_platform {
-    operating_system_family = "LINUX"
-    cpu_architecture        = "ARM64"
+data "aws_region" "current" {}
+
+resource "aws_instance" "influxdb_v2_to_v3_migration_runner" {
+  ami                  = data.aws_ssm_parameter.influxdb_v2_to_v3_migration_runner_ami.value
+  instance_type        = var.runner_type
+  iam_instance_profile = aws_iam_instance_profile.runner_profile.name
+
+  key_name = var.runner_ssh_key_name
+
+  subnet_id              = var.subnet_id
+  vpc_security_group_ids = [aws_security_group.runner_security_group.id]
+
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = var.runner_storage_amount
+    delete_on_termination = true
   }
 
-  volume {
-    name = "service-storage"
-    efs_volume_configuration {
-      file_system_id          = aws_efs_file_system.migration_file_system.id
-      root_directory          = "/"
-      transit_encryption      = "ENABLED"
-      transit_encryption_port = 2999
-      authorization_config {
-        access_point_id = aws_efs_access_point.migration_access_point.id
-        iam             = "ENABLED"
-      }
-    }
-  }
+  user_data = <<-EOF
+    #!/bin/bash
+    echo "AWS_REGION=${data.aws_region.current.name}" >> /etc/environment
+    echo "AWS_DEFAULT_REGION=${data.aws_region.current.name}" >> /etc/environment
+  EOF
+
+  tags = var.runner_tags
 }
 
-output "ecr_repository_url" {
-  value       = aws_ecr_repository.migration_repository.repository_url
-  description = "The URL of the ECR repository. Use this when pushing your Docker image."
+resource "aws_iam_role_policy_attachment" "ssm_policy_attachment" {
+  role       = aws_iam_role.runner_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-output "ecs_task_definition_id" {
-  value = aws_ecs_task_definition.migration_task_definition.id
+output "runner_public_ip" {
+  value = aws_instance.influxdb_v2_to_v3_migration_runner.public_ip
 }
 
-output "vcp_id" {
-  value = aws_vpc.main.id
+output "runner_id" {
+  value = aws_instance.influxdb_v2_to_v3_migration_runner.id
 }
 
 output "secret_id" {

@@ -20,8 +20,11 @@ target/
 **/ENV/
 **/env.bak/
 **/venv.bak/
-**/.egg-info
+**/*.egg-info/**
 **/build/**
+
+# Ignore packer manifest file.
+**/packer-manifest.json
 
 # Ignore common JS files
 node_modules
