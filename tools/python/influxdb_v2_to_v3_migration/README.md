@@ -10,7 +10,7 @@ The script is available standalone or as part of an automated solution that depl
 
 ### Steps
 
-1. [Install minimum Python version 3.14](https://www.python.org/downloads/).
+1. [Install minimum Python version 3.14.1](https://www.python.org/downloads/).
 2. Navigate to the [`app`](./app/) directory:
    ```shell
    cd app
