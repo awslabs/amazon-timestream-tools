@@ -14,12 +14,8 @@ import logging
 import random
 import requests
 from pathlib import Path
-from influxdb_client.client.write_api import WriteApi
 from influxdb_client_3 import (
-    write_client_options,
     InfluxDBClient3,
-    WriteOptions,
-    WriteType,
 )
 from requests.models import HTTPError
 
@@ -55,21 +51,20 @@ def ingest_batch(
     max_retries: int,
 ) -> int:
     """
-    Ingest a single batch of line protocol data into InfluxDB with retry logic.
+    Ingest a single batch of line protocol data into InfluxDB v3 with retry logic.
 
     Args:
-        write_api: InfluxDB write API client
-        batch: List of lines to ingest
-        batch_id: Identifier for the batch
-        process_name: Name of the current process
-        bucket_name: Name of the InfluxDB bucket
-        max_retries: Maximum number of retry attempts
+        client (InfluxDBClient3): InfluxDB v3 client.
+        batch (list[str]): List of lines to ingest.
+        batch_id (str): Identifier for the batch.
+        process_name (str): Name of the current process.
+        max_retries (int): Maximum number of retry attempts.
 
     Returns:
-        int: Number of lines successfully ingested
+        int: Number of lines successfully ingested.
 
     Raises:
-        InfluxDBIngestionError: If the batch couldn't be ingested after max retries
+        InfluxDBIngestionError: If the batch couldn't be ingested after max retries.
     """
     retry_interval_ms: int = 5000
     max_retry_delay_ms: int = 30000
@@ -143,18 +138,18 @@ def batch_outer_chunk(
     outer chunk reduces disk I/O when reading from the line protocol file.
 
     Args:
-        write_api: InfluxDB write API client
-        outer_chunk: List of lines read from file
-        lines_per_batch: Number of lines to ingest in each batch
-        process_name: Name of the current process
-        line_count: Current line count for batch ID generation
-        max_retries: Maximum number of retry attempts
+        client (InfluxDBClient3): InfluxDB v3 client.
+        outer_chunk (list[str]): List of lines read from file.
+        lines_per_batch (int): Number of lines to ingest in each batch.
+        process_name (str): Name of the current process.
+        line_count (int): Current line count for batch ID generation.
+        max_retries (int): Maximum number of retry attempts.
 
     Returns:
-        tuple: (total_lines_ingested, updated_line_count)
+        tuple[int, int]: A tuple containing total lines ingested and updated line count.
 
     Raises:
-        InfluxDBIngestionError: If any batch fails to ingest
+        InfluxDBIngestionError: If any batch fails to ingest.
     """
     total_lines: int = 0
     current_line_count: int = line_count
@@ -185,12 +180,12 @@ def read_outer_chunks(
     Read a chunk of lines from a file to optimize I/O operations.
 
     Args:
-        file_handle: Open file handle to read from
-        lines_per_batch: Number of lines in a single batch
-        io_multiplier: How many batches to read at once
+        file_handle (TextIOWrapper): Open file handle to read from.
+        lines_per_batch (int): Number of lines in a single batch.
+        io_multiplier (int): How many batches to read at once.
 
     Returns:
-        list: List of non-empty lines read from the file
+        list[str]: List of non-empty lines read from the file.
     """
     # Read multiple batches at once to reduce disk I/O
     outer_chunk = [
@@ -211,6 +206,26 @@ def ingest_line_protocol_files(
     lp_filename: str = "output.lp",
     retention_period: str | None = None,
 ) -> bool:
+    """
+    Ingests line protocol files from a local directory to InfluxDB v3.
+
+    Args:
+        influxdb_v3_url (str): The InfluxDB v3 URL, including scheme and port.
+        influxdb_v3_token (str): The InfluxDB v3 token.
+        backup_path (Path): The path containing the line protocol files.
+        bucket_id_pairs (list[tuple[str, str]]): A list of bucket names and bucket ID pairs.
+            Bucket names will be used to create new InfluxDB v3 databases and bucket IDs will be
+            used to help find the bucket's line protocol data file.
+        lines_per_batch (int): The number of lines to ingest per batch.
+        io_multiplier (int): How many batches to read at once.
+        max_retries (int): The number of maximum retries before giving up ingestion.
+        num_workers (int): The number of workers to use to ingest files in parallel.
+        lp_filename (str): The name that all line protocol files share.
+        retention_period (str | None): The retention period to use for all new InfluxDB v3 databases.
+
+    Returns:
+        bool: Whether all files were ingested successfully.
+    """
     if not os.path.isdir(backup_path):
         logger.error(f"Error: {backup_path} is not a valid directory")
         return False
@@ -267,21 +282,24 @@ def ingest_line_protocol_file(
     retention_period: str | None = None,
 ) -> str:
     """
-    Ingest a line protocol file into InfluxDB.
+    Ingest a line protocol file into InfluxDB v3.
 
     Args:
-        extracted_file_path: Path to the line protocol file to ingest
-        lines_per_batch: Number of lines to ingest in each batch
-        io_multiplier: Multiplier for I/O chunking optimization
-        bucket_name: Name of the InfluxDB bucket
-        max_retries: Maximum number of retry attempts
+        influxdb_v3_url (str): The InfluxDB v3 URL, including scheme and port.
+        influxdb_v3_token (str): The InfluxDB v3 token.
+        backup_path (Path): The path where line protocol files reside.
+        bucket_name_id_pair (tuple[str, str]): A tuple containing a bucket's name and ID.
+        lines_per_batch (int): Number of lines to ingest in each batch.
+        io_multiplier (int): Multiplier for I/O chunking optimization.
+        max_retries (int): Maximum number of retry attempts.
+        lp_filename (str): The name of the line protocol file.
+        retention_period (str | None): The retention period to use for the new InfluxDB v3 database.
 
     Returns:
-        int: The number of lines ingested
+        str: A success message containing the number of lines ingested.
 
     Raises:
-        InfluxDBIngestionError: If any batch fails to ingest
-        IOError: If file operations fail
+        RuntimeError: If ingestion fails.
     """
     bucket_name, bucket_id = bucket_name_id_pair
 

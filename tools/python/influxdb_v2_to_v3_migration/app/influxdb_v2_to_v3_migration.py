@@ -16,8 +16,6 @@ import sys
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.bucket_api import BucketsApi
 from influxdb_client.domain.bucket import Bucket
-import requests
-from requests.models import HTTPError
 import httpx
 
 import influxdb_v3_ingestion
@@ -55,6 +53,16 @@ def verify_required_subprocess_tools() -> bool:
 
 
 def verify_timestamps(start_time: str | None, end_time: str | None) -> bool:
+    """
+    Verifies that start and/or end timestamp strings are valid RFC 3339 timestamps.
+
+    Args:
+        start_time (str | None): The start time.
+        end_time (str | None): The end time. Must be later than start_time.
+
+    Returns:
+        bool: Whether start_time and/or end_time are valid RFC 3339 timestamps.
+    """
     if start_time is not None and end_time is not None:
         try:
             start_time_timestamp = datetime.fromisoformat(
@@ -89,11 +97,11 @@ def verify_timestamps(start_time: str | None, end_time: str | None) -> bool:
 
 def health_check(host: str, token: str) -> bool:
     """
-    Pings the InfluxDB instance to determine health. Compatible with InfluxDB v2 and v3.
+    Pings an InfluxDB instance to determine health. Compatible with InfluxDB v2 and v3.
 
     Args:
-        host: The address of the host to ping.
-        token: The token for the database instance.
+        host (str): The address of the host to ping.
+        token (str): The token for the instance.
 
     Returns:
         bool: Whether the InfluxDB v2 or v3 instance can be reached.
@@ -101,7 +109,9 @@ def health_check(host: str, token: str) -> bool:
     # Ensure host can be connected to.
     logger.info(f"Checking connectivity to {host}")
     health_check_response = httpx.get(
-        f"{host}/health", headers={"Authorization": f"Bearer {token}"}, follow_redirects=False
+        f"{host}/health",
+        headers={"Authorization": f"Bearer {token}"},
+        follow_redirects=False,
     )
     try:
         _ = health_check_response.raise_for_status()
@@ -119,7 +129,17 @@ def backup_influxdb_v2_buckets(
     num_backup_workers: int = 5,
 ) -> bool:
     """
-    Backup InfluxDB v2 data to a local directory.
+    Backs up InfluxDB v2 data from multiple buckets to a local directory using the InfluxDB v2 CLI.
+
+    Args:
+        influxdb_v2_url (str): The InfluxDB v2 URL, including scheme and port.
+        influxdb_v2_token (str): The InfluxDB v2 token.
+        bucket_org_pairs (list[tuple[str, ...]]): A list of bucket names and their organization names to back up. For example, [("bucket-one", "org-one"), ("bucket-two", "org-two")].
+        backup_path (Path): The path to backup data to.
+        num_backup_workers (int): The number of workers to use to back up data in parallel. Defaults to 5.
+
+    Returns:
+        bool: Whether all backups succeeded.
     """
     backup_path.mkdir(parents=True, exist_ok=True)
     results: list[str] = list()
@@ -166,6 +186,21 @@ def backup_influxdb_v2_bucket(
     bucket_org_pair: tuple[str, ...],
     backup_path: str,
 ) -> str:
+    """
+    Backs up a single InfluxDB v2 bucket to a local directory using the InfluxDB v2 CLI.
+
+    Args:
+        influxdb_v2_url (str): The InfluxDB v2 URL, including scheme and port.
+        influxdb_v2_token (str): The InfluxDB v2 token.
+        bucket_org_pair (tuple[str, ...]): A bucket name and org pair to back up. For example, ("bucket-one", "org-one").
+        backup_path (str): The path to backup data to.
+
+    Returns:
+        str: A success message.
+
+    Raises:
+        RuntimeError: If the backup fails.
+    """
     bucket_name, org_name = bucket_org_pair
     logger.info(f"Backing up {bucket_name}")
 
@@ -222,6 +257,28 @@ def export_influxdb_v2_buckets_to_lp(
     num_export_lp_workers: int = 5,
     lp_filename: str = "output.lp",
 ) -> tuple[bool, list[tuple[str, str]]]:
+    """
+    Exports backed up InfluxDB v2 bucket data from multiple buckets to line protocol in parallel
+    using the InfluxDB v2 daemon (influxd).
+
+    Args:
+        influxdb_v2_url (str): The InfluxDB v2 URL, including scheme and port.
+        influxdb_v2_token (str): The InfluxDB v2 token.
+        bucket_org_pairs (list[tuple[str, str]]): A list of bucket names and their organization names
+            to export to line protocol. For example, [("bucket-one", "org-one"), ("bucket-two", "org-two")].
+        backup_path (Path): The path where the backed up data resides.
+        start_time (str | None): The start time of the backed up data to export. Must be a valid RFC 3339 timestamp.
+        end_time (str | None): The end time of the backed up data to export. Must be a valid RFC 3339 timestamp.
+        num_export_lp_workers (int): The number of workers to use to export data to line protocol in
+            parallel. Defaults to 5.
+        lp_filename (str): The filename to use for all exported line protocol files. Data is differenciated by
+            the directories they reside in, which correspond to bucket IDs.
+
+    Returns:
+        tuple[bool, list[tuple[str, str]]]: A tuple containing a boolean value, indicating whether all data was
+            exported successfully, and a list of (str, str) tuples, bucket names and their IDs, for example,
+            ("bucket-one", "0af435lsdjfm").
+    """
     if not backup_path.exists():
         raise RuntimeError(f"Backup path {backup_path} does not exist")
 
@@ -272,6 +329,28 @@ def export_influxdb_v2_bucket_to_lp(
     end_time: str | None = None,
     lp_filename: str = "output.lp",
 ) -> tuple[str, str]:
+    """
+    Exports backed up InfluxDB v2 bucket data from a single bucket to line protocol using
+    the InfluxDB v2 daemon (influxd).
+
+    Args:
+        influxdb_v2_url (str): The InfluxDB v2 URL, including scheme and port.
+        influxdb_v2_token (str): The InfluxDB v2 token.
+        bucket_org_pair (tuple[str, str]): Tuple containing a bucket name and its organization name
+            to export to line protocol. For example, ("bucket-one", "org-one").
+        backup_path (Path): The path where the backed up data resides.
+        start_time (str | None): The start time of the backed up data to export. Must be a valid RFC 3339 timestamp.
+        end_time (str | None): The end time of the backed up data to export. Must be a valid RFC 3339 timestamp.
+        lp_filename (str): The filename to use for all exported line protocol files. Data is differentiated by
+            the directories they reside in, which correspond to bucket IDs.
+
+    Returns:
+        tuple[str, str]: A tuple of a bucket name and its ID. For example,
+            ("bucket-one", "0af435lsdjfm").
+
+    Raises:
+        RuntimeError: If exporting to line protocol fails.
+    """
     bucket_name, org_name = bucket_org_pair
     client: InfluxDBClient = InfluxDBClient(
         url=influxdb_v2_url, org=org_name, token=influxdb_v2_token

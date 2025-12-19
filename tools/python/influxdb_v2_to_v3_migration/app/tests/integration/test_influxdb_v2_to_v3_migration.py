@@ -246,6 +246,15 @@ class MigrationTestCase(unittest.TestCase):
 
     @staticmethod
     def get_random_string(length: int):
+        """
+        Gets a random string.
+
+        Args:
+            length (int): The length of the random string to get.
+
+        Returns:
+            str: A random string.
+        """
         return "".join(
             random.SystemRandom().choice(string.ascii_lowercase + string.digits)
             for _ in range(length)
@@ -255,11 +264,11 @@ class MigrationTestCase(unittest.TestCase):
         self, bucket_name: str, org_name: str = INFLUXDB_V2_DEFAULT_ORG_NAME
     ):
         """
-        Create an InfluxDB v2 bucket with the given name and fill it with dynamic sample data.
+        Creates an InfluxDB v2 bucket with the given name and fills it with test data.
 
         Args:
-            client: The InfluxDB client
-            bucket_name: Name of the bucket to create
+            bucket_name (str): The name of the bucket to create.
+            org_name (str): The organization name in which to create the bucket.
 
         Returns:
             None
@@ -288,15 +297,14 @@ class MigrationTestCase(unittest.TestCase):
         self, bucket_name: str, org_name: str = INFLUXDB_V2_DEFAULT_ORG_NAME
     ) -> int:
         """
-        Query the count of points in a bucket for the migration field.
+        Queries the count of points in a bucket.
 
         Args:
-            client: The InfluxDB client
-            bucket_name: Name of the bucket to query
-            field: The field to count (default: "la_unload")
+            bucket_name (str): Name of the bucket to query.
+            org_name (str): The name of the organization in which the bucket belongs.
 
         Returns:
-            int: The count of points
+            int: The count of points.
         """
         with InfluxDBClient(
             url=self.influxdb_v2_url, token=self.influxdb_v2_token, org=org_name
@@ -316,9 +324,14 @@ class MigrationTestCase(unittest.TestCase):
         self, database_name: str, table_name: str = DEFAULT_MEASUREMENT_NAME
     ) -> int:
         """
-        Query the number of records in an InfluxDB v3 table.
+        Queries the number of records in an InfluxDB v3 table.
 
         Args:
+            database_name (str): The name of the database in which the table resides.
+            table_name (str): The table name to query.
+
+        Returns:
+            int: The number of records in the table.
         """
         with InfluxDBClient3(
             host=self.influxdb_v3_url,
@@ -396,7 +409,7 @@ class MigrationTestCase(unittest.TestCase):
 
     def test_migration_two_buckets_different_orgs(self):
         """
-        Tests migrating buckets from different organizations.
+        Tests migrating two buckets from different organizations.
         """
         secondary_bucket_name: str = (
             self.influxdb_v2_bucket_name_prefix + self.get_random_string(10)
