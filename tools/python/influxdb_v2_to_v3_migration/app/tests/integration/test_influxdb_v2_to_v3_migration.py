@@ -281,7 +281,7 @@ class MigrationTestCase(unittest.TestCase):
             write_api = influxdb_v2_client.write_api()
             print("Loading test data")
             for _ in range(DEFAULT_RECORD_NUMBER):
-                record = f"{DEFAULT_MEASUREMENT_NAME},tag1={self.get_random_string(9)} field1={random.randint(0,300)}i {time.time_ns()}\n"
+                record = f"{DEFAULT_MEASUREMENT_NAME},tag1={self.get_random_string(9)} field1={random.randint(0, 300)}i {time.time_ns()}\n"
                 write_api.write(record=record, bucket=bucket_name, org=org_name)
 
     def check_inflxudb_v2_bucket_count(
