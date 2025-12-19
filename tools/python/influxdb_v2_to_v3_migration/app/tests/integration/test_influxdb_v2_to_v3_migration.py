@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 import re
+import time
 import unittest
 import random
 import string
@@ -25,6 +26,8 @@ import influxdb_v2_to_v3_migration
 
 INFLUXDB_V2_DEFAULT_ORG_NAME: str = "test-org"
 INFLUXDB_V2_SECONDARY_ORG_NAME: str = "test-org-two"
+DEFAULT_RECORD_NUMBER: int = 10000
+DEFAULT_MEASUREMENT_NAME: str = "testMeasurement"
 
 
 class MigrationTestCase(unittest.TestCase):
@@ -275,16 +278,11 @@ class MigrationTestCase(unittest.TestCase):
                 else:
                     raise
 
-            query_api = influxdb_v2_client.query_api()
-            query = f"""
-            import "influxdata/influxdb/sample"
-
-            sample.data(set: "airSensor")
-                |> to(bucket: "{bucket_name}")
-            """
-
-            print("Loading dynamic sample data")
-            _ = query_api.query(query)
+            write_api = influxdb_v2_client.write_api()
+            print("Loading test data")
+            for _ in range(DEFAULT_RECORD_NUMBER):
+                record = f"{DEFAULT_MEASUREMENT_NAME},tag1={self.get_random_string(9)} field1={random.randint(0,300)}i {time.time_ns()}\n"
+                write_api.write(record=record, bucket=bucket_name, org=org_name)
 
     def check_inflxudb_v2_bucket_count(
         self, bucket_name: str, org_name: str = INFLUXDB_V2_DEFAULT_ORG_NAME
@@ -315,7 +313,7 @@ class MigrationTestCase(unittest.TestCase):
             return len(query_result.to_values())
 
     def check_influxdb_v3_table_count(
-        self, database_name: str, table_name: str = "airSensors"
+        self, database_name: str, table_name: str = DEFAULT_MEASUREMENT_NAME
     ) -> int:
         """
         Query the number of records in an InfluxDB v3 table.
@@ -334,7 +332,7 @@ class MigrationTestCase(unittest.TestCase):
 
     def test_migration_basic(self):
         """
-        Tests basic migration.
+        Tests basic migration of a single bucket.
         """
         return_code = influxdb_v2_to_v3_migration.main(
             [
@@ -363,7 +361,7 @@ class MigrationTestCase(unittest.TestCase):
 
     def test_migration_two_buckets_same_org(self):
         """
-        Tests basic migration.
+        Tests migrating two buckets from the same organization.
         """
         secondary_bucket_name: str = (
             self.influxdb_v2_bucket_name_prefix + self.get_random_string(10)
@@ -398,7 +396,7 @@ class MigrationTestCase(unittest.TestCase):
 
     def test_migration_two_buckets_different_orgs(self):
         """
-        Tests basic migration.
+        Tests migrating buckets from different organizations.
         """
         secondary_bucket_name: str = (
             self.influxdb_v2_bucket_name_prefix + self.get_random_string(10)
@@ -435,7 +433,7 @@ class MigrationTestCase(unittest.TestCase):
 
     def test_migration_custom_separators(self):
         """
-        Tests basic migration.
+        Tests migrating with custom separators.
         """
         secondary_bucket_name: str = (
             self.influxdb_v2_bucket_name_prefix + self.get_random_string(10)
