@@ -278,6 +278,8 @@ def export_influxdb_v2_bucket_to_lp(
     )
     bucket_api: BucketsApi = client.buckets_api()
     bucket: Bucket = bucket_api.find_bucket_by_name(bucket_name)
+    if bucket is None:
+        raise RuntimeError(f"Could not find bucket {bucket_name} in org {org_name}")
     bucket_id: str = bucket.id
 
     lp_output_path = backup_path / Path(str(bucket_id)) / Path(lp_filename)
@@ -331,25 +333,29 @@ def main(input_args: list[str]) -> int:
     )
     _ = parser.add_argument(
         "--influxdb-v2-url",
+        required=True,
         help="The InfluxDB v2 URL to migrate from. Example: https://example.com:8086",
     )
     _ = parser.add_argument(
         "--influxdb-v3-url",
+        required=True,
         help="The InfluxDB v3 URL to migrate to. Example: https://example.com:8181",
     )
     _ = parser.add_argument(
         "--backup-path-root",
+        required=False,
         default="~",
         help=(
             "The root of the backup path. The backup directory must have the following "
             "structure and naming: 'engine/data/'. By default, the 'engine' directory is "
-            "assumed to be in the root directory (/engine). This option allows this to be "
-            "changed, for example, to '~' or '/home/ec2-user/some-directory'. If the 'engine' "
+            "assumed to be in the home directory (~/engine). This option allows this to be "
+            "changed, for example, to '/', '/tmp', or '/home/ec2-user/some-directory'. If the 'engine' "
             "and 'data' directories do not exist, they will be created."
         ),
     )
     _ = parser.add_argument(
         "--influxdb-v2-buckets-and-orgs",
+        required=True,
         help=(
             "A list of bucket names paired with the organization each bucket resides in. "
             "Example: 'bucket-one:org-one,bucket-two:org-two'. The separators used in this "
@@ -358,26 +364,31 @@ def main(input_args: list[str]) -> int:
     )
     _ = parser.add_argument(
         "--bucket-separator",
+        required=False,
         default=",",
         help="The character used to separate buckets in the --influxdb-v2-buckets-and-orgs argument. Defaults to ','",
     )
     _ = parser.add_argument(
         "--bucket-org-separator",
+        required=False,
         default=":",
         help="The character used to separate a bucket and its organization in the --influxdb-v2-buckets-and-orgs argument. Defaults to ':'",
     )
     _ = parser.add_argument(
         "--num-backup-workers",
+        required=False,
         default=5,
         help="The number of workers to use in parallel to backup buckets from InfluxDB v2.",
     )
     _ = parser.add_argument(
         "--num-export-lp-workers",
+        required=False,
         default=5,
         help="The number of workers to use in parallel to transform data to line protocol before ingestion to InfluxDB v3.",
     )
     _ = parser.add_argument(
         "--num-ingestion-workers",
+        required=False,
         default=5,
         help="The number of workers to use in parallel to ingest data to InfluxDB v3.",
     )
@@ -393,8 +404,7 @@ def main(input_args: list[str]) -> int:
     )
     _ = parser.add_argument(
         "--tokens-secret-name",
-        default=os.getenv("TOKEN_SECRET_NAME"),
-        required=False,
+        required=True,
         help=(
             "The name of the AWS Secret Manager secret in which both the InfluxDB v2 and v3 tokens have been placed. "
             "Defaults to the value of the TOKEN_SECRET_NAME environment variable."

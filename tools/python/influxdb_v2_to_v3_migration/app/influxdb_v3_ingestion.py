@@ -91,7 +91,7 @@ def ingest_batch(
                     f"{process_name} - Retry attempt {ingestion_attempt} for batch {batch_id}"
                 )
 
-            client.write(batch_content)
+            client.write(batch_content, write_precision="ns")
 
             logger.info(
                 f"{process_name} - Successfully wrote batch {batch_id} on attempt #{ingestion_attempt}"

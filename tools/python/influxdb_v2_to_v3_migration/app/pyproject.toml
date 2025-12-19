@@ -29,6 +29,7 @@ keywords = ["InfluxDB", "Timestream", "migration"]
 
 [project.optional-dependencies]
 test = [
+    "pytest==9.0.2",
     "testcontainers==4.13.3"
 ]
 
