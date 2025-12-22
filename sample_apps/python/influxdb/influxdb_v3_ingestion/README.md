@@ -38,9 +38,19 @@ Before running any of the samples, you must do the following:
    - `INFLUX_DATABASE`: The name of the database that you created in your Timestream for InfluxDB v3 instance.
 4. For the samples that use data from S3:
 
-   a. [Create an S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html).
+   a. [Create an S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html). This can be done using the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html):
+      ```shell
+      aws s3api create-bucket --bucket <bucket name> --region us-west-2 --create-bucket-configuration LocationConstraint=us-west-2
+      ```
 
-   b. Upload all files from `./data` to your bucket. You can use any path within the bucket. By default, the path `influxdb_v3_sample_data/` will be searched within the bucket. For example, CSV data would be searched for within the S3 bucket in `influxdb_v3_sample_data/sample_data.csv`.
+   b. Upload all files from `./data` to your bucket. You can use any path within the bucket. By default, the path `influxdb_v3_sample_data/` will be searched within the bucket. For example, CSV data would be searched for within the S3 bucket in `influxdb_v3_sample_data/sample_data.csv`. This can be done with the AWS CLI:
+      ```shell
+      # Uploading a single file.
+      aws s3 cp ./data/sample_data.csv s3://<bucket name>/influxdb_v3_sample_data/
+
+      # Bash, uploading all files in the ./data/ directory.
+      for f in ./data/*; do aws s3 cp $f s3://<bucket name>/influxdb_v3_sample_data; done
+      ```
 
    c. In addition to the above environment variables, set the following environment variables:
       - `S3_BUCKET_NAME`: The name of the S3 bucket you created.
