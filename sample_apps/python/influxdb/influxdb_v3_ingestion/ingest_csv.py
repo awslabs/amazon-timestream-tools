@@ -1,52 +1,14 @@
+from typing import Any
 from pyarrow import Table
 import os
 from influxdb_client_3 import (
     InfluxDBClient3,
     write_client_options,
     WriteOptions,
-    InfluxDBError,
 )
 from influxdb_client_3.write_client.client.write_api import WriteType
 
-# Define the result object
-result = {"config": None, "status": None, "data": None, "error": None}
-
-
-# Define callbacks for write responses
-def success_callback(self, data: str):
-    result["config"] = self
-    result["status"] = "success"
-    result["data"] = data
-
-    assert result["data"] != None, f"Expected {result['data']}"
-    # print(f"Successfully wrote data: {result['data'].decode("utf-8")}")
-    print(f"Successfully wrote data")
-
-
-def error_callback(self, data: str, exception: InfluxDBError):
-    result["config"] = self
-    result["status"] = "error"
-    result["data"] = data
-    result["error"] = exception
-
-    assert result["status"] == "success", (
-        f"Expected {result['error']} to be success for {result['config']}"
-    )
-
-
-def retry_callback(self, data: str, exception: InfluxDBError):
-    result["config"] = self
-    result["status"] = "retry_error"
-    result["data"] = data
-    result["error"] = exception
-
-    assert result["status"] == "success", (
-        f"Expected {result['status']} to be success for {result['config']}"
-    )
-
-
-write_options = WriteOptions(
-    # write_type=WriteType.batching, # To make async calls and use callbacks.
+write_options: WriteOptions = WriteOptions(
     write_type=WriteType.synchronous,
     batch_size=5000,
     flush_interval=10_000,
@@ -58,10 +20,7 @@ write_options = WriteOptions(
 )
 
 
-wco = write_client_options(
-    success_callback=success_callback,  # Callbacks won't be used with write_type = synchronous.
-    error_callback=error_callback,
-    retry_callback=retry_callback,
+wco: dict[str, Any] = write_client_options(
     write_options=write_options,
 )
 
@@ -72,6 +31,7 @@ with InfluxDBClient3(
     token=os.environ["INFLUX_TOKEN"],
     write_client_options=wco,
 ) as client:
+    print("Ingesting CSV data")
     client.write_file(
         file="./data/sample_data.csv",
         measurement_name="csv_measurement",

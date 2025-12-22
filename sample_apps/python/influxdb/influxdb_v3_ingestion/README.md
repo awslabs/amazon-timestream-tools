@@ -23,9 +23,7 @@ with InfluxDBClient3(
 ```
 Documentation for `InfluxDBClient3.write_file` can be found [here](https://docs.influxdata.com/influxdb3/cloud-dedicated/reference/client-libraries/v3/python/#influxdbclient3write_file).
 
-Much of the content of each sample includes callbacks. These callbacks are not used as data is ingested synchronously, but serve to show how callbacks could be implemented.
-
-These samples build off of [InfluxData's guide for ingesting CSV](https://www.influxdata.com/blog/csv-data-influxdb-3/) and its [InfluxDB v3 Python client documentation](https://docs.influxdata.com/influxdb3/cloud-dedicated/reference/client-libraries/v3/python/).
+These samples build off of [InfluxData's guide for ingesting CSV](https://www.influxdata.com/blog/csv-data-influxdb-3/) and its [InfluxDB v3 Python client documentation](https://docs.influxdata.com/influxdb3/cloud-dedicated/reference/client-libraries/v3/python/). The samples in this directory ingest synchronously. The InfluxDB v3 Python client documentation shows how asynchronous ingestion using callbacks can be accomplished.
 
 ## Prerequisites
 
