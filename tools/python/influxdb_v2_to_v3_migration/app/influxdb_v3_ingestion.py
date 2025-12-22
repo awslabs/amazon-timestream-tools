@@ -1,6 +1,5 @@
 """
-Parallel processing of ingesting gzip line protocol files to InfluxDB.
-This module extracts and ingests gzip files using multiple processes.
+Script that ingests line protocol files to InfluxDB v3 in parallel.
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Script for backing up and restoring Timestream for InfluxDB data using ECS.
-This script is designed to run as an ECS task and handles both backup and restore operations.
+Script for migrating InfluxDB v2 bucket data to InfluxDB v3.
 """
 
 import argparse
