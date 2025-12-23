@@ -24,7 +24,10 @@ The script is available standalone or as part of an automated solution that depl
    ```shell
    python3.14 -m pip install .
    ```
-5. Create a secret in [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) containing your InfluxDB v2 and v3 tokens. For example, using the AWS CLI:
+5. [Retrieve an operator token from your InfluxDB v2 instance](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influx-getting-started-operator-token.html). An operator token is necessary for the migration.
+   - This can also be done by logging in to the InfluxDB v2 UI and cloning an existing operator token.
+6. Retrieve a token from your InfluxDB v3 instance. In Timestream for InfluxDB v3, they are placed in a secret in AWS Secrets Manager that is associated with the instance. In the AWS console, the secret ARN is included in the instance's summary.
+7. Create a secret in [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) containing your InfluxDB v2 and v3 tokens. For example, using the AWS CLI:
    ```shell
    aws secretsmanager create-secret \
        --region us-west-2 \
@@ -32,20 +35,23 @@ The script is available standalone or as part of an automated solution that depl
        --secret-string \
        '{"INFLUXDB_V2_TOKEN": "replace me", "INFLUXDB_V3_TOKEN": "replace me"}'
    ```
-6. [Download and Install the InfluxDB v2 CLI](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/).
-7. [Download InfluxDB v2](https://docs.influxdata.com/influxdb/v2/install/). Once you have downloaded InfluxDB v2, make sure the [InfluxDB v2 daemon (`influxd`)](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/) has been added to your PATH. InfluxDB v2 does not need to be running, the daemon will be used in isolation.
-8. Make sure you have network connectivity to your Timestream for InfluxDB v2 and v3 instances.
+8. [Download and Install the InfluxDB v2 CLI](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/).
+9. [Download InfluxDB v2](https://docs.influxdata.com/influxdb/v2/install/). Once you have downloaded InfluxDB v2, make sure the [InfluxDB v2 daemon (`influxd`)](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/) has been added to your PATH. InfluxDB v2 does not need to be running, the daemon will be used in isolation.
+10. Make sure you have network connectivity to your Timestream for InfluxDB v2 and v3 instances.
 
-   a. InfluxDB v2 connectivity can be checked with the [Influx CLI](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/):
-      ```shell
-      influx ping --host <InfluxDB v2 host>
-      ```
-   b. InfluxDB v3 connectivity can be checked with [cURL](https://curl.se/):
-      ```shell
-      curl -X GET "<InfluxDB v3 host>/health" --header "Authorization: Bearer <InfluxDB v3 token>"
-      ```
-9. Make sure you have enough disk space to hold all of the data that you want to migrate, uncompressed. Data will be backed up to an `engine` directory, by default in `~`. Within this directory, backed up data is organized into `data/<bucket_id>/` directories. Each bucket's [line protocol](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/) data file will be, by default, named `output.lp`, and will be in their respective bucket directories.
-10. Run the script, providing:
+    a. InfluxDB v2 connectivity can be checked with the [Influx CLI](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/):
+       ```shell
+       influx ping --host <InfluxDB v2 host>
+       ```
+
+    b. InfluxDB v3 connectivity can be checked with [cURL](https://curl.se/):
+       ```shell
+       curl -X GET "<InfluxDB v3 host>/health" --header "Authorization: Bearer <InfluxDB v3 token>"
+       ```
+
+11. Make sure you have enough disk space to hold all of the data that you want to migrate, uncompressed. Data will be backed up to an `engine` directory, by default in `~`. Within this directory, backed up data is organized into `data/<bucket_id>/` directories. Each bucket's [line protocol](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/) data file will be, by default, named `output.lp`, and will be in their respective bucket directories.
+
+12. Run the script, providing:
     - Your InfluxDB v2 URL.
     - Your InfluxDB v3 URL.
     - The InfluxDB v2 buckets that you want to migrate and their organizations.
