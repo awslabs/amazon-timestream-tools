@@ -31,11 +31,8 @@ Before running any of the samples, you must do the following:
 
 1. [Create a Timestream for InfluxDB v3 instance](https://docs.aws.amazon.com/timestream/latest/developerguide/getting-started-with-timestream-for-influxdb-3.html) and retrieve its admin token.
 2. [Download and install Python](https://www.python.org/downloads/).
-3. [Create a database in Timestream for InfluxDB v3](https://docs.influxdata.com/influxdb3/core/reference/cli/influxdb3/create/database/).
-3. The samples operate entirely with environment variables. Set the following environment variables:
-   - `INFLUX_HOST`: The URL of your Timestream for InfluxDB v3 instance, including scheme (such as `https`) and port. For example, `"https://example.com:8181"`.
+3. Set the following environment variable:
    - `INFLUX_TOKEN`: The admin token from your Timestream for InfluxDB v3 instance.
-   - `INFLUX_DATABASE`: The name of the database that you created in your Timestream for InfluxDB v3 instance.
 4. For the samples that use data from S3:
 
    a. [Create an S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html). This can be done using the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html):
@@ -52,9 +49,6 @@ Before running any of the samples, you must do the following:
       for f in ./data/*; do aws s3 cp $f s3://<bucket name>/influxdb_v3_sample_data; done
       ```
 
-   c. In addition to the above environment variables, set the following environment variables:
-      - `S3_BUCKET_NAME`: The name of the S3 bucket you created.
-      - `S3_OBJECT_KEY`: The object key for the sample data within your S3 bucket. This defaults to `influxdb_v3_sample_data/sample_data.csv` and `influxdb_v3_sample_data/sample_data.parquet` for the respective samples.
 5. Create a Python virtual environment:
    ```shell
    python3 -m venv .env
@@ -65,12 +59,39 @@ Before running any of the samples, you must do the following:
    python3 -m pip install -r requirements.txt
    ```
 
-## Run Samples
+## Sample Data
 
-After meeting the above prerequisites, run one of the samples:
+A few sample data files are provided in `./data/`. Additionally, the Python script `generate_csv_file.py` allows you to generate a CSV file with a few configurable options, such as setting column names and the timestamp start time.
+
+`generate_csv_file.py` offers the following command-line arguments:
+- `--output-path`: The path to place the generated CSV file. For example, `./data/generated_data.csv`.
+-  `--measurement-name`: The name of the column to use as the measurement name in the data file. Defaults to `csv_measurement`, which matches the measurement column in ./data/sample_data.csv.
+- `--timestamp-column`: The name of the column to use as the time column in the data file. Defaults to `timestamp_utc`.
+- `--tag-columns`: The names of the columns to use as tags in the data file, as a list. For example, `--tag-columns region meter_id`. Values will be random strings.
+-  `--field-columns`: The names of the columns to use as fields in the data file, as a list. For example, `--field-columns region meter_id`. Values will be random integers.
+- `--num-rows`: The number of rows to generate.
+-  `--start-time`: The time to use as the initial generation point as an RFC 3339 timestamp. Defaults to 24 hours ago. For example, '2026-01-01T00:00:00Z' for UTC or '2026-01-01T00:00:00-08:00' for PST.
+- `--time-increment`: The amount of time to increment between records. Defaults to one minute (`1m`). Supported time formats are hr, m, and s.
+
+If you want to create a Parquet file from your generated CSV file, the script `csv_to_parquet.py` allows you to do this. It offers the following command-line argument:
+- `--csv-file`: The path to the CSV file to transform to Parquet. The new Parquet file will be created in the same directory.
+
+## Running Samples
+
+After meeting the above prerequisites, run one of the samples, providing the following command-line arguments:
+- `--host`: The URL of your Timestream for InfluxDB v3 instance, including scheme (such as `https`) and port. For example, `"https://example.com:8181"`.
+- `--database-name`: The name of the database that you want to ingest data into in your Timestream for InfluxDB v3 instance. If this database does not exist, it will be created.
+- `--measurement-name`: Optional. The name of the column to use as the measurment name in the data file.
+- `--timestamp-column`: The name of the column to use as the time column in the data file. Defaults to `timestamp_utc`.
+- `--tag-columns`: The names of the columns to use as tags in the data file, as a list. For example, `--tag-columns region meter_id`.
+- For samples that do not use an S3 bucket, provide:
+   - `--file-path`: The path to the file to ingest. Defaults to a file in `./data/`, either CSV or Parquet depending on the sample.
+- For samples that use S3 buckets, provide:
+   - `--s3-bucket-name`: The name of the S3 bucket you created.
+   - `--s3-object-key`: The object key for the sample data within your S3 bucket. This defaults to `influxdb_v3_sample_data/sample_data.csv` and `influxdb_v3_sample_data/sample_data.parquet` for the respective samples.
 
 ```shell
-python3 ingest_csv.py
+python3 ingest_csv.py --host <host> --database-name <database name>
 ```
 
-Data will be read from a file in the `./data/` directory (or possibly S3, if you run one of the samples that use S3), ingested to your Timestream for InfluxDB v3 instance, and the ingested data will be queried. If any data was downloaded, the data will be deleted from disk.
+Data will be read from a file (or possibly S3, if you run one of the samples that use S3), ingested to your Timestream for InfluxDB v3 instance, and then the ingested data will be queried. If any data was downloaded, the data will be deleted from disk.

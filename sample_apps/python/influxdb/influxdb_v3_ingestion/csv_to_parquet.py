@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--csv-file",
         required=True,
-        help="The path to the CSV file to transform to parquet.",
+        help="The path to the CSV file to transform to Parquet. The new Parquet file will be created in the same directory.",
     )
     args = parser.parse_args()
     csv_file_path = args.csv_file
