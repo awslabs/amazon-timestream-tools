@@ -65,12 +65,11 @@ A few sample data files are provided in `./data/`. Additionally, the Python scri
 
 `generate_csv_file.py` offers the following command-line arguments:
 - `--output-path`: The path to place the generated CSV file. For example, `./data/generated_data.csv`.
--  `--measurement-name`: The name of the column to use as the measurement name in the data file. Defaults to `csv_measurement`, which matches the measurement column in ./data/sample_data.csv.
 - `--timestamp-column`: The name of the column to use as the time column in the data file. Defaults to `timestamp_utc`.
 - `--tag-columns`: The names of the columns to use as tags in the data file, as a list. For example, `--tag-columns region meter_id`. Values will be random strings.
--  `--field-columns`: The names of the columns to use as fields in the data file, as a list. For example, `--field-columns region meter_id`. Values will be random integers.
+- `--field-columns`: The names of the columns to use as fields in the data file, as a list. For example, `--field-columns region meter_id`. Values will be random integers.
 - `--num-rows`: The number of rows to generate.
--  `--start-time`: The time to use as the initial generation point as an RFC 3339 timestamp. Defaults to 24 hours ago. For example, '2026-01-01T00:00:00Z' for UTC or '2026-01-01T00:00:00-08:00' for PST.
+- `--start-time`: The time to use as the initial generation point as an RFC 3339 timestamp. Defaults to 24 hours ago. For example, '2026-01-01T00:00:00Z' for UTC or '2026-01-01T00:00:00-08:00' for PST.
 - `--time-increment`: The amount of time to increment between records. Defaults to one minute (`1m`). Supported time formats are hr, m, and s.
 
 If you want to create a Parquet file from your generated CSV file, the script `csv_to_parquet.py` allows you to do this. It offers the following command-line argument:
@@ -81,7 +80,7 @@ If you want to create a Parquet file from your generated CSV file, the script `c
 After meeting the above prerequisites, run one of the samples, providing the following command-line arguments:
 - `--host`: The URL of your Timestream for InfluxDB v3 instance, including scheme (such as `https`) and port. For example, `"https://example.com:8181"`.
 - `--database-name`: The name of the database that you want to ingest data into in your Timestream for InfluxDB v3 instance. If this database does not exist, it will be created.
-- `--measurement-name`: Optional. The name of the column to use as the measurment name in the data file.
+- `--measurement-name`: Optional. The name to use as the measurment. In InfluxDB v3, this becomes the table name..
 - `--timestamp-column`: The name of the column to use as the time column in the data file. Defaults to `timestamp_utc`.
 - `--tag-columns`: The names of the columns to use as tags in the data file, as a list. For example, `--tag-columns region meter_id`.
 - For samples that do not use an S3 bucket, provide:
