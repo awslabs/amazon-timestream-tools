@@ -57,15 +57,6 @@ if __name__ == "__main__":
         help='The path to place the generated CSV file. For example, "./data/generated_data.csv".',
     )
     parser.add_argument(
-        "--measurement-name",
-        default="csv_measurement",
-        required=False,
-        help=(
-            "The name of the column to use as the measurement name in the data file. Defaults to "
-            "csv_measurement, which matches the measurement column in ./data/sample_data.csv."
-        ),
-    )
-    parser.add_argument(
         "--timestamp-column",
         default="timestamp_utc",
         required=False,
@@ -108,7 +99,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     output_path: Path = Path(args.output_path).expanduser()
-    measurement_name: str = args.measurement_name
     timestamp_column: str = args.timestamp_column
     tag_columns: list[str] = args.tag_columns
     field_columns: list[str] = args.field_columns
@@ -122,17 +112,14 @@ if __name__ == "__main__":
     print(f"Writing to {str(output_path)}")
     with open(output_path, "w", newline="") as csv_file:
         writer = csv.writer(csv_file)
-        headers: list[str] = [measurement_name, timestamp_column]
+        headers: list[str] = [timestamp_column]
         headers.extend(tag_columns)
         headers.extend(field_columns)
         writer.writerow(headers)
 
         current_record_time: datetime = start_time
         for i in range(num_rows):
-            row = [
-                "generated_measurement",
-                str(current_record_time),
-            ]
+            row = [str(current_record_time)]
             for _ in tag_columns:
                 row.append(get_random_string(7))
             for _ in field_columns:
