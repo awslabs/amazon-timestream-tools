@@ -80,7 +80,7 @@ If you want to create a Parquet file from your generated CSV file, the script `c
 After meeting the above prerequisites, run one of the samples, providing the following command-line arguments:
 - `--host`: The URL of your Timestream for InfluxDB v3 instance, including scheme (such as `https`) and port. For example, `"https://example.com:8181"`.
 - `--database-name`: The name of the database that you want to ingest data into in your Timestream for InfluxDB v3 instance. If this database does not exist, it will be created.
-- `--measurement-name`: Optional. The name to use as the measurment. In InfluxDB v3, this becomes the table name..
+- `--measurement-name`: Optional. The name to use as the measurment. In InfluxDB v3, this becomes the table name.
 - `--timestamp-column`: The name of the column to use as the time column in the data file. Defaults to `timestamp_utc`.
 - `--tag-columns`: The names of the columns to use as tags in the data file, as a list. For example, `--tag-columns region meter_id`.
 - For samples that do not use an S3 bucket, provide:
