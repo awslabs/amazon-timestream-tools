@@ -254,7 +254,6 @@ def export_influxdb_v2_buckets_to_lp(
     start_time: str | None = None,
     end_time: str | None = None,
     num_export_lp_workers: int = 5,
-    lp_filename: str = "output.lp",
 ) -> tuple[bool, list[tuple[str, str]]]:
     """
     Exports backed up InfluxDB v2 bucket data from multiple buckets to line protocol in parallel
@@ -294,7 +293,6 @@ def export_influxdb_v2_buckets_to_lp(
                 backup_path,
                 start_time,
                 end_time,
-                lp_filename,
             ): bucket_org_pair
             for bucket_org_pair in bucket_org_pairs
         }
@@ -326,7 +324,6 @@ def export_influxdb_v2_bucket_to_lp(
     backup_path: Path,
     start_time: str | None = None,
     end_time: str | None = None,
-    lp_filename: str = "output.lp",
 ) -> tuple[str, str]:
     """
     Exports backed up InfluxDB v2 bucket data from a single bucket to line protocol using
@@ -340,8 +337,6 @@ def export_influxdb_v2_bucket_to_lp(
         backup_path (Path): The path where the backed up data resides.
         start_time (str | None): The start time of the backed up data to export. Must be a valid RFC 3339 timestamp.
         end_time (str | None): The end time of the backed up data to export. Must be a valid RFC 3339 timestamp.
-        lp_filename (str): The filename to use for all exported line protocol files. Data is differentiated by
-            the directories they reside in, which correspond to bucket IDs.
 
     Returns:
         tuple[str, str]: A tuple of a bucket name and its ID. For example,
@@ -355,12 +350,12 @@ def export_influxdb_v2_bucket_to_lp(
         url=influxdb_v2_url, org=org_name, token=influxdb_v2_token
     )
     bucket_api: BucketsApi = client.buckets_api()
-    bucket: Bucket = bucket_api.find_bucket_by_name(bucket_name)
+    bucket: Bucket | None = bucket_api.find_bucket_by_name(bucket_name)
     if bucket is None:
         raise RuntimeError(f"Could not find bucket {bucket_name} in org {org_name}")
     bucket_id: str = bucket.id
 
-    lp_output_path = backup_path / Path(str(bucket_id)) / Path(lp_filename)
+    lp_output_path = backup_path / Path(str(bucket_id)) / Path(f"{bucket_name}.lp")
 
     # Backup path should always end with engine/data. influxd will
     # want the path to the engine directory only.
@@ -489,16 +484,6 @@ def main(input_args: list[str]) -> int:
         ),
     )
     _ = parser.add_argument(
-        "--line-protocol-filename",
-        default="output.lp",
-        required=False,
-        help=(
-            "The name that all line protocol files share. A line protocol file is associated "
-            "with a bucket by residing in a directory that uses a bucket's ID as its name. "
-            "By default, this is 'output.lp'."
-        ),
-    )
-    _ = parser.add_argument(
         "--influxdb-v3-database-retention-period",
         required=False,
         help=(
@@ -516,7 +501,6 @@ def main(input_args: list[str]) -> int:
     end_time: str | None = args.end_time
     num_backup_workers: int = args.num_backup_workers
     num_export_lp_workers: int = args.num_export_lp_workers
-    line_protocol_filename: str = args.line_protocol_filename
     backup_path_root = args.backup_path_root
 
     bucket_org_pairs: list[tuple[str, str]] = [
@@ -527,7 +511,7 @@ def main(input_args: list[str]) -> int:
         )
     ]
 
-    backup_path = Path(backup_path_root).expanduser() / Path("engine/data")
+    backup_path: Path = Path(backup_path_root).expanduser() / Path("engine/data")
 
     if not verify_required_subprocess_tools():
         logger.error("Could not verify all required subprocess tools are installed")
@@ -591,7 +575,6 @@ def main(input_args: list[str]) -> int:
             start_time,
             end_time,
             num_export_lp_workers,
-            line_protocol_filename,
         )
     )
 
@@ -601,13 +584,12 @@ def main(input_args: list[str]) -> int:
         logger.error("Exporting to line protocol failed")
         return 1
 
-    ingestion_result = influxdb_v3_ingestion.ingest_line_protocol_files(
+    ingestion_result: bool = influxdb_v3_ingestion.ingest_line_protocol_files(
         influxdb_v3_url=args.influxdb_v3_url,
         influxdb_v3_token=influxdb_v3_token,
         backup_path=backup_path,
         bucket_id_pairs=export_lp_result[1],
         num_workers=args.num_ingestion_workers,
-        lp_filename=args.line_protocol_filename,
         retention_period=args.influxdb_v3_database_retention_period,
     )
 

@@ -49,7 +49,7 @@ The script is available standalone or as part of an automated solution that depl
        curl -X GET "<InfluxDB v3 host>/health" --header "Authorization: Bearer <InfluxDB v3 token>"
        ```
 
-11. Make sure you have enough disk space to hold all of the data that you want to migrate, uncompressed. Data will be backed up to an `engine` directory, by default in `~`. Within this directory, backed up data is organized into `data/<bucket_id>/` directories. Each bucket's [line protocol](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/) data file will be, by default, named `output.lp`, and will be in their respective bucket directories.
+11. Make sure you have enough disk space to hold all of the data that you want to migrate, uncompressed. Data will be backed up to an `engine` directory, by default in `~`. Within this directory, backed up data is organized into `data/<bucket_id>/` directories. Each bucket's [line protocol](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/) data file will be `<bucket name>.lp`, and will be in their respective bucket directories.
 
 12. Run the script, providing:
     - Your InfluxDB v2 URL.
@@ -146,6 +146,38 @@ rm -rf ~/engine
    aws ssm delete-paramter \
        --name "/amis/influxdb-v2-to-v3-migration-runner/latest"
    ```
+
+## Manual Verification
+
+After completing a migration, you may want to verify that all points were migrated.
+
+For verification it is important to note that during the migration process, buckets are mapped to databases, measurements are mapped to tables, and each bucket's data is output to a single line protocol file.
+
+### Verifying InfluxDB v2 Count
+
+You can query InfluxDB v2, returning all points in bucket:
+
+```flux
+from(bucket: "<bucket name>")
+   |> range(start: 0)
+   |> filter(fn: (r) => r["_measurement"] == "your measurement name")
+   |> group()
+   |> count()
+```
+
+If you are confident that line protocol data was exported correctly, you can get the number of points in a bucket by calculating the number of lines in each file:
+```shell
+wc -l ~/engine/data/0b6d5261bb527ac5/bucket_name.lp
+```
+
+### Verifying InfluxDB v3 Count
+
+To check the number of records in a table within a database, use SQL:
+```sql
+SELECT COUNT(*) FROM my_table_name
+```
+
+To compare the total number of records in an InfluxDB v3 database to the known number of records in an InfluxDB v2 bucket, this query must be executed for all tables in a database, since databases correspond to buckets.
 
 ## Testing
 

@@ -202,7 +202,6 @@ def ingest_line_protocol_files(
     io_multiplier: int = 10,
     max_retries: int = 20,
     num_workers: int = 5,
-    lp_filename: str = "output.lp",
     retention_period: str | None = None,
 ) -> bool:
     """
@@ -219,7 +218,6 @@ def ingest_line_protocol_files(
         io_multiplier (int): How many batches to read at once.
         max_retries (int): The number of maximum retries before giving up ingestion.
         num_workers (int): The number of workers to use to ingest files in parallel.
-        lp_filename (str): The name that all line protocol files share.
         retention_period (str | None): The retention period to use for all new InfluxDB v3 databases.
 
     Returns:
@@ -243,7 +241,6 @@ def ingest_line_protocol_files(
                 lines_per_batch,
                 io_multiplier,
                 max_retries,
-                lp_filename,
                 retention_period,
             ): bucket_id_pair
             for bucket_id_pair in bucket_id_pairs
@@ -277,7 +274,6 @@ def ingest_line_protocol_file(
     lines_per_batch: int = 10_000,
     io_multiplier: int = 10,
     max_retries: int = 20,
-    lp_filename: str = "output.lp",
     retention_period: str | None = None,
 ) -> str:
     """
@@ -291,7 +287,6 @@ def ingest_line_protocol_file(
         lines_per_batch (int): Number of lines to ingest in each batch.
         io_multiplier (int): Multiplier for I/O chunking optimization.
         max_retries (int): Maximum number of retry attempts.
-        lp_filename (str): The name of the line protocol file.
         retention_period (str | None): The retention period to use for the new InfluxDB v3 database.
 
     Returns:
@@ -306,7 +301,7 @@ def ingest_line_protocol_file(
     # and begin with an alphanumeric character, and are allowed to use hyphens.
     database_name: str = bucket_name.replace("_", "-")
 
-    lp_file_path: Path = backup_path / Path(bucket_id) / Path(lp_filename)
+    lp_file_path: Path = backup_path / Path(bucket_id) / Path(f"{bucket_name}.lp")
 
     response: requests.Response = requests.get(
         f"{influxdb_v3_url}/api/v3/configure/database?format=json",
@@ -444,16 +439,6 @@ def main(input_args: list[str]) -> int:
         ),
     )
     _ = parser.add_argument(
-        "--line-protocol-filename",
-        default="output.lp",
-        required=False,
-        help=(
-            "The name that all line protocol files share. A line protocol file is associated "
-            "with a bucket by residing in a directory that uses a bucket's ID as its name. "
-            "By default, this is 'output.lp'."
-        ),
-    )
-    _ = parser.add_argument(
         "--retention-period",
         required=False,
         help=(
@@ -498,7 +483,6 @@ def main(input_args: list[str]) -> int:
         args.multiplier,
         args.retries,
         args.num_workers,
-        args.line_protocol_filename,
         args.retention_period,
     )
 
