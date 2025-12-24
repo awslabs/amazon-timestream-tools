@@ -196,17 +196,17 @@ To compare the total number of records in an InfluxDB v3 database to the known n
 
 ## FAQ
 
-Q: What is the cutoff time for migrated points?
-A: All points before the migration begins will be migrated. Points ingested after or during the migration will not. This is due to the behaviour of the InfluxDB v2 CLI.
+### What is the cutoff time for migrated points?
+All points before the migration begins will be migrated. Points ingested after or during the migration will not. This is due to the behaviour of the InfluxDB v2 CLI.
 
-Q: Do I need the InfluxDB v2 daemon to be running?
-A: No, the daemon (`influxd`) simply needs to be in your PATH, available for the script to use.
+### Do I need the InfluxDB v2 daemon to be running?
+No, the daemon (`influxd`) simply needs to be in your PATH, available for the script to use.
 
-Q: Will Python `3.12` work?
-A: No, you must use Python minimum version `3.14.1`.
+### Will Python `3.12` work?
+No, you must use Python minimum version `3.14.1`.
 
-Q: Why do I need to install the InfluxDB v2 CLI?
-A: The InfluxDB v2 CLI is capable of doing backups efficiently. This could be done instead entirely with InfluxDB v2's HTTP API, but doing a backup is not as simple as a few HTTP requests.
+### Why do I need to install the InfluxDB v2 CLI?
+The InfluxDB v2 CLI is capable of doing backups efficiently. This could be done instead entirely with InfluxDB v2's HTTP API, but doing a backup is not as simple as a few HTTP requests.
 
-Q: Why do I need to have the InfluxDB v2 daemon in my PATH?
-A: InfluxDB v2 and InfluxDB v3 share a common file format, line protocol. Unfortunately, the only way to extract line protocol data from InfluxDB v2 is to use the InfluxDB v2 daemon. This cannot be done across a network. The InfluxDB v2 CLI is used to back up bucket data across a network, that bucket data is extracted, and the InfluxDB v2 daemon is used to transform data to line protocol. This is possible due to the fact that a backup is basically a file copy of an InfluxDB v2's `engine/data/` directory.
+### Why do I need to have the InfluxDB v2 daemon in my PATH?
+InfluxDB v2 and InfluxDB v3 share a common file format, line protocol. Unfortunately, the only way to extract line protocol data from InfluxDB v2 is to use the InfluxDB v2 daemon. This cannot be done across a network. The InfluxDB v2 CLI is used to back up bucket data across a network, that bucket data is extracted, and the InfluxDB v2 daemon is used to transform data to line protocol. This is possible due to the fact that a backup is basically a file copy of an InfluxDB v2's `engine/data/` directory.
