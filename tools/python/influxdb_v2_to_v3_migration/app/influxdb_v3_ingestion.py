@@ -446,12 +446,21 @@ def main(input_args: list[str]) -> int:
             "For example, '1d', '30m'. By default, this is infinity."
         ),
     )
+    _ = parser.add_argument(
+        "--region",
+        default="us-west-2",
+        required=False,
+        help="The AWS region to use for AWS Secrets Manager.",
+    )
 
     args = parser.parse_args(input_args)
     tokens_secret_name: str = args.tokens_secret_name
+    region_name: str = args.region
 
     try:
-        tokens: dict[str, str] = utils.get_secret(tokens_secret_name)
+        tokens: dict[str, str] = utils.get_secret(
+            secret_name=tokens_secret_name, region_name=region_name
+        )
         influxdb_v3_token: str | None = tokens.get("INFLUXDB_V3_TOKEN")
         assert influxdb_v3_token is not None
 

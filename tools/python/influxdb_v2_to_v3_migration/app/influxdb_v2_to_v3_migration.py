@@ -491,6 +491,12 @@ def main(input_args: list[str]) -> int:
             "For example, '1d', '30m'. By default, this is infinity."
         ),
     )
+    _ = parser.add_argument(
+        "--region",
+        default="us-west-2",
+        required=False,
+        help="The AWS region to use for AWS Secrets Manager.",
+    )
 
     args = parser.parse_args(input_args)
 
@@ -501,7 +507,8 @@ def main(input_args: list[str]) -> int:
     end_time: str | None = args.end_time
     num_backup_workers: int = args.num_backup_workers
     num_export_lp_workers: int = args.num_export_lp_workers
-    backup_path_root = args.backup_path_root
+    backup_path_root: str = args.backup_path_root
+    region_name: str = args.region
 
     bucket_org_pairs: list[tuple[str, str]] = [
         (bucket_name, org_name)
@@ -522,7 +529,9 @@ def main(input_args: list[str]) -> int:
         return 1
 
     try:
-        tokens: dict[str, str] = utils.get_secret(tokens_secret_name)
+        tokens: dict[str, str] = utils.get_secret(
+            secret_name=tokens_secret_name, region_name=region_name
+        )
         influxdb_v2_token: str | None = tokens.get("INFLUXDB_V2_TOKEN")
         influxdb_v3_token: str | None = tokens.get("INFLUXDB_V3_TOKEN")
         assert influxdb_v2_token is not None
