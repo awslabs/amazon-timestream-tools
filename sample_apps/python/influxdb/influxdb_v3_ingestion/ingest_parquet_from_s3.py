@@ -32,7 +32,7 @@ if __name__ == "__main__":
         "--measurement-name",
         default="parquet_measurement",
         required=False,
-        help="The name of the column to use as the measurment name in the data file.",
+        help="The name to use as the measurment. In InfluxDB v3, this becomes the table name.",
     )
     parser.add_argument(
         "--timestamp-column",
