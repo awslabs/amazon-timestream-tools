@@ -86,7 +86,7 @@ rm -rf ~/engine
    - `runner_ssh_key_name`: The name of an existing key you wish to use to SSH onto your deployed EC2 instance.
 4. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`:
    ```shell
-   packer init
+   packer init packer.pkr.hcl
    packer build packer.pkr.hcl
    ```
 5. In the [`influxdb_v2_to_v3_migration`](.) directory, initialize and apply Terraform changes:
