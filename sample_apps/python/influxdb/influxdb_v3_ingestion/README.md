@@ -46,7 +46,7 @@ Before running any of the samples, you must do the following:
       aws s3 cp ./data/sample_data.csv s3://<bucket name>/influxdb_v3_sample_data/
 
       # Bash, uploading all files in the ./data/ directory.
-      for f in ./data/*; do aws s3 cp $f s3://<bucket name>/influxdb_v3_sample_data; done
+      for f in ./data/*; do aws s3 cp $f s3://<bucket name>/influxdb_v3_sample_data/; done
       ```
 
 5. Create a Python virtual environment:
