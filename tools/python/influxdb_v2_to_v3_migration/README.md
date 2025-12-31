@@ -4,7 +4,7 @@
 
 The [Amazon Timestream for InfluxDB](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influxdb.html) [v2](https://docs.influxdata.com/influxdb/v2/) to [v3](https://docs.influxdata.com/influxdb3/enterprise/) migration script allows you to migrate your data from managed InfluxDB v2 to v3. The script uses the InfluxDB [v2](https://docs.influxdata.com/influxdb/v2/api/v2/) and [v3](https://docs.influxdata.com/influxdb3/enterprise/api/v3/) APIs, the [Influx CLI](https://docs.influxdata.com/influxdb/v2/reference/cli/influx/), and the [InfluxDB v2 daemon](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/) to [backup](https://docs.influxdata.com/influxdb/v2/reference/cli/influx/backup/) data, [translate backed-up data to line protocol](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/inspect/export-lp/), and [ingest the line protocol data to InfluxDB v3](https://docs.influxdata.com/influxdb3/enterprise/api/v3/#operation/PostWriteLP).
 
-The script is available standalone or as part of an automated solution that deploys an EC2 instance with the script and all prerequisites installed. If you already have your backed-up data, a separate script that ingests to InfluxDB v3 is provided, [`influxdb_v3_ingestion.py`](./app/influxdb_v3_ingestion.py).
+The script is available standalone or as part of an automated solution that deploys an EC2 instance with the script and all prerequisites installed. If you already have your backed-up data, a separate script that ingests to InfluxDB v3 is provided, `influxdb_v3_ingestion.py`. See the [**InfluxDB v3 Ingestion**](#influxdb-v3-ingestion) section below for more information.
 
 ## Standalone Usage
 
@@ -178,6 +178,76 @@ SELECT COUNT(*) FROM my_table_name
 ```
 
 To compare the total number of records in an InfluxDB v3 database to the known number of records in an InfluxDB v2 bucket, this query must be executed for all tables in a database, since databases correspond to buckets.
+
+## InfluxDB v3 Ingestion
+
+A script, `./app/influxdb_v3_ingestion.py`, is provided that ingests data to Timestream for InfluxDB v3. This script is useful if you have already backed up your InfluxDB v2 data. The ingestion script is tailored to be used by the end-to-end migration script, and expects data to be organized in a specific way. To organize data the way that the ingestion script expects, you can backup, extract InfluxDB v2 data, and convert InfluxDB v2 data to line protocol using the following commands:
+```shell
+# Required input values.
+INFLUXDB_V2_HOST=<InfluxDB v2 host>
+INFLUXDB_V2_ORG=<organization name>
+INFLUXDB_V2_TOKEN=<InfluxDB v2 operator token>
+
+# Create backup directory. Naming is important.
+mkdir -p ~/engine/data
+
+# Backup all buckets from an InfluxDB v2 instance to a local directory
+# using the InfluxDB v2 CLI.
+influx backup \
+    --host $INFLUXDB_V2_HOST \
+    --org $INFLUXDB_V2_ORG \
+    --token $INFLUXDB_V2_TOKEN \
+    --compression none \
+    ~/engine/data
+
+# Extract all .tar files.
+for f in ~/engine/data/*.tar; do tar -xzf "$f" -C ~/engine/data; done
+
+# Extract all data to line protocol using the InfluxDB v2 CLI, the InfluxDB v2 daemon,
+# and jq.
+for bucket_id in $(ls -1d ~/engine/data/*/ | xargs -n 1 basename); do
+    BUCKET_NAME=$(influx bucket list \
+        --host $INFLUXDB_V2_HOST \
+        --token $INFLUXDB_V2_TOKEN \
+        --org $INFLUXDB_V2_ORG \
+        --json \
+        -i $bucket_id | jq -r ".[0].name")
+
+    influxd inspect export-lp \
+        --bucket-id $bucket_id \
+        --engine-path ~/engine \
+        --output-path "$(cd ~/engine/data/${bucket_id} && pwd)/${BUCKET_NAME}.lp"
+done
+```
+
+Once your data is available in a `engine/data/` directory, `influxdb_v3_ingestion.py` can be used to ingest your data to InfluxDB v3:
+```shell
+# The AWS Secrets Manager secret holding InfluxDB v2 and v3 tokens.
+TOKENS_SECRET_NAME=<tokens secret name>
+INFLUXDB_V3_HOST=<InfluxDB v3 host>
+
+# Create list of bucket names and bucket IDs.
+BUCKET_NAMES_AND_IDS=""
+for bucket_id in $(ls -1d ~/engine/data/*/ | xargs -n 1 basename); do
+    BUCKET_LP_FILE=$(ls -1d ~/engine/data/${bucket_id}/*.lp | xargs -n 1 basename)
+    BUCKET_NAME="${BUCKET_LP_FILE::${#BUCKET_LP_FILE}-3}"
+    BUCKET_NAMES_AND_IDS="${BUCKET_NAME}:${BUCKET_ID},${BUCKET_NAMES_AND_IDS}"
+done
+# Remove trailing comma.
+BUCKET_NAMES_AND_IDS="${BUCKET_NAMES_AND_IDS%?}"
+
+# Ingest data.
+python3 influxdb_v3_ingestion.py \
+    --influxdb-v3-url $INFLUXDB_V3_HOST \
+    --influxdb-v2-bucket-names-and-ids $BUCKET_NAMES_AND_IDS \
+    --tokens-secret-name $TOKENS_SECRET_NAME \
+    --backup-path ~/engine/data
+```
+
+Run the following command to view the ingestion script's full options:
+```shell
+python3 influxdb_v3_ingestion.py --help
+```
 
 ## Testing
 
