@@ -94,7 +94,7 @@ if __name__ == "__main__":
         s3_client.download_file(s3_bucket_name, s3_object_key, local_file_path)
         print(f"Downloaded {s3_object_key} to location {local_file_path}")
     except Exception as e:
-        print(f"Error downloading {s3_object_key} from {s3_bucket_name}")
+        print(f"Error downloading {s3_object_key} from {s3_bucket_name}: {e}")
         exit(1)
 
     with InfluxDBClient3(
