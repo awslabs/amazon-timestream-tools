@@ -75,8 +75,8 @@ rm -rf ~/engine
 
 ### Steps
 
-1. [Download and install Packer](https://developer.hashicorp.com/packer/install).
-2. [Download and install Terraform](https://developer.hashicorp.com/terraform/install).
+1. [Download and install Packer](https://developer.hashicorp.com/packer/install). Packer will be used to create an AMI with all necessary dependencies and scripts. This AMI will be used later to deploy an EC2 instance.
+2. [Download and install Terraform](https://developer.hashicorp.com/terraform/install). Terraform will be used to deploy an EC2 instance and all other necessary resources for the EC2 instance to perform a migration.
 3. Update [`variables.tf`](./variables.tf), filling in all `"replace me"` placeholders:
    
    - `vpc_id`: The ID of an existing VPC.
