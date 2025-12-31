@@ -105,7 +105,7 @@ rm -rf ~/engine
        --cidr <runner_ip>/32
 
    # InfluxDB v3.
-      aws ec2 authorize-security-group-ingress \
+   aws ec2 authorize-security-group-ingress \
        --group-id <InfluxDB v3 security group ID> \
        --protocol tcp \
        --port 8181 \
