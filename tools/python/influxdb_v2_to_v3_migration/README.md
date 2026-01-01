@@ -114,7 +114,7 @@ rm -rf ~/engine
    ```
 9. Using the key pair you specified in `variables.tf`, SSH onto the instance, using the output `runner_ip`:
    ```shell
-   ssh -i <path to key> ec2-user@<runner_ip>
+   ssh -i <path to private key> ec2-user@<runner_ip>
    ```
    - If you don't want to use SSH, you can use AWS SSM instead:
       ```shell
