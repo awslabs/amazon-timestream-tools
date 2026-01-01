@@ -77,25 +77,26 @@ rm -rf ~/engine
 
 1. [Download and install Packer](https://developer.hashicorp.com/packer/install). Packer will be used to create an AMI with all necessary dependencies and scripts. This AMI will be used later to deploy an EC2 instance.
 2. [Download and install Terraform](https://developer.hashicorp.com/terraform/install). Terraform will be used to deploy an EC2 instance and all other necessary resources for the EC2 instance to perform a migration.
-3. Update [`variables.tf`](./variables.tf), filling in all `"replace me"` placeholders:
+3. [Create an EC2 key pair](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html) to use to SSH onto your deployed EC2 instance if you don't already have an existing EC2 key pair.
+4. Update [`variables.tf`](./variables.tf), filling in all `"replace me"` placeholders:
    
    - `vpc_id`: The ID of an existing VPC.
    - `subnet_id`: The ID of an existing subnet in the above VPC.
    - `ssh_access_ip`: The IP to grant SSH access to the deployed EC2 instance. For example, `127.0.0.1/32`.
    - `tokens`: Your InfluxDB v2 and v3 tokens. These tokens will be placed in a secret in AWS Secrets Manager and redacted from all Terraform output.
-   - `runner_ssh_key_name`: The name of an existing key you wish to use to SSH onto your deployed EC2 instance.
-4. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`:
+   - `runner_ssh_key_name`: The name of an existing EC2 key pair you wish to use to SSH onto your deployed EC2 instance.
+5. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`:
    ```shell
    packer init packer.pkr.hcl
    packer build packer.pkr.hcl
    ```
-5. In the [`influxdb_v2_to_v3_migration`](.) directory, initialize and apply Terraform changes:
+6. In the [`influxdb_v2_to_v3_migration`](.) directory, initialize and apply Terraform changes:
    ```shell
    terraform init
    terraform apply
    ```
-6. Review the proposed changes by Terraform and type `yes`.
-7. Take a note of the output `runner_ip` value. This IP will need to be added as an ingress rule to your Timestream for InfluxDB v2 and v3 security groups. This can be accomplished with the AWS CLI:
+7. Review the proposed changes by Terraform and type `yes`.
+8. Take a note of the output `runner_ip` value. This IP will need to be added as an ingress rule to your Timestream for InfluxDB v2 and v3 security groups. This can be accomplished with the AWS CLI:
    ```shell
    # InfluxDB v2.
    aws ec2 authorize-security-group-ingress \
@@ -111,7 +112,7 @@ rm -rf ~/engine
        --port 8181 \
        --cidr <runner_ip>/32
    ```
-8. Using the key pair you specified in `variables.tf`, SSH onto the instance, using the output `runner_ip`:
+9. Using the key pair you specified in `variables.tf`, SSH onto the instance, using the output `runner_ip`:
    ```shell
    ssh -i <path to key> ec2-user@<runner_ip>
    ```
@@ -119,7 +120,7 @@ rm -rf ~/engine
       ```shell
       aws ssm start-session --target <instance ID>
       ```
-9. Run the script, providing:
+10. Run the script, providing:
     - Your InfluxDB v2 URL.
     - Your InfluxDB v3 URL.
     - The InfluxDB v2 buckets that you want to migrate and their organizations.
