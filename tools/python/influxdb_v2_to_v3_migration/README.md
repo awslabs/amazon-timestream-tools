@@ -6,6 +6,132 @@ The [Amazon Timestream for InfluxDB](https://docs.aws.amazon.com/timestream/late
 
 The script is available standalone or as part of an automated solution that deploys an EC2 instance with the script and all prerequisites installed. If you already have your backed-up data, a separate script that ingests to InfluxDB v3 is provided, `influxdb_v3_ingestion.py`. See the [**InfluxDB v3 Ingestion**](#influxdb-v3-ingestion) section below for more information.
 
+## Permissions
+
+To use the migration script and deploy all resources, you must have the following IAM permissions, replacing `<region>` with the AWS region that resources will be deployed in and `<account ID>` with your AWS account ID:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "EC2Core",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:RunInstances",
+                "ec2:TerminateInstances",
+                "ec2:StartInstances",
+                "ec2:StopInstances",
+                "ec2:ModifyInstanceAttribute",
+                "ec2:CreateImage",
+                "ec2:DeregisterImage",
+                "ec2:CreateSnapshot",
+                "ec2:DeleteSnapshot",
+                "ec2:CreateVolume",
+                "ec2:DeleteVolume",
+                "ec2:AttachVolume",
+                "ec2:DetachVolume",
+                "ec2:CreateSecurityGroup",
+                "ec2:DeleteSecurityGroup",
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:AuthorizeSecurityGroupEgress",
+                "ec2:RevokeSecurityGroupIngress",
+                "ec2:RevokeSecurityGroupEgress",
+                "ec2:CreateKeyPair",
+                "ec2:DeleteKeyPair",
+                "ec2:CreateTags",
+                "ec2:DeleteTags",
+                "ec2:DescribeTags",
+                "ec2:DescribeInstances",
+                "ec2:DescribeImages",
+                "ec2:DescribeSnapshots",
+                "ec2:DescribeVolumes",
+                "ec2:DescribeVpcs",
+                "ec2:DescribeVpcAttribute",
+                "ec2:DescribeInstanceAttribute",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeRegions",
+                "ec2:DescribeInstanceTypes",
+                "ec2:DescribeInstanceCreditSpecifications",
+                "ec2:DescribeNetworkInterfaces"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": "<region>"
+                }
+            }
+        },
+        {
+            "Sid": "IAMResources",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateRole",
+                "iam:DeleteRole",
+                "iam:GetRole",
+                "iam:CreatePolicy",
+                "iam:DeletePolicy",
+                "iam:GetPolicy",
+                "iam:GetPolicyVersion",
+                "iam:AttachRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:CreateInstanceProfile",
+                "iam:DeleteInstanceProfile",
+                "iam:AddRoleToInstanceProfile",
+                "iam:RemoveRoleFromInstanceProfile",
+                "iam:GetInstanceProfile",
+                "iam:ListRolePolicies",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListInstanceProfilesForRole",
+                "iam:ListPolicyVersions"
+            ],
+            "Resource": [
+                "arn:aws:iam::<account ID>:role/*influxdb_v2_to_v3_migration_runner_role*",
+                "arn:aws:iam::<account ID>:policy/*influxdb_v2_to_v3_migration_runner_policy*",
+                "arn:aws:iam::<account ID>:instance-profile/*influxdb_v2_to_v3_migration_runner_profile*"
+            ]
+        },
+        {
+            "Sid": "PassRoleToEC2",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "arn:aws:iam::<account ID>:role/*influxdb_v2_to_v3_migration_runner_role*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": "ec2.amazonaws.com"
+                }
+            }
+        },
+        {
+            "Sid": "SecretsManager",
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:CreateSecret",
+                "secretsmanager:DeleteSecret",
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetResourcePolicy"
+            ],
+            "Resource": "arn:aws:secretsmanager:<region>:<account ID>:secret:*influxdb_v2_to_v3_migration*"
+        },
+        {
+            "Sid": "SSMParameters",
+            "Effect": "Allow",
+            "Action": [
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:PutParameter"
+            ],
+            "Resource": "arn:aws:ssm:<region>:<account ID>:parameter/amis/influxdb-v2-to-v3-migration-runner/*"
+        }
+    ]
+}
+```
+
 ## Standalone Usage
 
 ### Steps
