@@ -159,7 +159,7 @@ resource "aws_instance" "influxdb_v2_to_v3_migration_runner" {
   user_data = <<-EOF
     #!/bin/bash
     echo "AWS_REGION=${data.aws_region.current.region}" >> /etc/environment
-    echo "AWS_DEFAULT_REGION=${data.aws_region.current.name}" >> /etc/environment
+    echo "AWS_DEFAULT_REGION=${data.aws_region.current.region}" >> /etc/environment
   EOF
 
   tags = merge({
