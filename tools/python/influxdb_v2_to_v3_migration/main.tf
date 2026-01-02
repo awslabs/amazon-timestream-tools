@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.7.2"
+    }
   }
 
   required_version = ">= 1.2"
@@ -11,6 +15,16 @@ terraform {
 
 provider "aws" {
   region = "us-west-2"
+}
+
+provider "random" {}
+
+resource "random_string" "resource_prefix" {
+  length  = 5
+  numeric = false
+  special = false
+  upper   = false
+  lower   = true
 }
 
 data "aws_vpc" "main" {
@@ -22,7 +36,7 @@ data "aws_subnet" "subnet" {
 }
 
 resource "aws_security_group" "runner_security_group" {
-  name   = "influxdb-v2-to-v3-migration-security-group"
+  name   = "${random_string.resource_prefix.result}-influxdb-v2-to-v3-migration-security-group"
   vpc_id = data.aws_vpc.main.id
 
   ingress {
@@ -63,7 +77,7 @@ data "aws_ssm_parameter" "influxdb_v2_to_v3_migration_runner_ami" {
 }
 
 resource "aws_secretsmanager_secret" "migration_secret" {
-  name                    = "influxdb_v2_to_v3_migration"
+  name                    = "${random_string.resource_prefix.result}_influxdb_v2_to_v3_migration"
   recovery_window_in_days = 0
 }
 
@@ -73,7 +87,7 @@ resource "aws_secretsmanager_secret_version" "migration_secret_version" {
 }
 
 resource "aws_iam_role" "runner_role" {
-  name = "influxdb_v2_to_v3_migration_runner_role"
+  name = "${random_string.resource_prefix.result}_influxdb_v2_to_v3_migration_runner_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -91,7 +105,7 @@ resource "aws_iam_role" "runner_role" {
 }
 
 resource "aws_iam_policy" "runner_policy" {
-  name = "influxdb_v2_to_v3_migration_runner_policy"
+  name = "${random_string.resource_prefix.result}_influxdb_v2_to_v3_migration_runner_policy"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -119,13 +133,14 @@ resource "aws_iam_role_policy_attachment" "runner_policy_attachment" {
 }
 
 resource "aws_iam_instance_profile" "runner_profile" {
-  name = "influxdb_v2_to_v3_migration_runner_profile"
+  name = "${random_string.resource_prefix.result}_influxdb_v2_to_v3_migration_runner_profile"
   role = aws_iam_role.runner_role.name
 }
 
 data "aws_region" "current" {}
 
 resource "aws_instance" "influxdb_v2_to_v3_migration_runner" {
+
   ami                  = data.aws_ssm_parameter.influxdb_v2_to_v3_migration_runner_ami.value
   instance_type        = var.runner_type
   iam_instance_profile = aws_iam_instance_profile.runner_profile.name
@@ -143,11 +158,13 @@ resource "aws_instance" "influxdb_v2_to_v3_migration_runner" {
 
   user_data = <<-EOF
     #!/bin/bash
-    echo "AWS_REGION=${data.aws_region.current.name}" >> /etc/environment
+    echo "AWS_REGION=${data.aws_region.current.region}" >> /etc/environment
     echo "AWS_DEFAULT_REGION=${data.aws_region.current.name}" >> /etc/environment
   EOF
 
-  tags = var.runner_tags
+  tags = merge({
+    "Name" = "${random_string.resource_prefix.result}_influxdb_v2_to_v3_migration_runner"
+  }, var.runner_tags)
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_policy_attachment" {
@@ -161,6 +178,10 @@ output "runner_public_ip" {
 
 output "runner_id" {
   value = aws_instance.influxdb_v2_to_v3_migration_runner.id
+}
+
+output "secret_name" {
+  value = aws_secretsmanager_secret.migration_secret.name
 }
 
 output "secret_id" {
