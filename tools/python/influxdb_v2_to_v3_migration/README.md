@@ -95,7 +95,16 @@ rm -rf ~/engine
    terraform init
    terraform apply
    ```
-7. Review the proposed changes by Terraform and type `yes`.
+7. Review the proposed changes by Terraform and type `yes`. Terraform will deploy the following resources:
+   - An [`aws_security_group`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group).
+   - An [`aws_secretsmanager_secret`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret).
+   - An [`aws_secretsmanager_secret_version`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version).
+   - An [`aws_iam_role`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role).
+   - An [`aws_iam_policy`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy).
+   - Two [`aws_iam_role_policy_attachment`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) resources.
+   - An [`aws_iam_instance_profile`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile).
+   - An [`aws_instance`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance).
+
 8. Take a note of the output `runner_ip` value. This IP will need to be added as an ingress rule to your Timestream for InfluxDB v2 and v3 security groups. This can be accomplished with the AWS CLI:
    ```shell
    # InfluxDB v2.
