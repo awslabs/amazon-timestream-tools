@@ -127,6 +127,15 @@ To use the migration script and deploy all resources, you must have the followin
                 "ssm:PutParameter"
             ],
             "Resource": "arn:aws:ssm:<region>:<account ID>:parameter/amis/influxdb-v2-to-v3-migration-runner/*"
+        },
+        {
+            "Sid": "SSMSession",
+            "Effect": "Allow",
+            "Action": "ssm:StartSession",
+            "Resource": [
+                "arn:aws:ssm:<region>:<account ID>:document/SSM-SessionManagerRunShell",
+                "arn:aws:ec2:<region>:<account ID>:instance/*"
+            ]
         }
     ]
 }
@@ -255,6 +264,11 @@ rm -rf ~/engine
       ```shell
       aws ssm start-session --target <instance ID>
       ```
+      Once you have started an SSM session, switch to the `ec2-user` user:
+      ```shell
+      sudo su - ec2-user
+      ```
+
 10. Run the script, providing:
     - Your InfluxDB v2 URL.
     - Your InfluxDB v3 URL.
