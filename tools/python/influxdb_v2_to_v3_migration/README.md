@@ -85,7 +85,7 @@ rm -rf ~/engine
    - `ssh_access_ip`: The IP to grant SSH access to the deployed EC2 instance. For example, `127.0.0.1/32`.
    - `tokens`: Your InfluxDB v2 and v3 tokens. These tokens will be placed in a secret in AWS Secrets Manager and redacted from all Terraform output.
    - `runner_ssh_key_name`: The name of an existing EC2 key pair you wish to use to SSH onto your deployed EC2 instance.
-5. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`:
+5. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`. This can take approximately 15 to 30 minutes:
    ```shell
    packer init packer.pkr.hcl
    packer build packer.pkr.hcl
