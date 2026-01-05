@@ -4,6 +4,8 @@
 
 The Amazon Timestream for InfluxDB migration script is a Python script that migrates data between InfluxDB OSS instances, whether those instances are managed by AWS or not.
 
+> ***Important:*** Read replica clusters are not supported with the InfluxDB migration script. For additional information, see the official [InfluxDB OSS documentation](https://docs.influxdata.com/influxdb/v2/write-data/replication/replicate-data/#important-things-to-note).
+
 InfluxDB is a time series database. InfluxDB contains "points," which contain a number of key-value pairs and a timestamp. When points are grouped by key-value pairs they form a series. Series are grouped by a string identifier called a "measurement." InfluxDB is often used for operations monitoring, IOT data, and analytics. A bucket is a kind of container within InfluxDB to store data. AWS-managed InfluxDB is InfluxDB but within the AWS ecosystem. InfluxDB provides the InfluxDB v2 API for accessing data and making changes to the database. The InfluxDB v2 API is what the Amazon Timestream for InfluxDB migration script uses to migrate data.
 
 The Amazon Timestream for InfluxDB migration script can migrate buckets and their metadata, migrate all buckets from all organizations, or do a full migration, which replaces all data on the destination instance.
