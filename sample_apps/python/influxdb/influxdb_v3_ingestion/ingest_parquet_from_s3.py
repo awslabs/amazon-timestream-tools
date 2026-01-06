@@ -98,8 +98,8 @@ if __name__ == "__main__":
         exit(1)
 
     with InfluxDBClient3(
-        host=os.environ["INFLUX_HOST"],
-        database=os.environ["INFLUX_DATABASE"],
+        host=host,
+        database=database_name,
         token=os.environ["INFLUX_TOKEN"],
         write_client_options=wco,
     ) as client:
