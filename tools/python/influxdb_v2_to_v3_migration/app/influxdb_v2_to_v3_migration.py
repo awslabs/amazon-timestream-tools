@@ -15,6 +15,7 @@ import sys
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.bucket_api import BucketsApi
 from influxdb_client.domain.bucket import Bucket
+from influxdb_client.domain.buckets import Buckets
 import httpx
 
 import influxdb_v3_ingestion
@@ -399,6 +400,42 @@ def export_influxdb_v2_bucket_to_lp(
     return (bucket_name, bucket_id)
 
 
+def get_buckets_from_orgs(
+    influxdb_v2_url: str, influxdb_v2_token: str, orgs_str: str, org_separator: str
+) -> list[tuple[str, str]]:
+    """
+    Given a list of org names as a string, retrieves the names of all buckets in
+    an organization and produces list of bucket name and org names.
+
+    Args:
+        influxdb_v2_url (str): The InfluxDB v2 URL to use.
+        influxdb_v2_token (str): The InfluxDB v2 token to use.
+        orgs_str (str): A list of InfluxDB v2 organization names to retrieve all
+            buckets from as a single string.
+        separator (str): The separator used to separate org names in orgs_str.
+            For example, ','.
+
+    Returns:
+        list[tuple[str, str]]: A list of bucket names and organization name pairs.
+    """
+    bucket_org_pairs: list[tuple[str, str]] = []
+    for org_name in orgs_str.split(org_separator):
+        client: InfluxDBClient = InfluxDBClient(
+            url=influxdb_v2_url, org=org_name, token=influxdb_v2_token
+        )
+        bucket_api: BucketsApi = client.buckets_api()
+        buckets: Buckets = bucket_api.find_buckets(org=org_name)
+        buckets_list: list[Bucket] | None = buckets.buckets
+        if buckets_list is not None:
+            for bucket in buckets_list:
+                # Skip system buckets.
+                if not bucket.name.startswith("_"):
+                    bucket_org_pairs.append((bucket.name, org_name))
+
+    print(bucket_org_pairs)
+    return bucket_org_pairs
+
+
 def main(input_args: list[str]) -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="influxdb_v2_to_v3_migration",
@@ -427,19 +464,16 @@ def main(input_args: list[str]) -> int:
         ),
     )
     _ = parser.add_argument(
-        "--influxdb-v2-buckets-and-orgs",
-        required=True,
-        help=(
-            "A list of bucket names paired with the organization each bucket resides in. "
-            "Example: 'bucket-one:org-one,bucket-two:org-two'. The separators used in this "
-            "list can be changed with the --bucket-separator and --bucket-org-separator arguments."
-        ),
-    )
-    _ = parser.add_argument(
         "--bucket-separator",
         required=False,
         default=",",
         help="The character used to separate buckets in the --influxdb-v2-buckets-and-orgs argument. Defaults to ','",
+    )
+    _ = parser.add_argument(
+        "--org-separator",
+        required=False,
+        default=",",
+        help="The character used to separate buckets in the --influxdb-v2-orgs argument. Defaults to ','",
     )
     _ = parser.add_argument(
         "--bucket-org-separator",
@@ -497,6 +531,22 @@ def main(input_args: list[str]) -> int:
         required=False,
         help="The AWS region to use for AWS Secrets Manager.",
     )
+    mutually_exclusive_group = parser.add_mutually_exclusive_group(required=True)
+    _ = mutually_exclusive_group.add_argument(
+        "--influxdb-v2-buckets-and-orgs",
+        help=(
+            "A list of bucket names paired with the organization each bucket resides in. "
+            "Example: 'bucket-one:org-one,bucket-two:org-two'. The separators used in this "
+            "list can be changed with the --bucket-separator and --bucket-org-separator arguments."
+        ),
+    )
+    _ = mutually_exclusive_group.add_argument(
+        "--influxdb-v2-orgs",
+        help=(
+            "A list of organization names from which to migrate all buckets. "
+            "Example: org-one,org-two,org-three"
+        ),
+    )
 
     args = parser.parse_args(input_args)
 
@@ -509,14 +559,6 @@ def main(input_args: list[str]) -> int:
     num_export_lp_workers: int = args.num_export_lp_workers
     backup_path_root: str = args.backup_path_root
     region_name: str = args.region
-
-    bucket_org_pairs: list[tuple[str, str]] = [
-        (bucket_name, org_name)
-        for bucket_name, org_name in (
-            pair.split(args.bucket_org_separator, 1)
-            for pair in args.influxdb_v2_buckets_and_orgs.split(args.bucket_separator)
-        )
-    ]
 
     backup_path: Path = Path(backup_path_root).expanduser() / Path("engine/data")
 
@@ -559,6 +601,25 @@ def main(input_args: list[str]) -> int:
     else:
         logger.info("InfluxDB v3 instance is reachable")
 
+    if args.influxdb_v2_orgs is not None:
+        bucket_org_pairs: list[tuple[str, str]] = get_buckets_from_orgs(
+            influxdb_v2_url,
+            influxdb_v2_token,
+            args.influxdb_v2_orgs,
+            args.org_separator,
+        )
+
+    if args.influxdb_v2_buckets_and_orgs is not None:
+        bucket_org_pairs: list[tuple[str, str]] = [
+            (bucket_name, org_name)
+            for bucket_name, org_name in (
+                pair.split(args.bucket_org_separator, 1)
+                for pair in args.influxdb_v2_buckets_and_orgs.split(
+                    args.bucket_separator
+                )
+            )
+        ]
+
     backup_result: bool = backup_influxdb_v2_buckets(
         influxdb_v2_url,
         influxdb_v2_token,
@@ -588,10 +649,17 @@ def main(input_args: list[str]) -> int:
     )
 
     if export_lp_result[0]:
-        logger.info("Exporting bucket data to line protocol complete")
+        logger.info("Exporting all bucket data to line protocol complete")
     else:
-        logger.error("Exporting to line protocol failed")
-        return 1
+        if not export_lp_result[1]:
+            logger.error("Exporting to line protocol failed")
+            return 1
+        else:
+            # Exporting to line protocol can fail for some buckets and not others.
+            # Empty buckets will fail during line protocol exporting.
+            logger.warning(
+                f"Partial failure during line protocol exporting detected. Continuing migration of {len(export_lp_result[1])} buckets"
+            )
 
     ingestion_result: bool = influxdb_v3_ingestion.ingest_line_protocol_files(
         influxdb_v3_url=args.influxdb_v3_url,

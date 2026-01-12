@@ -1,3 +1,5 @@
+import argparse
+import pytest
 from datetime import datetime, timedelta, timezone
 import json
 import os
@@ -53,6 +55,8 @@ class MigrationTestCase(unittest.TestCase):
 
     session: boto3.Session
     secrets_manager_client: SecretsManagerClient
+
+    suppress_teardown_warnings: bool
 
     @classmethod
     def setUpClass(cls):
@@ -176,6 +180,7 @@ class MigrationTestCase(unittest.TestCase):
         self.bucket_org_pairs.append(
             (influxdb_v2_bucket_name, INFLUXDB_V2_DEFAULT_ORG_NAME)
         )
+        self.suppress_teardown_warnings = False
 
     @classmethod
     def tearDownClass(cls):
@@ -185,25 +190,28 @@ class MigrationTestCase(unittest.TestCase):
         try:
             cls.influxdb_v2_container.stop(force=True, delete_volume=True)
         except Exception as e:
-            logging.warning(
-                f"tearDownClass: Failed to delete InfluxDB v2 container: {e}"
-            )
+            if not cls.suppress_teardown_warnings:
+                logging.warning(
+                    f"tearDownClass: Failed to delete InfluxDB v2 container: {e}"
+                )
 
         try:
             cls.influxdb_v3_container.stop(force=True, delete_volume=True)
         except Exception as e:
-            logging.warning(
-                f"tearDownClass: Failed to delete InfluxDB v3 container: {e}"
-            )
+            if not cls.suppress_teardown_warnings:
+                logging.warning(
+                    f"tearDownClass: Failed to delete InfluxDB v3 container: {e}"
+                )
 
         try:
             cls.secrets_manager_client.delete_secret(
                 SecretId=cls.tokens_secret_name, ForceDeleteWithoutRecovery=True
             )
         except Exception as e:
-            logging.warning(
-                f"tearDownClass: Failed to delete {cls.tokens_secret_name} secret: {e}"
-            )
+            if not cls.suppress_teardown_warnings:
+                logging.warning(
+                    f"tearDownClass: Failed to delete {cls.tokens_secret_name} secret: {e}"
+                )
 
     def tearDown(self):
         """
@@ -226,7 +234,10 @@ class MigrationTestCase(unittest.TestCase):
                         )
                     influxdb_v2_client.buckets_api().delete_bucket(influxdb_bucket)
             except Exception as e:
-                logging.warning(f"tearDown: Failed to delete InfluxDB v2 bucket: {e}")
+                if not self.suppress_teardown_warnings:
+                    logging.warning(
+                        f"tearDown: Failed to delete InfluxDB v2 bucket: {e}"
+                    )
 
             try:
                 deletion_date = datetime.now(timezone.utc).strftime(
@@ -242,7 +253,10 @@ class MigrationTestCase(unittest.TestCase):
                 )
                 _ = deletion_response.raise_for_status()
             except Exception as e:
-                logging.warning(f"tearDown: Failed to delete InfluxDB v3 database: {e}")
+                if not self.suppress_teardown_warnings:
+                    logging.warning(
+                        f"tearDown: Failed to delete InfluxDB v3 database: {e}"
+                    )
 
     @staticmethod
     def get_random_string(length: int):
@@ -443,6 +457,80 @@ class MigrationTestCase(unittest.TestCase):
                 self.check_inflxudb_v2_bucket_count(bucket_name, org_name),
                 self.check_influxdb_v3_table_count(database_name),
             )
+
+    def test_migration_two_orgs(self):
+        """
+        Tests migrating two buckets from different organizations using
+        the --influxdb-v2-orgs option.
+        """
+        secondary_bucket_name: str = (
+            self.influxdb_v2_bucket_name_prefix + self.get_random_string(10)
+        )
+        self.create_and_fill_bucket(
+            secondary_bucket_name, INFLUXDB_V2_SECONDARY_ORG_NAME
+        )
+        self.bucket_org_pairs.append(
+            (secondary_bucket_name, INFLUXDB_V2_SECONDARY_ORG_NAME)
+        )
+
+        return_code = influxdb_v2_to_v3_migration.main(
+            [
+                "--influxdb-v2-url",
+                self.influxdb_v2_url,
+                "--influxdb-v3-url",
+                self.influxdb_v3_url,
+                "--influxdb-v2-orgs",
+                f"{INFLUXDB_V2_DEFAULT_ORG_NAME},{INFLUXDB_V2_SECONDARY_ORG_NAME}",
+                "--tokens-secret-name",
+                self.tokens_secret_name,
+                "--backup-path-root",
+                self.backup_path.name,
+            ]
+        )
+
+        self.assertEqual(return_code, 0)
+        for bucket_name, org_name in self.bucket_org_pairs:
+            database_name = bucket_name.replace("_", "-")
+            self.assertEqual(
+                self.check_inflxudb_v2_bucket_count(bucket_name, org_name),
+                self.check_influxdb_v3_table_count(database_name),
+            )
+
+    def test_migration_mutually_exclusive_arguments(self):
+        """
+        Tests setting arguments that are mutually exclusive.
+        """
+        secondary_bucket_name: str = (
+            self.influxdb_v2_bucket_name_prefix + self.get_random_string(10)
+        )
+        self.create_and_fill_bucket(
+            secondary_bucket_name, INFLUXDB_V2_SECONDARY_ORG_NAME
+        )
+        self.bucket_org_pairs.append(
+            (secondary_bucket_name, INFLUXDB_V2_SECONDARY_ORG_NAME)
+        )
+
+        # --influxdb-v2-orgs and --influxdb-v2-buckets-and-orgs are mutually exclusive.
+        with pytest.raises(SystemExit) as ex:
+            influxdb_v2_to_v3_migration.main(
+                [
+                    "--influxdb-v2-url",
+                    self.influxdb_v2_url,
+                    "--influxdb-v3-url",
+                    self.influxdb_v3_url,
+                    "--influxdb-v2-orgs",
+                    f"{INFLUXDB_V2_DEFAULT_ORG_NAME},{INFLUXDB_V2_SECONDARY_ORG_NAME}",
+                    "--influxdb-v2-buckets-and-orgs",
+                    f"{self.bucket_org_pairs[0][0]}:{INFLUXDB_V2_DEFAULT_ORG_NAME},{self.bucket_org_pairs[1][0]}:{INFLUXDB_V2_SECONDARY_ORG_NAME}",
+                    "--tokens-secret-name",
+                    self.tokens_secret_name,
+                    "--backup-path-root",
+                    self.backup_path.name,
+                ]
+            )
+
+        self.assertTrue(ex.errisinstance(SystemExit))
+        self.suppress_teardown_warnings = True
 
     def test_migration_custom_separators(self):
         """
