@@ -28,28 +28,15 @@ source "amazon-ebs" "influxdb_v2_to_v3_migration_runner" {
 build {
   sources = ["source.amazon-ebs.influxdb_v2_to_v3_migration_runner"]
 
-  # Install base OS packages.
+  # Install wget and Python 3.13.
   provisioner "shell" {
     inline = [
-      "sudo dnf install -y git pkg-config",
-      "sudo dnf install -y dnf-plugins-core",
-      "sudo dnf builddep -y python3",
-      "sudo dnf install -y wget make gcc gcc-c++ gdb lzma glibc-devel libstdc++-devel openssl-devel readline-devel zlib-devel libzstd-devel libffi-devel bzip2-devel xz-devel sqlite sqlite-devel sqlite-libs libuuid-devel gdbm-libs perf expat expat-devel mpdecimal python3-pip"
-    ]
-  }
-
-  # Build Python 3.14.1 from source.
-  provisioner "shell" {
-    inline = [
-      "cd /tmp",
-      "wget https://www.python.org/ftp/python/3.14.1/Python-3.14.1.tgz",
-      "tar -xzf Python-3.14.1.tgz",
-      "cd Python-3.14.1",
-      "./configure",
-      "make -s -j $(nproc) build_all",
-      "sudo make altinstall",
-      "sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python",
-      "sudo ln -sf /usr/local/bin/pip3.14 /usr/local/bin/pip"
+      "sudo dnf update",
+      "sudo dnf install -y python3.13 wget python3.13-pip",
+      "sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.13 313",
+      "sudo update-alternatives --install /usr/bin/pip pip /usr/bin/pip3.13 313",
+      "sudo update-alternatives --set python /usr/bin/python3.13",
+      "sudo update-alternatives --set pip /usr/bin/pip3.13",
     ]
   }
 
@@ -114,7 +101,7 @@ build {
   provisioner "shell" {
     inline = [
       "cd /home/ec2-user",
-      "sudo pip install ."
+      "sudo pip install --root-user-action=ignore ."
     ]
   }
 

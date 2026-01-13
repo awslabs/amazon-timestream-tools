@@ -145,19 +145,19 @@ To use the migration script and deploy all resources, you must have the followin
 
 ### Steps
 
-1. [Install minimum Python version 3.14.1](https://www.python.org/downloads/).
+1. [Install minimum Python version 3.13](https://www.python.org/downloads/).
 2. Navigate to the [`app`](./app/) directory:
    ```shell
    cd app
    ```
 3. Create a Python virtual environment:
    ```shell
-   python3.14 -m venv .env
+   python3.13 -m venv .env
    source .env/bin/activate
    ```
 4. Install all Python dependencies:
    ```shell
-   python3.14 -m pip install .
+   python3.13 -m pip install .
    ```
 5. [Retrieve an operator token from your InfluxDB v2 instance](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influx-getting-started-operator-token.html). An operator token is necessary for the migration.
    - This can also be done by logging in to the InfluxDB v2 UI and cloning an existing operator token.
@@ -192,7 +192,7 @@ To use the migration script and deploy all resources, you must have the followin
     - The InfluxDB v2 buckets that you want to migrate and their organizations.
     - The name of the secret you created in AWS Secrets Manager that contains your InfluxDB v2 and v3 tokens.
     ```shell
-    python3.14 influxdb_v2_to_v3_migration.py \
+    python3.13 influxdb_v2_to_v3_migration.py \
         --influxdb-v2-url "https://example.com:8086" \
         --influxdb-v3-url "https://example.com:8181" \
         --influxdb-v2-buckets-and-orgs "bucket-one:organization-one,bucket-two:organization-two" \
@@ -220,7 +220,7 @@ rm -rf ~/engine
    - `ssh_access_ip`: The IP to grant SSH access to the deployed EC2 instance. For example, `127.0.0.1/32`.
    - `tokens`: Your InfluxDB v2 and v3 tokens. These tokens will be placed in a secret in AWS Secrets Manager and redacted from all Terraform output.
    - `runner_ssh_key_name`: The name of an existing EC2 key pair you wish to use to SSH onto your deployed EC2 instance.
-5. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`. This can take approximately 15 to 30 minutes:
+5. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`. This can take approximately 5 to 8 minutes:
    ```shell
    packer init packer.pkr.hcl
    packer build packer.pkr.hcl
@@ -272,7 +272,9 @@ rm -rf ~/engine
 10. Run the script, providing:
     - Your InfluxDB v2 URL.
     - Your InfluxDB v3 URL.
-    - The InfluxDB v2 buckets that you want to migrate and their organizations.
+    - Either:
+      - The InfluxDB v2 buckets that you want to migrate and their organizations, with `--influxdb-v2-buckets-and-orgs`.
+      - Or, the names of the organizations to migrate all buckets from, with `--influxdb-v2-orgs`.
     - The name of the secret you created in AWS Secrets Manager that contains your InfluxDB v2 and v3 tokens.
     ```shell
     python influxdb_v2_to_v3_migration.py \
@@ -281,7 +283,7 @@ rm -rf ~/engine
         --influxdb-v2-buckets-and-orgs "bucket-one:organization-one,bucket-two:organization-two" \
         --tokens-secret-name "influxdb_v2_to_v3_migration"
     ```
-    - **Note**: Packer builds Python 3.14 from source and installs it in the AMI simply as `python`.
+    - **Note**: Packer installs Python 3.13 in the AMI simply as `python`.
 
 ### Clean Up
 
@@ -423,7 +425,7 @@ All points before the migration begins will be migrated. Points ingested after o
 No, the daemon (`influxd`) simply needs to be in your PATH, available for the script to use.
 
 ### Will Python `3.12` work?
-No, you must use Python minimum version `3.14.1`.
+No, you must use Python minimum version `3.13`.
 
 ### Why do I need to install the InfluxDB v2 CLI?
 The InfluxDB v2 CLI is capable of doing backups efficiently. This could be done instead entirely with InfluxDB v2's HTTP API, but doing a backup is not as simple as a few HTTP requests.
