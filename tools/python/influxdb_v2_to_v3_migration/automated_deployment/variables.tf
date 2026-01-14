@@ -44,7 +44,7 @@ variable "influxdb_v3_port" {
 variable "runner_tags" {
   type = map(string)
   default = {
-    ExampleTag = "raplce me"
+    ExampleTag = "replace me"
   }
 }
 

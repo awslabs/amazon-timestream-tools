@@ -78,22 +78,22 @@ build {
 
   # Application files.
   provisioner "file" {
-    source      = "influxdb_v2_to_v3_migration.py"
+    source      = "../influxdb_v2_to_v3_migration.py"
     destination = "/home/ec2-user/influxdb_v2_to_v3_migration.py"
   }
 
   provisioner "file" {
-    source      = "influxdb_v3_ingestion.py"
+    source      = "../influxdb_v3_ingestion.py"
     destination = "/home/ec2-user/influxdb_v3_ingestion.py"
   }
 
   provisioner "file" {
-    source      = "utils.py"
+    source      = "../utils.py"
     destination = "/home/ec2-user/utils.py"
   }
 
   provisioner "file" {
-    source      = "pyproject.toml"
+    source      = "../pyproject.toml"
     destination = "/home/ec2-user/pyproject.toml"
   }
 

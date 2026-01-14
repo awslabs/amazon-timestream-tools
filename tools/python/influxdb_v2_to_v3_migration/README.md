@@ -2,167 +2,41 @@
 
 ## Overview
 
-The [Amazon Timestream for InfluxDB](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influxdb.html) [v2](https://docs.influxdata.com/influxdb/v2/) to [v3](https://docs.influxdata.com/influxdb3/enterprise/) migration script allows you to migrate your data from managed InfluxDB v2 to v3. The script uses the InfluxDB [v2](https://docs.influxdata.com/influxdb/v2/api/v2/) and [v3](https://docs.influxdata.com/influxdb3/enterprise/api/v3/) APIs, the [Influx CLI](https://docs.influxdata.com/influxdb/v2/reference/cli/influx/), and the [InfluxDB v2 daemon](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/) to [backup](https://docs.influxdata.com/influxdb/v2/reference/cli/influx/backup/) data, [translate backed-up data to line protocol](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/inspect/export-lp/), and [ingest the line protocol data to InfluxDB v3](https://docs.influxdata.com/influxdb3/enterprise/api/v3/#operation/PostWriteLP).
+The [Amazon Timestream for InfluxDB](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influxdb.html) [v2](https://docs.influxdata.com/influxdb/v2/) to [v3](https://docs.influxdata.com/influxdb3/enterprise/) migration script allows you to migrate your data from managed InfluxDB v2 to v3.
 
-The script is available standalone or as part of an automated solution that deploys an EC2 instance with the script and all prerequisites installed. If you already have your backed-up data, a separate script that ingests to InfluxDB v3 is provided, `influxdb_v3_ingestion.py`. See the [**InfluxDB v3 Ingestion**](#influxdb-v3-ingestion) section below for more information.
+The script is available standalone or as part of an automated solution that deploys an EC2 instance with the script and all prerequisites installed. To use the automated solution, see the [`README` in the `automated_deployment/` directory](./automated_deployment/README.md).
 
-## Permissions
+If you already have your backed-up data, a separate script that ingests to InfluxDB v3 is provided, `influxdb_v3_ingestion.py`. See the [**InfluxDB v3 Ingestion**](#influxdb-v3-ingestion) section below for more information.
 
-To use the migration script and deploy all resources, you must have the following IAM permissions, replacing `<region>` with the AWS region that resources will be deployed in and `<account ID>` with your AWS account ID:
+### Migration Process
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "EC2Core",
-            "Effect": "Allow",
-            "Action": [
-                "ec2:RunInstances",
-                "ec2:TerminateInstances",
-                "ec2:StartInstances",
-                "ec2:StopInstances",
-                "ec2:ModifyInstanceAttribute",
-                "ec2:CreateImage",
-                "ec2:DeregisterImage",
-                "ec2:CreateSnapshot",
-                "ec2:DeleteSnapshot",
-                "ec2:CreateVolume",
-                "ec2:DeleteVolume",
-                "ec2:AttachVolume",
-                "ec2:DetachVolume",
-                "ec2:CreateSecurityGroup",
-                "ec2:DeleteSecurityGroup",
-                "ec2:AuthorizeSecurityGroupIngress",
-                "ec2:AuthorizeSecurityGroupEgress",
-                "ec2:RevokeSecurityGroupIngress",
-                "ec2:RevokeSecurityGroupEgress",
-                "ec2:CreateKeyPair",
-                "ec2:DeleteKeyPair",
-                "ec2:CreateTags",
-                "ec2:DeleteTags",
-                "ec2:DescribeTags",
-                "ec2:DescribeInstances",
-                "ec2:DescribeImages",
-                "ec2:DescribeSnapshots",
-                "ec2:DescribeVolumes",
-                "ec2:DescribeVpcs",
-                "ec2:DescribeVpcAttribute",
-                "ec2:DescribeInstanceAttribute",
-                "ec2:DescribeSubnets",
-                "ec2:DescribeSecurityGroups",
-                "ec2:DescribeRegions",
-                "ec2:DescribeInstanceTypes",
-                "ec2:DescribeInstanceCreditSpecifications",
-                "ec2:DescribeNetworkInterfaces"
-            ],
-            "Resource": "*",
-            "Condition": {
-                "StringEquals": {
-                    "aws:RequestedRegion": "<region>"
-                }
-            }
-        },
-        {
-            "Sid": "IAMResources",
-            "Effect": "Allow",
-            "Action": [
-                "iam:CreateRole",
-                "iam:DeleteRole",
-                "iam:GetRole",
-                "iam:CreatePolicy",
-                "iam:DeletePolicy",
-                "iam:GetPolicy",
-                "iam:GetPolicyVersion",
-                "iam:AttachRolePolicy",
-                "iam:DetachRolePolicy",
-                "iam:PutRolePolicy",
-                "iam:DeleteRolePolicy",
-                "iam:CreateInstanceProfile",
-                "iam:DeleteInstanceProfile",
-                "iam:AddRoleToInstanceProfile",
-                "iam:RemoveRoleFromInstanceProfile",
-                "iam:GetInstanceProfile",
-                "iam:ListRolePolicies",
-                "iam:ListAttachedRolePolicies",
-                "iam:ListInstanceProfilesForRole",
-                "iam:ListPolicyVersions"
-            ],
-            "Resource": [
-                "arn:aws:iam::<account ID>:role/*influxdb_v2_to_v3_migration_runner_role*",
-                "arn:aws:iam::<account ID>:policy/*influxdb_v2_to_v3_migration_runner_policy*",
-                "arn:aws:iam::<account ID>:instance-profile/*influxdb_v2_to_v3_migration_runner_profile*"
-            ]
-        },
-        {
-            "Sid": "PassRoleToEC2",
-            "Effect": "Allow",
-            "Action": "iam:PassRole",
-            "Resource": "arn:aws:iam::<account ID>:role/*influxdb_v2_to_v3_migration_runner_role*",
-            "Condition": {
-                "StringEquals": {
-                    "iam:PassedToService": "ec2.amazonaws.com"
-                }
-            }
-        },
-        {
-            "Sid": "SecretsManager",
-            "Effect": "Allow",
-            "Action": [
-                "secretsmanager:CreateSecret",
-                "secretsmanager:DeleteSecret",
-                "secretsmanager:PutSecretValue",
-                "secretsmanager:GetSecretValue",
-                "secretsmanager:DescribeSecret",
-                "secretsmanager:GetResourcePolicy"
-            ],
-            "Resource": "arn:aws:secretsmanager:<region>:<account ID>:secret:*influxdb_v2_to_v3_migration*"
-        },
-        {
-            "Sid": "SSMParameters",
-            "Effect": "Allow",
-            "Action": [
-                "ssm:GetParameter",
-                "ssm:GetParameters",
-                "ssm:PutParameter"
-            ],
-            "Resource": "arn:aws:ssm:<region>:<account ID>:parameter/amis/influxdb-v2-to-v3-migration-runner/*"
-        },
-        {
-            "Sid": "SSMSession",
-            "Effect": "Allow",
-            "Action": "ssm:StartSession",
-            "Resource": [
-                "arn:aws:ssm:<region>:<account ID>:document/SSM-SessionManagerRunShell",
-                "arn:aws:ec2:<region>:<account ID>:instance/*"
-            ]
-        }
-    ]
-}
-```
+The following diagram depicts the migration process.
+
+<img src="./img/influxdb_v2_to_v3_migration_process_overview.png" width=700/>
+
+In this diagram, data is being migrated from Timestream for InfluxDB v2 to Timestream for InfluxDB v3. An [Amazon Elastic Compute Cloud (Amazon EC2)](https://aws.amazon.com/ec2/) instance, utilizing the migration script, facilitates the migration. The steps of the migration are as follows:
+1. Using the [InfluxDB v2 CLI](https://docs.influxdata.com/influxdb/v2/reference/cli/influx/), the migration script runs [`influx backup`](https://docs.influxdata.com/influxdb/v2/reference/cli/influx/backup/), and data from InfluxDB v2 is backed up to the EC2 instance's local storage.
+2. On the EC2 instance, the data is [translated to line protocol using the InfluxDB v2 daemon](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/inspect/export-lp/).
+3. Finally, the line protocol data is written to InfluxDB v3 using the [InfluxDB v3 HTTP API](https://docs.influxdata.com/influxdb3/enterprise/api/v3/).
 
 ## Standalone Usage
 
 ### Steps
 
 1. [Install minimum Python version 3.13](https://www.python.org/downloads/).
-2. Navigate to the [`app`](./app/) directory:
-   ```shell
-   cd app
-   ```
-3. Create a Python virtual environment:
+2. Create a [Python virtual environment](https://docs.python.org/3/library/venv.html):
    ```shell
    python3.13 -m venv .env
    source .env/bin/activate
    ```
-4. Install all Python dependencies:
+3. Install all Python dependencies:
    ```shell
    python3.13 -m pip install .
    ```
-5. [Retrieve an operator token from your InfluxDB v2 instance](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influx-getting-started-operator-token.html). An operator token is necessary for the migration.
+4. [Retrieve an operator token from your InfluxDB v2 instance](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influx-getting-started-operator-token.html). An operator token is necessary for the migration.
    - This can also be done by logging in to the InfluxDB v2 UI and cloning an existing operator token.
-6. Retrieve a token from your InfluxDB v3 instance. In Timestream for InfluxDB v3, they are placed in a secret in AWS Secrets Manager that is associated with the instance. In the AWS console, the secret ARN is included in the instance's summary.
-7. Create a secret in [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) containing your InfluxDB v2 and v3 tokens. For example, using the AWS CLI:
+5. Retrieve a token from your InfluxDB v3 instance. In Timestream for InfluxDB v3, they are placed in a secret in AWS Secrets Manager that is associated with the instance. In the AWS console, the secret ARN is included in the instance's summary.
+6. Create a secret in [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) containing your InfluxDB v2 and v3 tokens. For example, using the AWS CLI:
    ```shell
    aws secretsmanager create-secret \
        --region us-west-2 \
@@ -170,9 +44,9 @@ To use the migration script and deploy all resources, you must have the followin
        --secret-string \
        '{"INFLUXDB_V2_TOKEN": "replace me", "INFLUXDB_V3_TOKEN": "replace me"}'
    ```
-8. [Download and Install the InfluxDB v2 CLI](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/).
-9. [Download InfluxDB v2](https://docs.influxdata.com/influxdb/v2/install/). Once you have downloaded InfluxDB v2, make sure the [InfluxDB v2 daemon (`influxd`)](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/) has been added to your PATH. InfluxDB v2 does not need to be running, the daemon will be used in isolation.
-10. Make sure you have network connectivity to your Timestream for InfluxDB v2 and v3 instances.
+7. [Download and Install the InfluxDB v2 CLI](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/).
+8. [Download InfluxDB v2](https://docs.influxdata.com/influxdb/v2/install/). Once you have downloaded InfluxDB v2, make sure the [InfluxDB v2 daemon (`influxd`)](https://docs.influxdata.com/influxdb/v2/reference/cli/influxd/) has been added to your PATH. InfluxDB v2 does not need to be running, the daemon will be used in isolation.
+9. Make sure you have network connectivity to your Timestream for InfluxDB v2 and v3 instances.
 
     a. InfluxDB v2 connectivity can be checked with the [Influx CLI](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/):
        ```shell
@@ -184,12 +58,14 @@ To use the migration script and deploy all resources, you must have the followin
        curl -X GET "<InfluxDB v3 host>/health" --header "Authorization: Bearer <InfluxDB v3 token>"
        ```
 
-11. Make sure you have enough disk space to hold all of the data that you want to migrate, uncompressed. Data will be backed up to an `engine` directory, by default in `~`. Within this directory, backed up data is organized into `data/<bucket_id>/` directories. Each bucket's [line protocol](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/) data file will be `<bucket name>.lp`, and will be in their respective bucket directories.
+10. Make sure you have enough disk space to hold all of the data that you want to migrate, uncompressed. Data will be backed up to an `engine` directory, by default in `~`. Within this directory, backed up data is organized into `data/<bucket_id>/` directories. Each bucket's [line protocol](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/) data file will be `<bucket name>.lp`, and will be in their respective bucket directories.
 
-12. Run the script, providing:
+11. Run the script, providing:
     - Your InfluxDB v2 URL.
     - Your InfluxDB v3 URL.
-    - The InfluxDB v2 buckets that you want to migrate and their organizations.
+    - Either:
+      - The InfluxDB v2 buckets that you want to migrate and their organizations, with `--influxdb-v2-buckets-and-orgs`.
+      - Or, the names of the organizations to migrate all buckets from, with `--influxdb-v2-orgs`.
     - The name of the secret you created in AWS Secrets Manager that contains your InfluxDB v2 and v3 tokens.
     ```shell
     python3.13 influxdb_v2_to_v3_migration.py \
@@ -205,99 +81,6 @@ Remove the backed-up data. By default, data is placed in `~/engine`:
 ```
 rm -rf ~/engine
 ```
-
-## Usage with Deployed EC2 Instance
-
-### Steps
-
-1. [Download and install Packer](https://developer.hashicorp.com/packer/install). Packer will be used to create an AMI with all necessary dependencies and scripts. This AMI will be used later to deploy an EC2 instance.
-2. [Download and install Terraform](https://developer.hashicorp.com/terraform/install). Terraform will be used to deploy an EC2 instance and all other necessary resources for the EC2 instance to perform a migration.
-3. [Create an EC2 key pair](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html) to use to SSH onto your deployed EC2 instance if you don't already have an existing EC2 key pair.
-4. Update [`variables.tf`](./variables.tf), filling in all `"replace me"` placeholders:
-   
-   - `vpc_id`: The ID of an existing VPC.
-   - `subnet_id`: The ID of an existing subnet in the above VPC.
-   - `ssh_access_ip`: The IP to grant SSH access to the deployed EC2 instance. For example, `127.0.0.1/32`.
-   - `tokens`: Your InfluxDB v2 and v3 tokens. These tokens will be placed in a secret in AWS Secrets Manager and redacted from all Terraform output.
-   - `runner_ssh_key_name`: The name of an existing EC2 key pair you wish to use to SSH onto your deployed EC2 instance.
-5. Within the [`app`](./app/) directory, initialize Packer and build the AMI, this will produce an AMI in your account with the name `influxdb-v2-to-v3-migration-runner-<timestamp>`. This can take approximately 5 to 8 minutes:
-   ```shell
-   packer init packer.pkr.hcl
-   packer build packer.pkr.hcl
-   ```
-6. In the [`influxdb_v2_to_v3_migration`](.) directory, initialize and apply Terraform changes:
-   ```shell
-   terraform init
-   terraform apply
-   ```
-7. Review the proposed changes by Terraform and type `yes`. Terraform will deploy the following resources:
-   - An [`aws_security_group`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group).
-   - An [`aws_secretsmanager_secret`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret).
-   - An [`aws_secretsmanager_secret_version`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version).
-   - An [`aws_iam_role`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role).
-   - An [`aws_iam_policy`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy).
-   - Two [`aws_iam_role_policy_attachment`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) resources.
-   - An [`aws_iam_instance_profile`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile).
-   - An [`aws_instance`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance).
-
-8. Take a note of the output `runner_ip` value. This IP will need to be added as an ingress rule to your Timestream for InfluxDB v2 and v3 security groups. This can be accomplished with the AWS CLI:
-   ```shell
-   # InfluxDB v2.
-   aws ec2 authorize-security-group-ingress \
-       --group-id <InfluxDB v2 security group ID> \
-       --protocol tcp \
-       --port 8086 \
-       --cidr <runner_ip>/32
-
-   # InfluxDB v3.
-   aws ec2 authorize-security-group-ingress \
-       --group-id <InfluxDB v3 security group ID> \
-       --protocol tcp \
-       --port 8181 \
-       --cidr <runner_ip>/32
-   ```
-9. Using the key pair you specified in `variables.tf`, SSH onto the instance, using the output `runner_ip`:
-   ```shell
-   ssh -i <path to private key> ec2-user@<runner_ip>
-   ```
-   - If you don't want to use SSH, you can use AWS SSM instead:
-      ```shell
-      aws ssm start-session --target <instance ID>
-      ```
-      Once you have started an SSM session, switch to the `ec2-user` user:
-      ```shell
-      sudo su - ec2-user
-      ```
-
-10. Run the script, providing:
-    - Your InfluxDB v2 URL.
-    - Your InfluxDB v3 URL.
-    - Either:
-      - The InfluxDB v2 buckets that you want to migrate and their organizations, with `--influxdb-v2-buckets-and-orgs`.
-      - Or, the names of the organizations to migrate all buckets from, with `--influxdb-v2-orgs`.
-    - The name of the secret you created in AWS Secrets Manager that contains your InfluxDB v2 and v3 tokens.
-    ```shell
-    python influxdb_v2_to_v3_migration.py \
-        --influxdb-v2-url "https://example.com:8086" \
-        --influxdb-v3-url "https://example.com:8181" \
-        --influxdb-v2-buckets-and-orgs "bucket-one:organization-one,bucket-two:organization-two" \
-        --tokens-secret-name "influxdb_v2_to_v3_migration"
-    ```
-    - **Note**: Packer installs Python 3.13 in the AMI simply as `python`.
-
-### Clean Up
-
-1. In the `influxdb_v2_to_v3_migration` directory, destroy all Terraform-deployed resources:
-   ```shell
-   terraform destroy
-   ```
-2. When prompted, type `yes`.
-3. Find, [disable](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/disable-an-ami.html), and [deregister](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/deregister-ami.html) all `influxdb-v2-to-v3-migration-runner-<timestamp>` AMIs.
-4. In AWS Systems Manager, delete the `/amis/influxdb-v2-to-v3-migration-runner/latest` parameter in the parameter store:
-   ```shell
-   aws ssm delete-paramter \
-       --name "/amis/influxdb-v2-to-v3-migration-runner/latest"
-   ```
 
 ## Manual Verification
 
@@ -405,12 +188,12 @@ python3 influxdb_v3_ingestion.py --help
 
 1. Before running tests, make sure the Docker daemon is running. On macOS, this means having Podman desktop or Docker desktop running.
 
-2. Navigate to the [`app`](./app/) directory and install the optional test dependencies:
+2. Install the optional test dependencies:
    ```shell
    python3.14 -m pip install -e '.[test]'
    ```
 
-3. Navigate to [`tests/integration/`](./app/tests/integration/) and run all tests:
+3. Navigate to [`tests/integration/`](./tests/integration/) and run all tests:
    ```shell
    python3.14 -m pytest .
    ```
