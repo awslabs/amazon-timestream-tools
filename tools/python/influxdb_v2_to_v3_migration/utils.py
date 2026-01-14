@@ -1,7 +1,5 @@
 import boto3
 import json
-from mypy_boto3_secretsmanager.client import SecretsManagerClient
-from mypy_boto3_secretsmanager.type_defs import GetSecretValueResponseTypeDef
 import os
 from pathlib import Path
 import tarfile
@@ -22,11 +20,11 @@ def get_secret(secret_name: str, region_name: str | None = None) -> dict[str, st
         region_name = os.environ.get("AWS_REGION", "us-east-1")
 
     session: boto3.Session = boto3.session.Session()
-    client: SecretsManagerClient = session.client(
+    client = session.client(
         service_name="secretsmanager", region_name=region_name
     )
 
-    response: GetSecretValueResponseTypeDef = client.get_secret_value(
+    response = client.get_secret_value(
         SecretId=secret_name
     )
     return dict(json.loads(response["SecretString"]))

@@ -1,6 +1,5 @@
-import argparse
 import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 import os
 import re
@@ -15,7 +14,6 @@ import logging
 import boto3
 import httpx
 from influxdb_client.client.organizations_api import OrganizationsApi
-from mypy_boto3_secretsmanager import SecretsManagerClient
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client_3 import InfluxDBClient3
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
