@@ -1,3 +1,5 @@
+import types
+from typing import Any
 import pytest
 from datetime import datetime, timezone
 import json
@@ -52,7 +54,7 @@ class MigrationTestCase(unittest.TestCase):
     tokens_secret_name: str = "v2-to-v3-integration-test-secret"
 
     session: boto3.Session
-    secrets_manager_client
+    secrets_manager_client: Any
 
     suppress_teardown_warnings: bool
 
