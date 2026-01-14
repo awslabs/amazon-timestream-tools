@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "influxdb_v2_to_v3_migration"
+requires-python = ">= 3.13"
+version = "1.0.0"
+dependencies = [
+    "boto3==1.42.5",
+    "botocore==1.42.10",
+    "httpx==0.28.1",
+    "influxdb-client==1.48.0",
+    "influxdb3-python==0.16.0",
+    "requests==2.32.5"
+]
+authors = [
+    {name = "Trevor Bonas", email = "Trevor.Bonas@improving.com"},
+]
+description = "A tool to migrate data from InfluxDB v2 to v3, leveraging the InfluxDB v2 CLI and InfluxDB v2 daemon."
+license = "MIT-0"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Database :: Database Engines/Servers",
+]
+keywords = ["InfluxDB", "Timestream", "migration"]
+
+[project.optional-dependencies]
+test = [
+    "pytest==9.0.2",
+    "testcontainers==4.13.3"
+]
+
+[project.urls]
+Homepage = "https://aws.amazon.com/timestream"
+Documentation = "https://docs.aws.amazon.com/timestream"
+Repository = "https://github.com/awslabs/amazon-timestream-tools.git"
+Issues = "https://github.com/awslabs/amazon-timestream-tools/issues"
+DOWNLOAD = "https://github.com/awslabs/amazon-timestream-tools/archive/refs/heads/mainline.zip"
