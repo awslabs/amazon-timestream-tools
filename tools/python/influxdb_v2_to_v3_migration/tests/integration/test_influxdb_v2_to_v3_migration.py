@@ -52,7 +52,7 @@ class MigrationTestCase(unittest.TestCase):
     tokens_secret_name: str = "v2-to-v3-integration-test-secret"
 
     session: boto3.Session
-    secrets_manager_client: SecretsManagerClient
+    secrets_manager_client
 
     suppress_teardown_warnings: bool
 
