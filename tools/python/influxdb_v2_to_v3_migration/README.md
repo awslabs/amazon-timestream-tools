@@ -190,12 +190,12 @@ python3 influxdb_v3_ingestion.py --help
 
 2. Install the optional test dependencies:
    ```shell
-   python3.14 -m pip install -e '.[test]'
+   python3.13 -m pip install -e '.[test]'
    ```
 
 3. Navigate to [`tests/integration/`](./tests/integration/) and run all tests:
    ```shell
-   python3.14 -m pytest .
+   python3.13 -m pytest .
    ```
    These tests will create a secret in AWS Secrets Manager, create Docker containers for InfluxDB v2 OSS and v3 Core, create a temporary directory for migrations, and perform a number of migrations. Tests should clean up all resources after they have finished. Errors during teardown, if any occur, may leave residual resources.
 
