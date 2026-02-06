@@ -392,8 +392,8 @@ def put_done_file(influxdb3_local, s3_key: str, presigned_done_url: str):
         response: requests.Response = requests.put(presigned_done_url, data=b"")
         response.raise_for_status()
         influxdb3_local.info(f"Put done file for {s3_key}")
-    except Exception as e:
-        influxdb3_local.error(f"Error putting done file for {s3_key}: {str(e)}")
+    except Exception:
+        influxdb3_local.error(f"Error putting done file for {s3_key}")
     return
 
 
