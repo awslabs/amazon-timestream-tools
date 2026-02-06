@@ -1,5 +1,7 @@
+from enum import IntEnum
 import io
 import json
+import re
 import sys
 import time
 import numpy
@@ -19,11 +21,13 @@ MIGRATION_FAILED = "failed"
 # seven days.
 CACHE_PUT_TTL_SECONDS = 604800
 
-HTTP_STATUS_ACCEPTED = 202
-HTTP_STATUS_OK = 200
-HTTP_STATUS_INTERNAL_ERROR = 500
-HTTP_STATUS_INVALID_REQUEST = 400
-HTTP_STATUS_NOT_FOUND = 404
+
+class HttpStatus(IntEnum):
+    ACCEPTED = 202
+    OK = 200
+    INTERNAL_ERROR = 500
+    INVALID_REQUEST = 400
+    NOT_FOUND = 404
 
 
 class PresignedRangeReader(io.RawIOBase):
@@ -100,6 +104,14 @@ class PresignedRangeReader(io.RawIOBase):
         return self.pos
 
 
+def create_http_response(status: HttpStatus, message: str):
+    presigned_url_regex = r"(http|https)://.*"
+    token_regex = r"apiv3_.*"
+    sanitized_message = re.sub(presigned_url_regex, "*****", message)
+    sanitized_message = re.sub(token_regex, "*****", sanitized_message)
+    return {"status": status, "message": sanitized_message}
+
+
 def process_request(
     influxdb3_local, query_parameters, request_headers, request_body, args=None
 ):
@@ -113,10 +125,9 @@ def process_request(
         db_name = parse_arg(influxdb3_local, "db_name", args)
         migration_id = parse_arg(influxdb3_local, "migration_id", args)
     except RuntimeError as e:
-        return {
-            "status": HTTP_STATUS_INVALID_REQUEST,
-            "message": f"Invalid argument: {str(e)}",
-        }
+        return create_http_response(
+            HttpStatus.INVALID_REQUEST, f"Invalid argument: {str(e)}"
+        )
 
     if "verify" in query_parameters:
         response = verify_previous_migrations(influxdb3_local, migration_id)
@@ -148,16 +159,15 @@ def process_request(
         return migrate_parquet_file(
             influxdb3_local, migration_id, db_name, data.get("parquet_path", "")
         )
-    return {"status": 403, "message": "Invalid request"}
+    return create_http_response(HttpStatus.INVALID_REQUEST, "Invalid request")
 
 
 def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet_path):
     if not current_parquet_path:
         influxdb3_local.warn("Parquet path is empty, aborting")
-        return {
-            "status": HTTP_STATUS_INVALID_REQUEST,
-            "message": "Invalid body, Parquet path missing",
-        }
+        return create_http_response(
+            HttpStatus.INVALID_REQUEST, "Invalid body, Parquet path is missing"
+        )
 
     migration_records = influxdb3_local.cache.get(f"{migration_id}-records", default={})
 
@@ -167,7 +177,7 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
         try:
             migration_records = get_migration_metadata(influxdb3_local, migration_id)
         except Exception as e:
-            return {"status": HTTP_STATUS_INTERNAL_ERROR, "message": str(e)}
+            return create_http_response(HttpStatus.INTERNAL_ERROR, str(e))
         influxdb3_local.cache.put(
             key=f"{migration_id}-records",
             value=migration_records,
@@ -177,8 +187,8 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
     else:
         verification = verify_previous_migrations(influxdb3_local, migration_id)
         if (
-            verification["status"] != HTTP_STATUS_OK
-            and verification["status"] != HTTP_STATUS_ACCEPTED
+            verification["status"] != HttpStatus.OK
+            and verification["status"] != HttpStatus.ACCEPTED
         ):
             influxdb3_local.error(f"{migration_id}: Previous migration failed")
             return verification
@@ -186,12 +196,12 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
     if not current_parquet_path:
         error_message = f"{migration_id}: Migration failed: Parquet file path missing, aborting migration"
         influxdb3_local.error(error_message)
-        return {"status": HTTP_STATUS_INVALID_REQUEST, "message": error_message}
+        return create_http_response(HttpStatus.INVALID_REQUEST, error_message)
 
     if current_parquet_path not in migration_records:
         error_message = f"{migration_id}: Migration failed: Parquet path {current_parquet_path} not found"
         influxdb3_local.error(error_message)
-        return {"status": HTTP_STATUS_NOT_FOUND, "message": error_message}
+        return create_http_response(HttpStatus.NOT_FOUND, error_message)
 
     try:
         presigned_get_url = migration_records[current_parquet_path]["presigned_get_url"]
@@ -212,11 +222,11 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
             f"{migration_id}: Migration complete, pending verification"
         )
     except Exception as e:
-        error_message = f"{migration_id}: Migration failed: {str(e)}"
-        influxdb3_local.error(error_message)
-        return {"status": HTTP_STATUS_INTERNAL_ERROR, "message": error_message}
+        return create_http_response(
+            HttpStatus.INTERNAL_ERROR, f"{migration_id}: Migration failed: {str(e)}"
+        )
 
-    return {"status": HTTP_STATUS_ACCEPTED, "message": "Request processed"}
+    return create_http_response(HttpStatus.ACCEPTED, "Request processed")
 
 
 def get_migration_metadata(influxdb3_local, migration_id):
@@ -237,10 +247,10 @@ def get_migration_metadata(influxdb3_local, migration_id):
         query: str = f'SELECT * FROM "{METADATA_TABLE_NAME}"'
         tracking_data = influxdb3_local.query(query)
         if not tracking_data:
-            return {
-                "status": "error",
-                "message": f"{migration_id}: Query for migration metadata failed",
-            }
+            return create_http_response(
+                HttpStatus.INTERNAL_ERROR,
+                f"{migration_id}: Query for migration metadata failed",
+            )
 
         for record in tracking_data:
             s3_key = record["s3_key"]
@@ -269,7 +279,7 @@ def verify_previous_migrations(influxdb3_local, migration_id):
         if migration_record["status"] == MIGRATION_FAILED:
             error_message = f"{migration_id}: Migration failed: Previous migration of {parquet_path} failed"
             influxdb3_local.error(error_message)
-            return {"status": HTTP_STATUS_INTERNAL_ERROR, "message": error_message}
+            return create_http_response(HttpStatus.INTERNAL_ERROR, error_message)
 
         # Since each invocation writes to a buffer, we can only determine whether a previous migration
         # has succeeded or failed. Migrations can fail during the writing stage, after an invocation has
@@ -279,16 +289,15 @@ def verify_previous_migrations(influxdb3_local, migration_id):
                 f"{migration_id}: Verifying migration for Parquet file {parquet_path}"
             )
             if not parquet_path:
-                return {
-                    "status": HTTP_STATUS_INVALID_REQUEST,
-                    "message": "Parquet file path was empty",
-                }
+                return create_http_response(
+                    HttpStatus.INVALID_REQUEST, "Parquet file path was empty"
+                )
             table_name_parts = parquet_path.split("/")
             if len(table_name_parts) < 2:
-                return {
-                    "status": HTTP_STATUS_INVALID_REQUEST,
-                    "message": "Parquet file path was incorrectly formatted. Path should start wtih database-name/table-name",
-                }
+                return create_http_response(
+                    HttpStatus.INVALID_REQUEST,
+                    "Parquet file path was incorrectly formatted. Path should start wtih database-name/table-name",
+                )
             table_name = table_name_parts[1]
             reader = PresignedRangeReader(migration_record["presigned_get_url"])
             parquet_file = pq.ParquetFile(reader)
@@ -304,7 +313,7 @@ def verify_previous_migrations(influxdb3_local, migration_id):
             if not query_response:
                 error_message = f"{migration_id}: Unable to verify record count for table {table_name} from Parquet file {parquet_path}"
                 influxdb3_local.error(error_message)
-                return {"status": HTTP_STATUS_INTERNAL_ERROR, "message": error_message}
+                return create_http_response(HttpStatus.INTERNAL_ERROR, error_message)
 
             actual_row_count = query_response[0]["row_count"]
             if expected_row_count != actual_row_count:
@@ -317,7 +326,7 @@ def verify_previous_migrations(influxdb3_local, migration_id):
                     value=migration_records,
                     ttl=CACHE_PUT_TTL_SECONDS,
                 )
-                return {"status": HTTP_STATUS_INTERNAL_ERROR, "message": error_message}
+                return create_http_response(HttpStatus.INTERNAL_ERROR, error_message)
             else:
                 migration_record["status"] = MIGRATION_COMPLETED
                 migration_records[parquet_path] = migration_record
@@ -346,11 +355,11 @@ def verify_previous_migrations(influxdb3_local, migration_id):
     if all_parquet_files_migrated:
         success_message = f"{migration_id}: All Parquet files migrated"
         influxdb3_local.info(success_message)
-        return {"status": HTTP_STATUS_OK, "message": success_message}
-    return {
-        "status": HTTP_STATUS_ACCEPTED,
-        "message": "Verified outstanding migrations. Migrations are still in progress or pending verification.",
-    }
+        return create_http_response(HttpStatus.OK, success_message)
+    return create_http_response(
+        HttpStatus.ACCEPTED,
+        "Verified outstanding migrations. Migrations are still in progress or pending verification",
+    )
 
 
 def write_to_ingestion_buffer(
@@ -392,8 +401,8 @@ def put_done_file(influxdb3_local, s3_key: str, presigned_done_url: str):
         response: requests.Response = requests.put(presigned_done_url, data=b"")
         response.raise_for_status()
         influxdb3_local.info(f"Put done file for {s3_key}")
-    except Exception:
-        influxdb3_local.error(f"Error putting done file for {s3_key}")
+    except Exception as e:
+        influxdb3_local.error(f"Error putting done file for {s3_key}: {str(e)}")
     return
 
 
