@@ -1,0 +1,21 @@
+{
+  "result_files": [
+    {
+      "url": "s3://timestream-unload-edge-cases/EdgeCaseDB/EdgeCaseSingleMeasureTable/results/partition_date=25-11-28/AEDACAOAWRIPYIBI6ZCQB5KMBG4KKCLCO6IW2Z3ZBVEGUOB623SCCBQOZWYGEEA_2139231817_qHWk3caBpP26jRQ9.parquet",
+      "file_metadata": {
+        "content_length_in_bytes": 1876,
+        "row_count": 9
+      }
+    }
+  ],
+  "query_metadata": {
+    "total_content_length_in_bytes": 1876,
+    "total_row_count": 9,
+    "result_format": "PARQUET",
+    "result_version": "Amazon Timestream version 1.0.0"
+  },
+  "author": {
+    "name": "Amazon Timestream",
+    "manifest_file_version": "1.0"
+  }
+}

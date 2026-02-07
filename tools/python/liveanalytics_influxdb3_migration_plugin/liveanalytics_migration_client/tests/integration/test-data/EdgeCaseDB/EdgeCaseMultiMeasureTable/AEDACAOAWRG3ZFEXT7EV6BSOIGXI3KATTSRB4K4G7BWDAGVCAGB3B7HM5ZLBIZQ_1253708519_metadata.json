@@ -1,0 +1,62 @@
+{
+  "ColumnInfo": [
+    {
+      "Name": "device",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "measure_name",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "time",
+      "Type": {
+        "ScalarType": "TIMESTAMP"
+      }
+    },
+    {
+      "Name": "timestamp_extra",
+      "Type": {
+        "ScalarType": "TIMESTAMP"
+      }
+    },
+    {
+      "Name": "humidity_pct",
+      "Type": {
+        "ScalarType": "BIGINT"
+      }
+    },
+    {
+      "Name": "temperature_c",
+      "Type": {
+        "ScalarType": "DOUBLE"
+      }
+    },
+    {
+      "Name": "text",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "ok",
+      "Type": {
+        "ScalarType": "BOOLEAN"
+      }
+    },
+    {
+      "Name": "partition_date",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    }
+  ],
+  "Author": {
+    "Name": "Amazon Timestream",
+    "MetadataFileVersion": "1.0"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "ColumnInfo": [
+    {
+      "Name": "device",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "measure_name",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "time",
+      "Type": {
+        "ScalarType": "TIMESTAMP"
+      }
+    },
+    {
+      "Name": "measure_value::bigint",
+      "Type": {
+        "ScalarType": "BIGINT"
+      }
+    },
+    {
+      "Name": "measure_value::double",
+      "Type": {
+        "ScalarType": "DOUBLE"
+      }
+    },
+    {
+      "Name": "measure_value::varchar",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "measure_value::boolean",
+      "Type": {
+        "ScalarType": "BOOLEAN"
+      }
+    },
+    {
+      "Name": "partition_date",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    }
+  ],
+  "Author": {
+    "Name": "Amazon Timestream",
+    "MetadataFileVersion": "1.0"
+  }
+}

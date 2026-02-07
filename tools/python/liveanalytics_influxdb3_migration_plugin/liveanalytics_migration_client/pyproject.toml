@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "liveanalytics_influxdb3_migration_client"
+requires-python = ">= 3.12"
+version = "1.0.0"
+dependencies = [
+    "boto3==1.42.5",
+    "botocore==1.42.10",
+    "influxdb-client==1.48.0",
+    "influxdb3-python==0.16.0",
+    "requests==2.32.5",
+    "pandas==2.3.3",
+    "pandas-stubs==2.3.3.251219",
+    "pyarrow==22.0.0",
+    "pyarrow-stubs==20.0.0.20251215",
+    "numpy==2.3.5"
+]
+authors = [
+    {name = "Forest Vey", email = "Forest.Vey@improving.com"},
+    {name = "Trevor Bonas", email = "Trevor.Bonas@improving.com"},
+]
+description = "A script that handles Timestream for LiveAnalytics to Timestream to InfluxDB v3 migration operations including: Timestream unload operations to S3, S3 parquet file discovery and pre-signed URL generation, and InfluxDB metadata management."
+license = "MIT-0"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Database :: Database Engines/Servers",
+]
+keywords = ["InfluxDB", "Timestream", "migration"]
+
+[project.optional-dependencies]
+test = [
+    "pytest==9.0.2",
+    "testcontainers==4.13.3"
+]
