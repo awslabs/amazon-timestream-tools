@@ -231,10 +231,26 @@ Run all tests and show print statements and logs with:
 ```shell
 python3 -m pytest -s --log-cli-level=INFO .
 ```
+### Unit Tests
+
+In `./migration_client/` Install the testing dependencies:
+```shell
+python3 -m pip install -e '.[test]'
+```
+
+Navigate to `./tests/unit/`:
+```shell
+cd tests/unit/
+```
+
+Run all tests with:
+```shell
+python3 -m pytest .
+```
 
 #### Troubleshooting Tests
 
-##### Tests Failing with "TimeoutError: container did not become running"
+##### Integration Tests Failing with "TimeoutError: container did not become running"
 
 If you are using Podman on macOS, set the environment variables:
 ```shell
