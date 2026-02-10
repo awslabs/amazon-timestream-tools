@@ -468,7 +468,7 @@ def ingest_parquet_file_in_chunks(
 
         # Process each record in the chunk.
         for row in df_chunk.itertuples(index=False):
-            line_protocol = transform_row_to_lp(influxdb3_local, row, table_name)
+            line_protocol = transform_row_to_lp(influxdb3_local, row, table_name, batch.schema)
             if len(line_protocol.fields.items()) == 0:
                 influxdb3_local.info(
                     f"Line protocol was ignored as no fields were set: {line_protocol}"
@@ -497,7 +497,7 @@ def ingest_parquet_file_in_chunks(
     )
 
 
-def transform_row_to_lp(influxdb3_local, row, table_name):
+def transform_row_to_lp(influxdb3_local, row, table_name, schema):
     """
     Transforms data into LineBuilder objects for writing to InfluxDB.
 
@@ -505,6 +505,7 @@ def transform_row_to_lp(influxdb3_local, row, table_name):
         influxdb3_local (InfluxDB client): Logging and ingestion client
         row (string): Row in parquet file
         table_name (string): Table name
+        schema(pyarrow.Schema): Schema for table
 
     Returns:
         LineBuilder: LineBuilder object ready for writing to InfluxDB.
@@ -539,18 +540,18 @@ def transform_row_to_lp(influxdb3_local, row, table_name):
             influxdb3_local.info(
                 f"Skipping field value with nulled or missing value for column {col}"
             )
-        elif isinstance(val, pandas.Timestamp):
+        elif schema.field(col).type == "timestamp[ns]" and isinstance(val, pandas.Timestamp):
             builder.string_field(col, str(val))
-        elif isinstance(val, (float, numpy.floating)):
+        elif schema.field(col).type == "double":
             builder.float64_field(col, float(val))
-        elif isinstance(val, (int, numpy.integer)):
+        elif schema.field(col).type == "int64":
             builder.int64_field(col, int(val))
-        elif isinstance(val, str):
+        elif schema.field(col).type == "string" and isinstance(val, str):
             builder.string_field(col, val)
-        elif isinstance(val, (bool, numpy.bool_, pandas.BooleanDtype().type)):
+        elif schema.field(col).type == "bool" and isinstance(val, (bool, numpy.bool_, pandas.BooleanDtype().type)):
             builder.bool_field(col, bool(val))
         else:
-            influxdb3_local.error(f"Failed to parse type: {type(val)} row {row}")
+            influxdb3_local.error(f"Failed to parse data type: {type(val)} row: {row} column type: {schema.field(col).type}")
 
     return builder
 
