@@ -7,6 +7,7 @@ import time
 import numpy
 import pandas
 import pyarrow.parquet as pq
+import pyarrow as pa
 import requests
 
 
@@ -460,6 +461,15 @@ def ingest_parquet_file_in_chunks(
     # Read the file in batches.
     for batch in read_parquet_in_batches(influxdb3_local, presigned_get_url, s3_key):
         chunk_number += 1
+        batch_schema = batch.schema
+        field_types = []
+        for field in batch_schema:
+            if pa.types.is_floating(field.type):
+                field_types.append(("double", field.name))
+            elif pa.types.is_integer(field.type):
+                field_types.append(("int64", field.name))
+            else:
+                field_types.append(("skip", field.name))
         df_chunk = batch.to_pandas()
 
         influxdb3_local.info(
@@ -467,8 +477,8 @@ def ingest_parquet_file_in_chunks(
         )
 
         # Process each record in the chunk.
-        for row in df_chunk.itertuples(index=False):
-            line_protocol = transform_row_to_lp(influxdb3_local, row, table_name, batch.schema)
+        for row in df_chunk.itertuples(index=False, name=None):
+            line_protocol = transform_row_to_lp(influxdb3_local, row, table_name, field_types)
             if len(line_protocol.fields.items()) == 0:
                 influxdb3_local.info(
                     f"Line protocol was ignored as no fields were set: {line_protocol}"
@@ -497,7 +507,7 @@ def ingest_parquet_file_in_chunks(
     )
 
 
-def transform_row_to_lp(influxdb3_local, row, table_name, schema):
+def transform_row_to_lp(influxdb3_local, row, table_name, field_types):
     """
     Transforms data into LineBuilder objects for writing to InfluxDB.
 
@@ -505,7 +515,7 @@ def transform_row_to_lp(influxdb3_local, row, table_name, schema):
         influxdb3_local (InfluxDB client): Logging and ingestion client
         row (string): Row in parquet file
         table_name (string): Table name
-        schema(pyarrow.Schema): Schema for table
+        field_types(array): Array of field types (only includes double and int64)
 
     Returns:
         LineBuilder: LineBuilder object ready for writing to InfluxDB.
@@ -514,7 +524,7 @@ def transform_row_to_lp(influxdb3_local, row, table_name, schema):
     builder = LineBuilder(table_name)
     parse_dimensions = True
 
-    for col, val in zip(row._fields, row):
+    for (field_type, col), val in zip(field_types, row):
         col_lower = col.lower()
         if pandas.isna(val):
             continue
@@ -540,18 +550,18 @@ def transform_row_to_lp(influxdb3_local, row, table_name, schema):
             influxdb3_local.info(
                 f"Skipping field value with nulled or missing value for column {col}"
             )
-        elif schema.field(col).type == "timestamp[ns]" and isinstance(val, pandas.Timestamp):
+        elif isinstance(val, pandas.Timestamp):
             builder.string_field(col, str(val))
-        elif schema.field(col).type == "double":
+        elif field_type == "double" and isinstance(val, (float, numpy.floating)):
             builder.float64_field(col, float(val))
-        elif schema.field(col).type == "int64":
+        elif field_type == "int64" and isinstance(val, (int, numpy.integer)):
             builder.int64_field(col, int(val))
-        elif schema.field(col).type == "string" and isinstance(val, str):
+        elif isinstance(val, str):
             builder.string_field(col, val)
-        elif schema.field(col).type == "bool" and isinstance(val, (bool, numpy.bool_, pandas.BooleanDtype().type)):
+        elif isinstance(val, (bool, numpy.bool_, pandas.BooleanDtype().type)):
             builder.bool_field(col, bool(val))
         else:
-            influxdb3_local.error(f"Failed to parse data type: {type(val)} row: {row} column type: {schema.field(col).type}")
+            influxdb3_local.error(f"Failed to parse type: {type(val)} row {row}")
 
     return builder
 
