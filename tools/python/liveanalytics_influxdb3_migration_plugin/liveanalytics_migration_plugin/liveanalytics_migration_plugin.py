@@ -513,9 +513,9 @@ def transform_row_to_lp(influxdb3_local, row, table_name, column_types):
     Transforms data into LineBuilder objects for writing to InfluxDB.
 
     Args:
-        influxdb3_local (InfluxDB client): Logging and ingestion client
-        row (string): Row in parquet file
-        table_name (string): Table name
+        influxdb3_local (InfluxDB client): Logging and ingestion client.
+        row (str): Row in parquet file.
+        table_name (str): Table name.
         column_types(dict): Column types and names (only includes types double and int64)
 
     Returns:
