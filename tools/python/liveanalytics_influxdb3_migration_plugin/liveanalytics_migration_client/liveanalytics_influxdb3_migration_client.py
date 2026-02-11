@@ -32,7 +32,7 @@ class InfluxDBMigrationWrapper:
         db_name: str,
         s3_bucket_name: str,
         resume_migration: bool = False,
-        timeout_seconds: int = 1_200,
+        timeout_seconds: int = 120,
         region: str = "us-west-2",
     ) -> None:
         """
@@ -40,7 +40,7 @@ class InfluxDBMigrationWrapper:
 
         Args:
             db_name (str): Timestream for LiveAnalytics database name.
-            s3_bucket (str) S3 bucket name.
+            s3_bucket (str): S3 bucket name.
             resume_migration (bool): Whether to resume an existing migration, skipping unload operations.
             timeout_seconds (int): The number of seconds to wait for each migration request.
             region (str): The AWS Region to use.
