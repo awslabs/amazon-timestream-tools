@@ -462,14 +462,15 @@ def ingest_parquet_file_in_chunks(
     for batch in read_parquet_in_batches(influxdb3_local, presigned_get_url, s3_key):
         chunk_number += 1
         batch_schema = batch.schema
-        field_types = []
+        column_types = []
         for field in batch_schema:
+            # We only care about double and int64 as other panda data types can be inferred during line protocol generation
             if pa.types.is_floating(field.type):
-                field_types.append(("double", field.name))
+                column_types.append(("double", field.name))
             elif pa.types.is_integer(field.type):
-                field_types.append(("int64", field.name))
+                column_types.append(("int64", field.name))
             else:
-                field_types.append(("skip", field.name))
+                column_types.append(("skip", field.name))
         df_chunk = batch.to_pandas()
 
         influxdb3_local.info(
@@ -478,7 +479,7 @@ def ingest_parquet_file_in_chunks(
 
         # Process each record in the chunk.
         for row in df_chunk.itertuples(index=False, name=None):
-            line_protocol = transform_row_to_lp(influxdb3_local, row, table_name, field_types)
+            line_protocol = transform_row_to_lp(influxdb3_local, row, table_name, column_types)
             if len(line_protocol.fields.items()) == 0:
                 influxdb3_local.info(
                     f"Line protocol was ignored as no fields were set: {line_protocol}"
@@ -507,7 +508,7 @@ def ingest_parquet_file_in_chunks(
     )
 
 
-def transform_row_to_lp(influxdb3_local, row, table_name, field_types):
+def transform_row_to_lp(influxdb3_local, row, table_name, column_types):
     """
     Transforms data into LineBuilder objects for writing to InfluxDB.
 
@@ -515,7 +516,7 @@ def transform_row_to_lp(influxdb3_local, row, table_name, field_types):
         influxdb3_local (InfluxDB client): Logging and ingestion client
         row (string): Row in parquet file
         table_name (string): Table name
-        field_types(array): Array of field types (only includes double and int64)
+        column_types(dict): Column types and names (only includes types double and int64)
 
     Returns:
         LineBuilder: LineBuilder object ready for writing to InfluxDB.
@@ -524,12 +525,12 @@ def transform_row_to_lp(influxdb3_local, row, table_name, field_types):
     builder = LineBuilder(table_name)
     parse_dimensions = True
 
-    for (field_type, col), val in zip(field_types, row):
-        col_lower = col.lower()
+    for (column_type, column_name), val in zip(column_types, row):
+        col_lower = column_name.lower()
         if pandas.isna(val):
             continue
         elif col_lower in ["measure_name"]:
-            builder.tag(col, val)
+            builder.tag(column_name, val)
         elif col_lower in ["time"]:
             try:
                 ts = pandas.to_datetime(val)
@@ -545,23 +546,23 @@ def transform_row_to_lp(influxdb3_local, row, table_name, field_types):
         elif parse_dimensions and isinstance(
             val, (str, numpy.bool_, pandas.StringDtype().type)
         ):
-            builder.tag(col, val)
+            builder.tag(column_name, val)
         elif not parse_dimensions and (pandas.isna(val) or val is None):
             influxdb3_local.info(
-                f"Skipping field value with nulled or missing value for column {col}"
+                f"Skipping field value with nulled or missing value for column {column_name}"
             )
         elif isinstance(val, pandas.Timestamp):
-            builder.string_field(col, str(val))
-        elif field_type == "double" and isinstance(val, (float, numpy.floating)):
-            builder.float64_field(col, float(val))
-        elif field_type == "int64" and isinstance(val, (int, numpy.integer)):
-            builder.int64_field(col, int(val))
+            builder.string_field(column_name, str(val))
+        elif column_type == "double":
+            builder.float64_field(column_name, float(val))
+        elif column_type == "int64":
+            builder.int64_field(column_name, numpy.int64(val))
         elif isinstance(val, str):
-            builder.string_field(col, val)
+            builder.string_field(column_name, val)
         elif isinstance(val, (bool, numpy.bool_, pandas.BooleanDtype().type)):
-            builder.bool_field(col, bool(val))
+            builder.bool_field(column_name, bool(val))
         else:
-            influxdb3_local.error(f"Failed to parse type: {type(val)} row {row}")
+            influxdb3_local.error(f"Failed to parse column name: {column_name} value: {val} type: {column_type}")
 
     return builder
 
