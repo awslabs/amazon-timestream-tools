@@ -479,7 +479,9 @@ def ingest_parquet_file_in_chunks(
 
         # Process each record in the chunk.
         for row in df_chunk.itertuples(index=False, name=None):
-            line_protocol = transform_row_to_lp(influxdb3_local, row, table_name, column_types)
+            line_protocol = transform_row_to_lp(
+                influxdb3_local, row, table_name, column_types
+            )
             if len(line_protocol.fields.items()) == 0:
                 influxdb3_local.info(
                     f"Line protocol was ignored as no fields were set: {line_protocol}"
@@ -562,7 +564,9 @@ def transform_row_to_lp(influxdb3_local, row, table_name, column_types):
         elif isinstance(val, (bool, numpy.bool_, pandas.BooleanDtype().type)):
             builder.bool_field(column_name, bool(val))
         else:
-            influxdb3_local.error(f"Failed to parse column name: {column_name} value: {val} type: {column_type}")
+            influxdb3_local.error(
+                f"Failed to parse column name: {column_name} value: {val} type: {column_type}"
+            )
 
     return builder
 

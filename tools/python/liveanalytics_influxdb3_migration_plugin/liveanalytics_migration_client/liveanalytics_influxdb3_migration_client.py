@@ -417,7 +417,7 @@ class InfluxDBMigrationWrapper:
             None
         """
         try:
-            resources_deleted: bool = False
+            metadata_table_deleted: bool = False
             url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
             headers = {"Authorization": f"Bearer {self.influx_token}"}
             for s3_key in metadata:
@@ -438,10 +438,9 @@ class InfluxDBMigrationWrapper:
                     raise RuntimeError(
                         f"Migrating {s3_key} failed: {response_body['message']}"
                     )
-                if not resources_deleted:
-                    self.delete_trigger()
+                if not metadata_table_deleted:
                     self.delete_metadata_table()
-                    resources_deleted = True
+                    metadata_table_deleted = True
 
             # Final verification invocation.
             verification_params = {"verify": True, "delete_cache": True}
@@ -457,8 +456,12 @@ class InfluxDBMigrationWrapper:
                     f"Final verification failed: {final_invocation_response.json()['message']}"
                 )
         except Exception as e:
-            self.error(f"HTTP invocation failed: {e}. View processing engine logs for more information")
-            sys.exit(1)
+            self.error(
+                f"HTTP invocation failed: {e}. View processing engine logs for more information"
+            )
+            raise
+        finally:
+            self.delete_trigger()
 
     def get_num_completed_and_total_parquet_files(self):
         """
@@ -488,28 +491,47 @@ class InfluxDBMigrationWrapper:
                 "Content-Type": "application/json",
             }
 
-            trigger_url = (
+            disable_trigger_url = (
+                f"{self.influx_host}/api/v3/configure/processing_engine_trigger/disable"
+            )
+
+            trigger_payload = {
+                "db": self.db_name,
+                "trigger_name": TRIGGER_NAME,
+                "plugin_filename": "liveanalytics_migration_plugin/liveanalytics_migration_plugin.py",
+                "trigger_specification": f"request:{TRIGGER_NAME}",  # Creates /api/v3/engine/<TRIGGER_NAME> endpoint.
+                "trigger_settings": {"run_async": False, "error_behavior": "log"},
+                "disabled": "true",
+                "trigger_arguments": {
+                    "db_name": self.db_name,
+                    "s3_bucket": self.s3_bucket_name,
+                    "migration_id": self.migration_id,
+                },
+            }
+
+            disable_response: requests.Response = requests.post(
+                disable_trigger_url, params=trigger_payload, headers=headers
+            )
+            disable_response.raise_for_status()
+
+            delete_trigger_url = (
                 f"{self.influx_host}/api/v3/configure/processing_engine_trigger"
             )
-            trigger_payload = {
-                "db": self.influx_database,
+
+            delete_body = {
+                "db": self.db_name,
                 "trigger_name": TRIGGER_NAME,
                 "force": True,
             }
 
-            response: requests.Response = requests.delete(
-                trigger_url, json=trigger_payload, headers=headers
+            delete_response = requests.delete(
+                delete_trigger_url, json=delete_body, headers=headers
             )
-            if response.status_code == 200 or response.status_code == 201:
-                self.info(
-                    f"Successfully deleted processing engine trigger: {TRIGGER_NAME}"
-                )
-            response.raise_for_status()
+            delete_response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            self.error("Error deleting processing engine trigger: ", str(e))
-
+            self.error("Error deleting processing engine trigger:", str(e))
         except Exception as e:
-            self.error("Failed to delete processing engine trigger: ", str(e))
+            self.error("Failed to delete processing engine trigger:", str(e))
         return
 
     def delete_metadata_table(self):
