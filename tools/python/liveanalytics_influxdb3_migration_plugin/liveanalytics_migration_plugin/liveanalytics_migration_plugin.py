@@ -471,7 +471,7 @@ def ingest_parquet_file_in_chunks(
                 column_types.append(("int64", field.name))
             else:
                 column_types.append(("skip", field.name))
-        df_chunk = batch.to_pandas()
+        df_chunk = batch.to_pandas(types_mapper={pa.int64(): pandas.Int64Dtype()}.get)
 
         influxdb3_local.info(
             f"Processing Chunk {chunk_number} ({len(df_chunk):,} records)"
