@@ -32,7 +32,7 @@ class InfluxDBMigrationWrapper:
         db_name: str,
         s3_bucket_name: str,
         resume_migration: bool = False,
-        timeout_seconds: int = 120,
+        timeout_seconds: int = 1_200,
         region: str = "us-west-2",
     ) -> None:
         """
@@ -40,8 +40,10 @@ class InfluxDBMigrationWrapper:
 
         Args:
             db_name (str): Timestream for LiveAnalytics database name.
-            s3_bucket (str): S3 bucket name.
+            s3_bucket (str) S3 bucket name.
             resume_migration (bool): Whether to resume an existing migration, skipping unload operations.
+            timeout_seconds (int): The number of seconds to wait for each migration request.
+            region (str): The AWS Region to use.
 
         Returns:
             None
@@ -432,7 +434,7 @@ class InfluxDBMigrationWrapper:
                 )
                 trigger_invocation_response.raise_for_status()
                 response_body = trigger_invocation_response.json()
-                if response_body["status"] == "error":
+                if response_body["status"] != 200 and response_body["status"] != 202:
                     raise RuntimeError(
                         f"Migrating {s3_key} failed: {response_body['message']}"
                     )
@@ -455,8 +457,7 @@ class InfluxDBMigrationWrapper:
                     f"Final verification failed: {final_invocation_response.json()['message']}"
                 )
         except Exception as e:
-            self.error(f"HTTP invocation failed: {e}")
-            self.error("View processing engine logs for more information")
+            self.error(f"HTTP invocation failed: {e}. View processing engine logs for more information")
             sys.exit(1)
 
     def get_num_completed_and_total_parquet_files(self):

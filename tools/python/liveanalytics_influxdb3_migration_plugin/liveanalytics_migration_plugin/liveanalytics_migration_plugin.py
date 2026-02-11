@@ -515,7 +515,7 @@ def transform_row_to_lp(influxdb3_local, row, table_name, field_types):
         influxdb3_local (InfluxDB client): Logging and ingestion client
         row (string): Row in parquet file
         table_name (string): Table name
-        field_types(array): Array of field types (only includes double and int64)
+        field_types (list[tuple[str, Any]]): Array of field types, which only includes double, float, and int64.
 
     Returns:
         LineBuilder: LineBuilder object ready for writing to InfluxDB.
@@ -545,7 +545,7 @@ def transform_row_to_lp(influxdb3_local, row, table_name, field_types):
         elif parse_dimensions and isinstance(
             val, (str, numpy.bool_, pandas.StringDtype().type)
         ):
-            builder.tag(col, val)
+            builder.tag(col_name, val)
         elif not parse_dimensions and (pandas.isna(val) or val is None):
             influxdb3_local.info(
                 f"Skipping field value with nulled or missing value for column {col}"
