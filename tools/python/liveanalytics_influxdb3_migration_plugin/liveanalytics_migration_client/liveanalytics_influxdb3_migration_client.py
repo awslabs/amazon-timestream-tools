@@ -520,8 +520,7 @@ class InfluxDBMigrationWrapper:
 
             delete_body = {
                 "db": self.db_name,
-                "trigger_name": TRIGGER_NAME,
-                "force": True,
+                "trigger_name": TRIGGER_NAME
             }
 
             delete_response = requests.delete(
