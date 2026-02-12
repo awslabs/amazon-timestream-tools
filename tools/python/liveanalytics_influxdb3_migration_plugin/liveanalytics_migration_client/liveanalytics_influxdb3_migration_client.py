@@ -496,14 +496,14 @@ class InfluxDBMigrationWrapper:
             )
 
             trigger_payload = {
-                "db": self.liveanalytics_database,
+                "db": self.influx_database,
                 "trigger_name": TRIGGER_NAME,
                 "plugin_filename": "liveanalytics_migration_plugin/liveanalytics_migration_plugin.py",
                 "trigger_specification": f"request:{TRIGGER_NAME}",  # Creates /api/v3/engine/<TRIGGER_NAME> endpoint.
                 "trigger_settings": {"run_async": False, "error_behavior": "log"},
                 "disabled": "true",
                 "trigger_arguments": {
-                    "db_name": self.liveanalytics_database,
+                    "db_name": self.influx_database,
                     "s3_bucket": self.s3_bucket_name,
                     "migration_id": self.migration_id,
                 },
@@ -519,7 +519,7 @@ class InfluxDBMigrationWrapper:
             )
 
             delete_body = {
-                "db": self.liveanalytics_database,
+                "db": self.influx_database,
                 "trigger_name": TRIGGER_NAME
             }
 
@@ -583,14 +583,14 @@ class InfluxDBMigrationWrapper:
                 f"{self.influx_host}/api/v3/configure/processing_engine_trigger"
             )
             trigger_payload = {
-                "db": self.liveanalytics_database,
+                "db": self.influx_database,
                 "trigger_name": TRIGGER_NAME,
                 "plugin_filename": "liveanalytics_migration_plugin/liveanalytics_migration_plugin.py",
                 "trigger_specification": f"request:{TRIGGER_NAME}",  # Creates /api/v3/engine/<TRIGGER_NAME> endpoint.
                 "trigger_settings": {"run_async": False, "error_behavior": "log"},
                 "disabled": False,
                 "trigger_arguments": {
-                    "db_name": self.liveanalytics_database,
+                    "db_name": self.influx_database,
                     "s3_bucket": self.s3_bucket_name,
                     "migration_id": self.migration_id,
                 },

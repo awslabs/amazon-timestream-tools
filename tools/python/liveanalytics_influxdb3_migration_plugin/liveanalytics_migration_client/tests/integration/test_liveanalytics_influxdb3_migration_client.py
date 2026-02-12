@@ -704,6 +704,58 @@ class MigrationTestCase(unittest.TestCase):
             influxdb_v3_table_count,
         )
 
+    def test_migration_different_database_names(self):
+        """
+        Tests basic migration of a single table where the Timestream for LiveAnalytics
+        database and InfluxDB v3 database have different names.
+        """
+        self.influx_database = "test-influxdb-v3-database"
+        os.environ["INFLUXDB3_DATABASE_NAME"] = self.influx_database
+
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=30)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = start_time + pandas.Timedelta(days=1)
+        assert isinstance(end_time, pandas.Timestamp)
+
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+        ]
+
+        record = {
+            "Dimensions": dimensions,
+            "MeasureName": "cpu_utilization",
+            "MeasureValue": "13.5",
+            "MeasureValueType": "DOUBLE",
+            "Time": str(start_time.value),
+            "TimeUnit": "NANOSECONDS",
+        }
+        self.put_records([record])
+
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+            ]
+        )
+
+        self.assertEqual(return_code, 0)
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        print(f"Table counts: {la_table_count}, {influxdb_v3_table_count}")
+        self.assertEqual(
+            la_table_count,
+            influxdb_v3_table_count,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
