@@ -29,7 +29,7 @@ TRIGGER_NAME: str = "migration_trigger"
 class InfluxDBMigrationWrapper:
     def __init__(
         self,
-        db_name: str,
+        liveanalytics_database: str,
         s3_bucket_name: str,
         resume_migration: bool = False,
         timeout_seconds: int = 120,
@@ -39,7 +39,7 @@ class InfluxDBMigrationWrapper:
         Initialize
 
         Args:
-            db_name (str): Timestream for LiveAnalytics database name.
+            liveanalytics_database (str): Timestream for LiveAnalytics database name.
             s3_bucket (str): S3 bucket name.
             resume_migration (bool): Whether to resume an existing migration, skipping unload operations.
             timeout_seconds (int): The number of seconds to wait for each migration request.
@@ -48,7 +48,7 @@ class InfluxDBMigrationWrapper:
         Returns:
             None
         """
-        self.db_name: str = db_name
+        self.liveanalytics_database: str = liveanalytics_database
         self.s3_bucket_name: str = s3_bucket_name
         self.resume_migration: bool = resume_migration
         self.timeout_seconds: int = timeout_seconds
@@ -105,14 +105,14 @@ class InfluxDBMigrationWrapper:
         Returns:
             None
         """
-        self.info(f"Starting unload operation for database: {self.db_name}")
+        self.info(f"Starting unload operation for database: {self.liveanalytics_database}")
 
         tables = []
         next_token = None
 
         try:
             while True:
-                params = {"DatabaseName": self.db_name}
+                params = {"DatabaseName": self.liveanalytics_database}
                 if next_token:
                     params["NextToken"] = next_token
 
@@ -148,8 +148,8 @@ class InfluxDBMigrationWrapper:
             _ = self.timestream_query_client.query(
                 QueryString=f"""
                     UNLOAD (SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
-                           FROM \"{self.db_name}\".\"{table_name}\") 
-                    TO 's3://{self.s3_bucket_name}/{self.db_name}/{table_name}' 
+                           FROM \"{self.liveanalytics_database}\".\"{table_name}\") 
+                    TO 's3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}' 
                     WITH (partitioned_by = ARRAY['partition_date'], 
                           format = 'PARQUET', 
                           max_file_size='16MB', 
@@ -181,7 +181,7 @@ class InfluxDBMigrationWrapper:
                 # Use paginator to handle large buckets.
                 paginator = self.s3_client.get_paginator("list_objects_v2")
                 page_iterator = paginator.paginate(
-                    Bucket=self.s3_bucket_name, Prefix=self.db_name
+                    Bucket=self.s3_bucket_name, Prefix=self.liveanalytics_database
                 )
 
                 for page in page_iterator:
@@ -417,7 +417,7 @@ class InfluxDBMigrationWrapper:
             None
         """
         try:
-            resources_deleted: bool = False
+            metadata_table_deleted: bool = False
             url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
             headers = {"Authorization": f"Bearer {self.influx_token}"}
             for s3_key in metadata:
@@ -438,10 +438,9 @@ class InfluxDBMigrationWrapper:
                     raise RuntimeError(
                         f"Migrating {s3_key} failed: {response_body['message']}"
                     )
-                if not resources_deleted:
-                    self.delete_trigger()
+                if not metadata_table_deleted:
                     self.delete_metadata_table()
-                    resources_deleted = True
+                    metadata_table_deleted = True
 
             # Final verification invocation.
             verification_params = {"verify": True, "delete_cache": True}
@@ -457,8 +456,12 @@ class InfluxDBMigrationWrapper:
                     f"Final verification failed: {final_invocation_response.json()['message']}"
                 )
         except Exception as e:
-            self.error(f"HTTP invocation failed: {e}. View processing engine logs for more information")
-            sys.exit(1)
+            self.error(
+                f"HTTP invocation failed: {e}. View processing engine logs for more information"
+            )
+            raise
+        finally:
+            self.delete_trigger()
 
     def get_num_completed_and_total_parquet_files(self):
         """
@@ -472,7 +475,7 @@ class InfluxDBMigrationWrapper:
         bucket = s3.Bucket(self.s3_bucket_name)
         parquet_count: int = 0
         completed_count: int = 0
-        for obj in bucket.objects.filter(Prefix=f"{self.db_name}/").all():
+        for obj in bucket.objects.filter(Prefix=f"{self.liveanalytics_database}/").all():
             if obj.key.endswith(".parquet"):
                 parquet_count += 1
             if obj.key.endswith(".ack"):
@@ -488,28 +491,46 @@ class InfluxDBMigrationWrapper:
                 "Content-Type": "application/json",
             }
 
-            trigger_url = (
-                f"{self.influx_host}/api/v3/configure/processing_engine_trigger"
+            disable_trigger_url = (
+                f"{self.influx_host}/api/v3/configure/processing_engine_trigger/disable"
             )
+
             trigger_payload = {
                 "db": self.influx_database,
                 "trigger_name": TRIGGER_NAME,
-                "force": True,
+                "plugin_filename": "liveanalytics_migration_plugin/liveanalytics_migration_plugin.py",
+                "trigger_specification": f"request:{TRIGGER_NAME}",  # Creates /api/v3/engine/<TRIGGER_NAME> endpoint.
+                "trigger_settings": {"run_async": False, "error_behavior": "log"},
+                "disabled": "true",
+                "trigger_arguments": {
+                    "db_name": self.influx_database,
+                    "s3_bucket": self.s3_bucket_name,
+                    "migration_id": self.migration_id,
+                },
             }
 
-            response: requests.Response = requests.delete(
-                trigger_url, json=trigger_payload, headers=headers
+            disable_response: requests.Response = requests.post(
+                disable_trigger_url, params=trigger_payload, headers=headers
             )
-            if response.status_code == 200 or response.status_code == 201:
-                self.info(
-                    f"Successfully deleted processing engine trigger: {TRIGGER_NAME}"
-                )
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            self.error("Error deleting processing engine trigger: ", str(e))
+            disable_response.raise_for_status()
 
+            delete_trigger_url = (
+                f"{self.influx_host}/api/v3/configure/processing_engine_trigger"
+            )
+
+            delete_body = {
+                "db": self.influx_database,
+                "trigger_name": TRIGGER_NAME
+            }
+
+            delete_response = requests.delete(
+                delete_trigger_url, json=delete_body, headers=headers
+            )
+            delete_response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            self.error("Error deleting processing engine trigger:", str(e))
         except Exception as e:
-            self.error("Failed to delete processing engine trigger: ", str(e))
+            self.error("Failed to delete processing engine trigger:", str(e))
         return
 
     def delete_metadata_table(self):
@@ -540,7 +561,7 @@ class InfluxDBMigrationWrapper:
             self.info(f'Deleted "{self.influx_database}"."{MIGRATION_METADATA_TABLE}"')
         except Exception as e:
             self.error(
-                f'Failed to delete "{self.db_name}"."{MIGRATION_METADATA_TABLE}": {e}'
+                f'Failed to delete "{self.liveanalytics_database}"."{MIGRATION_METADATA_TABLE}": {e}'
             )
 
     def create_processing_engine_trigger(self):
@@ -562,14 +583,14 @@ class InfluxDBMigrationWrapper:
                 f"{self.influx_host}/api/v3/configure/processing_engine_trigger"
             )
             trigger_payload = {
-                "db": self.db_name,
+                "db": self.influx_database,
                 "trigger_name": TRIGGER_NAME,
                 "plugin_filename": "liveanalytics_migration_plugin/liveanalytics_migration_plugin.py",
                 "trigger_specification": f"request:{TRIGGER_NAME}",  # Creates /api/v3/engine/<TRIGGER_NAME> endpoint.
                 "trigger_settings": {"run_async": False, "error_behavior": "log"},
                 "disabled": False,
                 "trigger_arguments": {
-                    "db_name": self.db_name,
+                    "db_name": self.influx_database,
                     "s3_bucket": self.s3_bucket_name,
                     "migration_id": self.migration_id,
                 },
@@ -605,7 +626,7 @@ class InfluxDBMigrationWrapper:
             RuntimeError: If verification of buckets fails or metadata setup fails.
         """
         self.info("Starting InfluxDB Migration Wrapper")
-        self.info(f"Database: {self.db_name}")
+        self.info(f"Database: {self.liveanalytics_database}")
         self.info(f"S3 Bucket: {self.s3_bucket_name}")
         self.info(f"Resuming migration: {self.resume_migration}")
 
@@ -644,11 +665,11 @@ class InfluxDBMigrationWrapper:
             None
         """
         self.info(
-            f"Deleting all S3 objects in s3://{self.s3_bucket_name}/{self.db_name}/"
+            f"Deleting all S3 objects in s3://{self.s3_bucket_name}/{self.liveanalytics_database}/"
         )
         paginator = self.s3_client.get_paginator("list_object_versions")
         pages = paginator.paginate(
-            Bucket=self.s3_bucket_name, Prefix=f"{self.db_name}/"
+            Bucket=self.s3_bucket_name, Prefix=f"{self.liveanalytics_database}/"
         )
 
         for page in pages:
@@ -668,10 +689,8 @@ class InfluxDBMigrationWrapper:
                                 VersionId=version["VersionId"],
                                 LegalHold={"Status": "OFF"},
                             )
-                    except Exception as e:
-                        self.error(
-                            f"Failed to remove object lock from {version['Key']} with version ID {version['VersionId']}: {e}"
-                        )
+                    except Exception:
+                        pass
 
                 # Delete object.
                 try:
@@ -878,7 +897,7 @@ Examples:
         sys.exit(1)
 
     wrapper = InfluxDBMigrationWrapper(
-        db_name=live_analytics_database_name,
+        liveanalytics_database=live_analytics_database_name,
         s3_bucket_name=s3_bucket_name,
         resume_migration=resume_migration,
         timeout_seconds=timeout_seconds,
