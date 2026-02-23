@@ -84,7 +84,7 @@ rm -rf ~/engine
 
 ## Migrating to InfluxDB v2
 
-`influxdb_v2_to_v3_migration.py` can be used to migrate data from an InfluxDB v2 instance to InfluxDB v2. This can be useful, if, for example, you have a source InfluxDB v2 instance and want to migrate all of your data to an InfluxDB cluster. InfluxDB cluster's don't support the `backup` or `restore` InfluxDB v2 CLI commands, so using `influxdb_v2_to_v3_migration.py`, which ingests using write APIs, is an alternative migration path.
+`influxdb_v2_to_v3_migration.py` can be used to migrate data from an InfluxDB v2 instance to InfluxDB v2. This can be useful, if, for example, you have a source InfluxDB v2 instance and want to migrate all of your data to an InfluxDB cluster. InfluxDB clusters don't support the `backup` or `restore` InfluxDB v2 CLI commands, so using `influxdb_v2_to_v3_migration.py`, which ingests using write APIs, is an alternate migration path.
 
 To migrate to InfluxDB v2, follow the same steps as above, but provide the argument `--destination-org` to `influxdb_v2_to_v3_migration.py` or `influxdb_v3_ingestion.py` with the name of an existing organization in your destination.
 
