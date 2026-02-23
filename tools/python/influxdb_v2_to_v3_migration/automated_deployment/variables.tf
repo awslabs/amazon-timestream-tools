@@ -20,8 +20,8 @@ variable "tokens" {
   sensitive = true
   type      = map(string)
   default = {
-    INFLUXDB_V2_TOKEN = "replace me"
-    INFLUXDB_V3_TOKEN = "replace me"
+    SOURCE_TOKEN = "replace me"
+    DESTINATION_TOKEN = "replace me"
   }
 }
 

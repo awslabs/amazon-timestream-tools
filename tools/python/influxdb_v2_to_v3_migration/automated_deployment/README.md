@@ -212,14 +212,14 @@ To use the migration script and deploy all resources, you must have the followin
     - Your InfluxDB v2 URL.
     - Your InfluxDB v3 URL.
     - Either:
-      - The InfluxDB v2 buckets that you want to migrate and their organizations, with `--influxdb-v2-buckets-and-orgs`.
-      - Or, the names of the organizations to migrate all buckets from, with `--influxdb-v2-orgs`.
+      - The InfluxDB v2 buckets that you want to migrate and their organizations, with `--source-buckets-and-orgs`.
+      - Or, the names of the organizations to migrate all buckets from, with `--source-orgs`.
     - The name of the secret you created in AWS Secrets Manager that contains your InfluxDB v2 and v3 tokens.
     ```shell
     python influxdb_v2_to_v3_migration.py \
-        --influxdb-v2-url "https://example.com:8086" \
-        --influxdb-v3-url "https://example.com:8181" \
-        --influxdb-v2-buckets-and-orgs "bucket-one:organization-one,bucket-two:organization-two" \
+        --source-url "https://example.com:8086" \
+        --destination-url "https://example.com:8181" \
+        --source-buckets-and-orgs "bucket-one:organization-one,bucket-two:organization-two" \
         --tokens-secret-name "influxdb_v2_to_v3_migration"
     ```
     - **Note**: Packer installs Python 3.13 in the AMI simply as `python`.

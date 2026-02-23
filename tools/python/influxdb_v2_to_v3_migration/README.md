@@ -2,7 +2,7 @@
 
 ## Overview
 
-The [Amazon Timestream for InfluxDB](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influxdb.html) [v2](https://docs.influxdata.com/influxdb/v2/) to [v3](https://docs.influxdata.com/influxdb3/enterprise/) migration script allows you to migrate your data from managed InfluxDB v2 to v3.
+The [Amazon Timestream for InfluxDB](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influxdb.html) [v2](https://docs.influxdata.com/influxdb/v2/) to [v3](https://docs.influxdata.com/influxdb3/enterprise/) migration script allows you to migrate your data from managed InfluxDB v2 to v2 or v3.
 
 The script is available standalone or as part of an automated solution that deploys an EC2 instance with the script and all prerequisites installed. To use the automated solution, see the [`README` in the `automated_deployment/` directory](./automated_deployment/README.md).
 
@@ -64,14 +64,14 @@ In this diagram, data is being migrated from Timestream for InfluxDB v2 to Times
     - Your InfluxDB v2 URL.
     - Your InfluxDB v3 URL.
     - Either:
-      - The InfluxDB v2 buckets that you want to migrate and their organizations, with `--influxdb-v2-buckets-and-orgs`.
-      - Or, the names of the organizations to migrate all buckets from, with `--influxdb-v2-orgs`.
+      - The InfluxDB v2 buckets that you want to migrate and their organizations, with `--source-buckets-and-orgs`.
+      - Or, the names of the organizations to migrate all buckets from, with `--source-orgs`.
     - The name of the secret you created in AWS Secrets Manager that contains your InfluxDB v2 and v3 tokens.
     ```shell
     python3.13 influxdb_v2_to_v3_migration.py \
-        --influxdb-v2-url "https://example.com:8086" \
-        --influxdb-v3-url "https://example.com:8181" \
-        --influxdb-v2-buckets-and-orgs "bucket-one:organization-one,bucket-two:organization-two" \
+        --source-url "https://example.com:8086" \
+        --destination-url "https://example.com:8181" \
+        --source-buckets-and-orgs "bucket-one:organization-one,bucket-two:organization-two" \
         --tokens-secret-name "influxdb_v2_to_v3_migration"
     ```
 
@@ -81,6 +81,14 @@ Remove the backed-up data. By default, data is placed in `~/engine`:
 ```
 rm -rf ~/engine
 ```
+
+## Migrating to InfluxDB v2
+
+`influxdb_v2_to_v3_migration.py` can be used to migrate data from an InfluxDB v2 instance to InfluxDB v2. This can be useful, if, for example, you have a source InfluxDB v2 instance and want to migrate all of your data to an InfluxDB cluster. InfluxDB cluster's don't support the `backup` or `restore` InfluxDB v2 CLI commands, so using `influxdb_v2_to_v3_migration.py`, which ingests using write APIs, is an alternative migration path.
+
+To migrate to InfluxDB v2, follow the same steps as above, but provide the argument `--destination-org` to `influxdb_v2_to_v3_migration.py` or `influxdb_v3_ingestion.py` with the name of an existing organization in your destination.
+
+**All** data will be migrated to the organization you specify.
 
 ## Manual Verification
 
@@ -116,7 +124,7 @@ To compare the total number of records in an InfluxDB v3 database to the known n
 
 ## InfluxDB v3 Ingestion
 
-A script, `./app/influxdb_v3_ingestion.py`, is provided that ingests data to Timestream for InfluxDB v3. This script is useful if you have already backed up your InfluxDB v2 data. The ingestion script is tailored to be used by the end-to-end migration script, and expects data to be organized in a specific way. To organize data the way that the ingestion script expects, you can backup, extract InfluxDB v2 data, and convert InfluxDB v2 data to line protocol using the following commands:
+A script, `./app/influxdb_v3_ingestion.py`, is provided that ingests data to Timestream for InfluxDB v2 or v3. This script is useful if you have already backed up your InfluxDB v2 data. The ingestion script is tailored to be used by the end-to-end migration script, and expects data to be organized in a specific way. To organize data the way that the ingestion script expects, you can backup, extract InfluxDB v2 data, and convert InfluxDB v2 data to line protocol using the following commands:
 ```shell
 # Required input values.
 INFLUXDB_V2_HOST=<InfluxDB v2 host>
@@ -155,7 +163,7 @@ for bucket_id in $(ls -1d ~/engine/data/*/ | xargs -n 1 basename); do
 done
 ```
 
-Once your data is available in a `engine/data/` directory, `influxdb_v3_ingestion.py` can be used to ingest your data to InfluxDB v3:
+Once your data is available in a `engine/data/` directory, `influxdb_v3_ingestion.py` can be used to ingest your data to InfluxDB v2 or v3:
 ```shell
 # The AWS Secrets Manager secret holding InfluxDB v2 and v3 tokens.
 TOKENS_SECRET_NAME=<tokens secret name>
@@ -173,8 +181,8 @@ BUCKET_NAMES_AND_IDS="${BUCKET_NAMES_AND_IDS%?}"
 
 # Ingest data.
 python3 influxdb_v3_ingestion.py \
-    --influxdb-v3-url $INFLUXDB_V3_HOST \
-    --influxdb-v2-bucket-names-and-ids $BUCKET_NAMES_AND_IDS \
+    --url $INFLUXDB_V3_HOST \
+    --source-buckets-and-ids $BUCKET_NAMES_AND_IDS \
     --tokens-secret-name $TOKENS_SECRET_NAME \
     --backup-path ~/engine/data
 ```
@@ -200,6 +208,10 @@ python3 influxdb_v3_ingestion.py --help
    These tests will create a secret in AWS Secrets Manager, create Docker containers for InfluxDB v2 OSS and v3 Core, create a temporary directory for migrations, and perform a number of migrations. Tests should clean up all resources after they have finished. Errors during teardown, if any occur, may leave residual resources.
 
 ## FAQ
+
+### Can you migrate to InfluxDB v2?
+
+Yes, simply supply the name of an existing org with `--destination-org` as an argument to `influxdb_v2_to_v3_migration.py` or `influxdb_v3_ingestion.py`. All data will be migrated to this organization. See the above [Migrating to InfluxDB v2](#migrating-to-influxdb-v2) section.
 
 ### What is the cutoff time for migrated points?
 All points before the migration begins will be migrated. Points ingested after or during the migration will not. This is due to the behaviour of the InfluxDB v2 CLI.

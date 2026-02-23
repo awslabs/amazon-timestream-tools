@@ -439,17 +439,17 @@ def get_buckets_from_orgs(
 def main(input_args: list[str]) -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="influxdb_v2_to_v3_migration",
-        description="A script that migrates data from InfluxDB v2 to InfluxDB v3",
+        description="A script that migrates data from InfluxDB v2 to InfluxDB v2 or v3",
     )
     _ = parser.add_argument(
-        "--influxdb-v2-url",
+        "--source-url",
         required=True,
         help="The InfluxDB v2 URL to migrate from. Example: https://example.com:8086",
     )
     _ = parser.add_argument(
-        "--influxdb-v3-url",
+        "--destination-url",
         required=True,
-        help="The InfluxDB v3 URL to migrate to. Example: https://example.com:8181",
+        help="The destination InfluxDB v2 or v3 URL to migrate to. Example: https://example.com:8181",
     )
     _ = parser.add_argument(
         "--backup-path-root",
@@ -518,10 +518,10 @@ def main(input_args: list[str]) -> int:
         ),
     )
     _ = parser.add_argument(
-        "--influxdb-v3-database-retention-period",
+        "--destination-retention-period",
         required=False,
         help=(
-            "The retention period to use for all new InfluxDB v3 databases. Retention periods can be updated later. "
+            "The retention period to use for all new InfluxDB v2 buckets or v3 databases. Retention periods can be updated later. "
             "For example, '1d', '30m'. By default, this is infinity."
         ),
     )
@@ -531,9 +531,15 @@ def main(input_args: list[str]) -> int:
         required=False,
         help="The AWS region to use for AWS Secrets Manager.",
     )
+    _ = parser.add_argument(
+        "--destination-org",
+        default="organization",
+        required=False,
+        help="The destination InfluxDB v2 organization to use.",
+    )
     mutually_exclusive_group = parser.add_mutually_exclusive_group(required=True)
     _ = mutually_exclusive_group.add_argument(
-        "--influxdb-v2-buckets-and-orgs",
+        "--source-buckets-and-orgs",
         help=(
             "A list of bucket names paired with the organization each bucket resides in. "
             "Example: 'bucket-one:org-one,bucket-two:org-two'. The separators used in this "
@@ -541,7 +547,7 @@ def main(input_args: list[str]) -> int:
         ),
     )
     _ = mutually_exclusive_group.add_argument(
-        "--influxdb-v2-orgs",
+        "--source-orgs",
         help=(
             "A list of organization names from which to migrate all buckets. "
             "Example: org-one,org-two,org-three"
@@ -551,8 +557,8 @@ def main(input_args: list[str]) -> int:
     args = parser.parse_args(input_args)
 
     tokens_secret_name: str = args.tokens_secret_name
-    influxdb_v2_url: str = args.influxdb_v2_url
-    influxdb_v3_url: str = args.influxdb_v3_url
+    source_url: str = args.source_url
+    destination_url: str = args.destination_url
     start_time: str | None = args.start_time
     end_time: str | None = args.end_time
     num_backup_workers: int = args.num_backup_workers
@@ -574,10 +580,10 @@ def main(input_args: list[str]) -> int:
         tokens: dict[str, str] = utils.get_secret(
             secret_name=tokens_secret_name, region_name=region_name
         )
-        influxdb_v2_token: str | None = tokens.get("INFLUXDB_V2_TOKEN")
-        influxdb_v3_token: str | None = tokens.get("INFLUXDB_V3_TOKEN")
-        assert influxdb_v2_token is not None
-        assert influxdb_v3_token is not None
+        source_token: str | None = tokens.get("SOURCE_TOKEN")
+        destination_token: str | None = tokens.get("DESTINATION_TOKEN")
+        assert source_token is not None
+        assert destination_token is not None
 
         logger.info(
             f"Successfully retrieved tokens from Secrets Manager: {tokens_secret_name}"
@@ -586,43 +592,42 @@ def main(input_args: list[str]) -> int:
         logger.error(f"Failed to retrieve tokens from Secrets Manager: {str(e)}")
         return 1
 
-    logger.info(f"Using InfluxDB v2 URL: {influxdb_v2_url}")
-    logger.info(f"Using InfluxDB v3 URL: {influxdb_v3_url}")
+    logger.info(f"Using source URL: {source_url}")
+    logger.info(f"Using destination URL: {destination_url}")
 
-    if not health_check(influxdb_v2_url, influxdb_v2_token):
-        logger.error("Unable to reach InfluxDB v2 instance")
+    if not health_check(source_url, source_token):
+        logger.error(f"Unable to reach source instance {source_url}")
         return 1
     else:
-        logger.info("InfluxDB v2 instance is reachable")
+        logger.info("Source instance is reachable")
 
-    if not health_check(influxdb_v3_url, influxdb_v3_token):
-        logger.error("Unable to reach InfluxDB v3 instance")
+    if not health_check(destination_url, destination_token):
+        logger.error(f"Unable to reach destination instance {destination_url}")
         return 1
     else:
-        logger.info("InfluxDB v3 instance is reachable")
+        logger.info("Destination instance is reachable")
 
-    if args.influxdb_v2_orgs is not None:
-        bucket_org_pairs: list[tuple[str, str]] = get_buckets_from_orgs(
-            influxdb_v2_url,
-            influxdb_v2_token,
-            args.influxdb_v2_orgs,
+    bucket_org_pairs: list[tuple[str, str]] = []
+    if args.source_orgs is not None:
+        bucket_org_pairs = get_buckets_from_orgs(
+            source_url,
+            source_token,
+            args.source_orgs,
             args.org_separator,
         )
 
-    if args.influxdb_v2_buckets_and_orgs is not None:
-        bucket_org_pairs: list[tuple[str, str]] = [
+    if args.source_buckets_and_orgs is not None:
+        bucket_org_pairs = [
             (bucket_name, org_name)
             for bucket_name, org_name in (
                 pair.split(args.bucket_org_separator, 1)
-                for pair in args.influxdb_v2_buckets_and_orgs.split(
-                    args.bucket_separator
-                )
+                for pair in args.source_buckets_and_orgs.split(args.bucket_separator)
             )
         ]
 
     backup_result: bool = backup_influxdb_v2_buckets(
-        influxdb_v2_url,
-        influxdb_v2_token,
+        source_url,
+        source_token,
         bucket_org_pairs,
         backup_path,
         num_backup_workers,
@@ -638,8 +643,8 @@ def main(input_args: list[str]) -> int:
 
     export_lp_result: tuple[bool, list[tuple[str, str]]] = (
         export_influxdb_v2_buckets_to_lp(
-            influxdb_v2_url,
-            influxdb_v2_token,
+            source_url,
+            source_token,
             bucket_org_pairs,
             backup_path,
             start_time,
@@ -662,12 +667,13 @@ def main(input_args: list[str]) -> int:
             )
 
     ingestion_result: bool = influxdb_v3_ingestion.ingest_line_protocol_files(
-        influxdb_v3_url=args.influxdb_v3_url,
-        influxdb_v3_token=influxdb_v3_token,
+        url=args.destination_url,
+        token=destination_token,
+        org=args.destination_org,
         backup_path=backup_path,
         bucket_id_pairs=export_lp_result[1],
         num_workers=args.num_ingestion_workers,
-        retention_period=args.influxdb_v3_database_retention_period,
+        retention_period=args.destination_retention_period,
     )
 
     if ingestion_result:

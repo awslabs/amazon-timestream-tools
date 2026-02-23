@@ -16,7 +16,6 @@ from pathlib import Path
 from influxdb_client_3 import (
     InfluxDBClient3,
 )
-from requests.models import HTTPError
 
 import utils
 
@@ -194,8 +193,9 @@ def read_outer_chunks(
 
 
 def ingest_line_protocol_files(
-    influxdb_v3_url: str,
-    influxdb_v3_token: str,
+    url: str,
+    token: str,
+    org: str | None,
     backup_path: Path,
     bucket_id_pairs: list[tuple[str, str]],
     lines_per_batch: int = 10_000,
@@ -208,8 +208,9 @@ def ingest_line_protocol_files(
     Ingests line protocol files from a local directory to InfluxDB v3.
 
     Args:
-        influxdb_v3_url (str): The InfluxDB v3 URL, including scheme and port.
-        influxdb_v3_token (str): The InfluxDB v3 token.
+        url (str): The InfluxDB v2 or v3 URL, including scheme and port.
+        token (str): The InfluxDB v2 or v3 token.
+        org (str | None): The name of the InfluxDB v2 organization to use.
         backup_path (Path): The path containing the line protocol files.
         bucket_id_pairs (list[tuple[str, str]]): A list of bucket names and bucket ID pairs.
             Bucket names will be used to create new InfluxDB v3 databases and bucket IDs will be
@@ -234,8 +235,9 @@ def ingest_line_protocol_files(
         futures = {
             executor.submit(
                 ingest_line_protocol_file,
-                influxdb_v3_url,
-                influxdb_v3_token,
+                url,
+                token,
+                org,
                 backup_path,
                 bucket_id_pair,
                 lines_per_batch,
@@ -267,8 +269,9 @@ def ingest_line_protocol_files(
 
 
 def ingest_line_protocol_file(
-    influxdb_v3_url: str,
-    influxdb_v3_token: str,
+    url: str,
+    token: str,
+    org: str | None,
     backup_path: Path,
     bucket_name_id_pair: tuple[str, str],
     lines_per_batch: int = 10_000,
@@ -280,8 +283,9 @@ def ingest_line_protocol_file(
     Ingest a line protocol file into InfluxDB v3.
 
     Args:
-        influxdb_v3_url (str): The InfluxDB v3 URL, including scheme and port.
-        influxdb_v3_token (str): The InfluxDB v3 token.
+        url (str): The InfluxDB v2 or v3 URL, including scheme and port.
+        token (str): The InfluxDB v2 or v3 token.
+        org (str | None): The name of the InfluxDB v2 organization to use.
         backup_path (Path): The path where line protocol files reside.
         bucket_name_id_pair (tuple[str, str]): A tuple containing a bucket's name and ID.
         lines_per_batch (int): Number of lines to ingest in each batch.
@@ -299,51 +303,56 @@ def ingest_line_protocol_file(
 
     # Databases in InfluxDB v3 cannot contain underscores (_), must start
     # and begin with an alphanumeric character, and are allowed to use hyphens.
-    database_name: str = bucket_name.replace("_", "-")
+    database_or_bucket_name: str = bucket_name.replace("_", "-")
 
     lp_file_path: Path = backup_path / Path(bucket_id) / Path(f"{bucket_name}.lp")
-
-    response: requests.Response = requests.get(
-        f"{influxdb_v3_url}/api/v3/configure/database?format=json",
-        headers={"Authorization": f"Bearer {influxdb_v3_token}"},
-    )
-    try:
-        response.raise_for_status()
-    except HTTPError as e:
-        error_message = f"Failed to list existing InfluxDB v3 databases: {e}"
-        logger.error(error_message)
-        raise RuntimeError(error_message)
-
-    list_databases_response = response.json()
-
-    if any(database_name in database.values() for database in list_databases_response):
-        logger.info(f"Database {database_name} exists")
-    else:
-        logger.info(f"Creating database {database_name}")
-
-        database_creation_body = {"db": database_name}
-        if retention_period is not None:
-            database_creation_body["retention_period"] = retention_period
-
-        response = requests.post(
-            f"{influxdb_v3_url}/api/v3/configure/database",
-            headers={"Authorization": f"Bearer {influxdb_v3_token}"},
-            json=database_creation_body,
-        )
-        try:
-            response.raise_for_status()
-        except HTTPError as e:
-            error_message = f"Failed to create database {database_name}: {e.response}"
-            logger.error(error_message)
-            raise RuntimeError(error_message)
 
     process_name = current_process().name
     total_lines = 0
     line_count = 0
 
-    with InfluxDBClient3(
-        host=influxdb_v3_url, token=influxdb_v3_token, database=database_name
-    ) as client:
+    args = {"host": url, "token": token, "database": database_or_bucket_name}
+    if org is not None:
+        args["org"] = org
+
+    with InfluxDBClient3(**args) as client:
+        # For InfluxDB v2, the bucket must be created prior to ingestion. For InfluxDB v3,
+        # databases are created automatically upon ingestion.
+        server_version = client.get_server_version()
+        logger.info(f"Server version: {server_version}")
+
+        # InfluxDB v2 server versions can vary. These are all v2 "versions" encountered during testing.
+        if (
+            not server_version
+            or server_version == "dev"
+            or server_version.startswith("2")
+            or server_version.startswith("v2")
+        ):
+            logger.info(f"Creating new bucket {database_or_bucket_name} in org {org}")
+            headers = {"Authorization": f"Token {token}"}
+            logger.info("Getting org ID")
+            org_response = requests.get(
+                url=f"{url}/api/v2/orgs", params={"org": org}, headers=headers
+            )
+            org_response.raise_for_status()
+            org_id: str = org_response.json()["orgs"][0]["id"]
+            logger.info(f"Org ID: {org_id}")
+            body = {"name": database_or_bucket_name, "orgID": org_id}
+            if retention_period is not None:
+                body["retentionRules"] = retention_period
+            bucket_creation_response = requests.post(
+                url=f"{url}/api/v2/buckets", headers=headers, json=body
+            )
+            if (
+                bucket_creation_response.status_code != 200
+                and bucket_creation_response.status_code != 201
+                and bucket_creation_response.status_code != 422
+            ):
+                raise RuntimeError(
+                    f"Failed to create bucket {database_or_bucket_name} in {url}"
+                )
+            logger.info("Created bucket")
+
         logger.info(f"Ingesting contents of {str(lp_file_path)}")
         with open(lp_file_path, "r", encoding="utf-8") as file_reader:
             while True:
@@ -364,7 +373,7 @@ def ingest_line_protocol_file(
                 )
                 total_lines += lines_ingested
 
-    return f"Ingested {total_lines} into {database_name}"
+    return f"Ingested {total_lines} into {database_or_bucket_name}"
 
 
 def main(input_args: list[str]) -> int:
@@ -372,8 +381,8 @@ def main(input_args: list[str]) -> int:
         description="Ingest line protocol files from an InfluxDB v2 engine directory into InfluxDB v3 using multiple processes."
     )
     _ = parser.add_argument(
-        "--influxdb-v3-url",
-        help="The InfluxDB v3 URL to ingest data into. Example: 'https://example.com:8181'.",
+        "--url",
+        help="The InfluxDB v2 or v3 URL to ingest data into. Example: 'https://example.com:8181'.",
     )
     _ = parser.add_argument(
         "--tokens-secret-name",
@@ -412,9 +421,9 @@ def main(input_args: list[str]) -> int:
         help="Maximum number of retry attempts for failed batches (default: 20)",
     )
     _ = parser.add_argument(
-        "--influxdb-v2-buckets-and-ids",
+        "--source-buckets-and-ids",
         help=(
-            "A list of bucket names paired with their IDs. "
+            "A list of source bucket names paired with their IDs. "
             "Example: 'bucket-one:12fzmskpe435,bucket-two:shmflq24jaml3'. The separators used in this "
             "list can be changed with the --bucket-separator and --bucket-id-separator arguments."
         ),
@@ -452,6 +461,12 @@ def main(input_args: list[str]) -> int:
         required=False,
         help="The AWS region to use for AWS Secrets Manager.",
     )
+    _ = parser.add_argument(
+        "--destination-org",
+        required=False,
+        default="organization",
+        help=("The InfluxDB v2 organization name to use."),
+    )
 
     args = parser.parse_args(input_args)
     tokens_secret_name: str = args.tokens_secret_name
@@ -461,8 +476,8 @@ def main(input_args: list[str]) -> int:
         tokens: dict[str, str] = utils.get_secret(
             secret_name=tokens_secret_name, region_name=region_name
         )
-        influxdb_v3_token: str | None = tokens.get("INFLUXDB_V3_TOKEN")
-        assert influxdb_v3_token is not None
+        token: str | None = tokens.get("DESTINATION_TOKEN")
+        assert token is not None
 
         logger.info(
             f"Successfully retrieved tokens from Secrets Manager: {tokens_secret_name}"
@@ -473,19 +488,18 @@ def main(input_args: list[str]) -> int:
 
     backup_path = Path(args.backup_path).expanduser()
 
-    print(args.influxdb_v2_buckets_and_ids)
-
     bucket_id_pairs: list[tuple[str, str]] = [
         (bucket_name, bucket_id)
         for bucket_name, bucket_id in (
             pair.split(args.bucket_id_separator, 1)
-            for pair in args.influxdb_v2_buckets_and_ids.split(args.bucket_separator)
+            for pair in args.source_buckets_and_ids.split(args.bucket_separator)
         )
     ]
 
     ingestion_result = ingest_line_protocol_files(
-        args.influxdb_v3_url,
-        influxdb_v3_token,
+        args.url,
+        token,
+        args.destination_org,
         backup_path,
         bucket_id_pairs,
         args.lines,
