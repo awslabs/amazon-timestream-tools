@@ -34,6 +34,7 @@ class InfluxDBMigrationWrapper:
         resume_migration: bool = False,
         timeout_seconds: int = 120,
         region: str = "us-west-2",
+        max_parquet_files: int | None = None,
     ) -> None:
         """
         Initialize
@@ -44,6 +45,7 @@ class InfluxDBMigrationWrapper:
             resume_migration (bool): Whether to resume an existing migration, skipping unload operations.
             timeout_seconds (int): The number of seconds to wait for each migration request.
             region (str): The AWS Region to use.
+            max_parquet_files (int | None): The maximum number of Parquet files to migrate.
 
         Returns:
             None
@@ -53,6 +55,7 @@ class InfluxDBMigrationWrapper:
         self.resume_migration: bool = resume_migration
         self.timeout_seconds: int = timeout_seconds
         self.region: str = region
+        self.max_parquet_files: int | None = max_parquet_files
 
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -105,7 +108,9 @@ class InfluxDBMigrationWrapper:
         Returns:
             None
         """
-        self.info(f"Starting unload operation for database: {self.liveanalytics_database}")
+        self.info(
+            f"Starting unload operation for database: {self.liveanalytics_database}"
+        )
 
         tables = []
         next_token = None
@@ -420,7 +425,13 @@ class InfluxDBMigrationWrapper:
             metadata_table_deleted: bool = False
             url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
             headers = {"Authorization": f"Bearer {self.influx_token}"}
+            num_parquet_files_submitted = 0
             for s3_key in metadata:
+                if (
+                    self.max_parquet_files is not None
+                    and num_parquet_files_submitted >= self.max_parquet_files
+                ):
+                    break
                 table_name = s3_key.split("/")[1]
                 self.info(
                     f'Migrating {s3_key} to "{self.influx_database}"."{table_name}"'
@@ -441,6 +452,7 @@ class InfluxDBMigrationWrapper:
                 if not metadata_table_deleted:
                     self.delete_metadata_table()
                     metadata_table_deleted = True
+                num_parquet_files_submitted += 1
 
             # Final verification invocation.
             verification_params = {"verify": True, "delete_cache": True}
@@ -460,8 +472,9 @@ class InfluxDBMigrationWrapper:
                 f"HTTP invocation failed: {e}. View processing engine logs for more information"
             )
             raise
-        finally:
-            self.delete_trigger()
+        # Trigger is only deleted when a migration is successful. This allows users to resume a
+        # migration if an error occurs.
+        self.delete_trigger()
 
     def get_num_completed_and_total_parquet_files(self):
         """
@@ -475,7 +488,9 @@ class InfluxDBMigrationWrapper:
         bucket = s3.Bucket(self.s3_bucket_name)
         parquet_count: int = 0
         completed_count: int = 0
-        for obj in bucket.objects.filter(Prefix=f"{self.liveanalytics_database}/").all():
+        for obj in bucket.objects.filter(
+            Prefix=f"{self.liveanalytics_database}/"
+        ).all():
             if obj.key.endswith(".parquet"):
                 parquet_count += 1
             if obj.key.endswith(".ack"):
@@ -518,10 +533,7 @@ class InfluxDBMigrationWrapper:
                 f"{self.influx_host}/api/v3/configure/processing_engine_trigger"
             )
 
-            delete_body = {
-                "db": self.influx_database,
-                "trigger_name": TRIGGER_NAME
-            }
+            delete_body = {"db": self.influx_database, "trigger_name": TRIGGER_NAME}
 
             delete_response = requests.delete(
                 delete_trigger_url, json=delete_body, headers=headers
@@ -873,6 +885,12 @@ Examples:
         default="us-west-2",
         help="Optional. The AWS Region to use. Defaults to us-west-2.",
     )
+    parser.add_argument(
+        "--max-parquet-files",
+        required=False,
+        type=int,
+        help="Optional. The maximum number of Parquet files to migrate. Default behaviour is to migrate all Parquet files.",
+    )
 
     args = parser.parse_args(input_args)
 
@@ -881,6 +899,7 @@ Examples:
     resume_migration: bool = args.resume
     timeout_seconds: int = args.timeout_seconds
     region: str = args.region
+    max_parquet_files: int | None = args.max_parquet_files
 
     required_env_vars = [
         "INFLUXDB3_HOST_URL",
@@ -902,6 +921,7 @@ Examples:
         resume_migration=resume_migration,
         timeout_seconds=timeout_seconds,
         region=region,
+        max_parquet_files=max_parquet_files,
     )
 
     try:

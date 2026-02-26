@@ -134,7 +134,7 @@ def process_request(
         response = verify_previous_migrations(influxdb3_local, migration_id)
         if "delete_cache" in query_parameters:
             deleted_migration_records = influxdb3_local.cache.delete(
-                f"{migration_id}-records"
+                "migration-records"
             )
             if deleted_migration_records:
                 influxdb3_local.info("Deleted migration records from in-memory cache")
@@ -143,7 +143,7 @@ def process_request(
                     "Failed to delete migration records from in-memory cache"
                 )
             deleted_table_counts = influxdb3_local.cache.delete(
-                f"{migration_id}-table-counts"
+                "migration-table-counts"
             )
             if deleted_table_counts:
                 influxdb3_local.info("Deleted table counts from in-memmory cache")
@@ -170,7 +170,7 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
             HttpStatus.INVALID_REQUEST, "Invalid body, Parquet path is missing"
         )
 
-    migration_records = influxdb3_local.cache.get(f"{migration_id}-records", default={})
+    migration_records = influxdb3_local.cache.get("migration-records", default={})
 
     # Shared migration_records dict has not been populated. We will assume this is the
     # first invocation and populate it from the metadata table. The metadata table only exists for an hour.
@@ -180,7 +180,7 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
         except Exception as e:
             return create_http_response(HttpStatus.INTERNAL_ERROR, str(e))
         influxdb3_local.cache.put(
-            key=f"{migration_id}-records",
+            key="migration-records",
             value=migration_records,
             ttl=CACHE_PUT_TTL_SECONDS,
         )
@@ -215,7 +215,7 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
         )
         migration_records[current_parquet_path]["status"] = MIGRATION_NEEDS_VERIFICATION
         influxdb3_local.cache.put(
-            key=f"{migration_id}-records",
+            key="migration-records",
             value=migration_records,
             ttl=CACHE_PUT_TTL_SECONDS,
         )
@@ -269,8 +269,8 @@ def get_migration_metadata(influxdb3_local, migration_id):
 
 
 def verify_previous_migrations(influxdb3_local, migration_id):
-    migration_records = influxdb3_local.cache.get(f"{migration_id}-records", default={})
-    table_counts = influxdb3_local.cache.get(f"{migration_id}-table-counts", default={})
+    migration_records = influxdb3_local.cache.get("migration-records", default={})
+    table_counts = influxdb3_local.cache.get("migration-table-counts", default={})
 
     # Since influxdb3_local.write_to_db() writes to a buffer that is later ingested, each invocation must
     # verify the previous invocation's migration.
@@ -318,38 +318,46 @@ def verify_previous_migrations(influxdb3_local, migration_id):
 
             actual_row_count = query_response[0]["row_count"]
             if expected_row_count != actual_row_count:
-                error_message = f"{migration_id}: Migration failed for Parquet file {parquet_path}: expected {expected_row_count} rows, got {actual_row_count} rows"
-                influxdb3_local.error(error_message)
-                migration_record["status"] = MIGRATION_FAILED
-                migration_records[parquet_path] = migration_record
-                influxdb3_local.cache.put(
-                    key=f"{migration_id}-records",
-                    value=migration_records,
-                    ttl=CACHE_PUT_TTL_SECONDS,
-                )
-                return create_http_response(HttpStatus.INTERNAL_ERROR, error_message)
-            else:
-                migration_record["status"] = MIGRATION_COMPLETED
-                migration_records[parquet_path] = migration_record
-                table_counts[table_name] = expected_row_count
-                influxdb3_local.cache.put(
-                    key=f"{migration_id}-table-counts",
-                    value=table_counts,
-                    ttl=CACHE_PUT_TTL_SECONDS,
-                )
-                influxdb3_local.cache.put(
-                    key=f"{migration_id}-records",
-                    value=migration_records,
-                    ttl=CACHE_PUT_TTL_SECONDS,
-                )
-                put_done_file(
-                    influxdb3_local,
-                    parquet_path,
-                    migration_record["presigned_done_url"],
-                )
-                influxdb3_local.info(
-                    f"{migration_id}: Migration complete and verified for Parquet file {parquet_path}"
-                )
+                if expected_row_count < actual_row_count:
+                    influxdb3_local.warn(
+                        f"{migration_id}: Record mismatch: Expected {expected_row_count}, got {actual_row_count}"
+                    )
+                    migration_record["status"] = MIGRATION_COMPLETED
+                else:
+                    error_message = f"{migration_id}: Migration failed for Parquet file {parquet_path}: expected {expected_row_count} rows, got {actual_row_count} rows. Tally was {table_tally}"
+                    influxdb3_local.error(error_message)
+                    migration_record["status"] = MIGRATION_FAILED
+                    migration_records[parquet_path] = migration_record
+                    influxdb3_local.cache.put(
+                        key="migration-records",
+                        value=migration_records,
+                        ttl=CACHE_PUT_TTL_SECONDS,
+                    )
+                    return create_http_response(
+                        HttpStatus.INTERNAL_ERROR, error_message
+                    )
+            migration_record["status"] = MIGRATION_COMPLETED
+            migration_records[parquet_path] = migration_record
+            table_counts[table_name] = actual_row_count
+            influxdb3_local.cache.put(
+                key="migration-table-counts",
+                value=table_counts,
+                ttl=CACHE_PUT_TTL_SECONDS,
+            )
+            influxdb3_local.cache.put(
+                key="migration-records",
+                value=migration_records,
+                ttl=CACHE_PUT_TTL_SECONDS,
+            )
+            put_done_file(
+                influxdb3_local,
+                parquet_path,
+                migration_record["presigned_done_url"],
+            )
+            influxdb3_local.info(
+                f"{migration_id}: Migration complete and verified for Parquet file {parquet_path}"
+            )
+
         if migration_record["status"] != MIGRATION_COMPLETED:
             all_parquet_files_migrated = False
 

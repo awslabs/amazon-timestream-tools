@@ -66,7 +66,8 @@ class MigrationTestCase(unittest.TestCase):
                     "--node-id=my-node-0 "
                     "--object-store=file "
                     "--data-dir=/var/lib/influxdb3/data "
-                    "--plugin-dir=/var/lib/influxdb3/plugins"
+                    "--plugin-dir=/var/lib/influxdb3/plugins "
+                    "--query-file-limit=5000"
                 ),
                 volumes=[(str(plugin_dir), "/var/lib/influxdb3/plugins", "rw")],
             )
@@ -692,6 +693,90 @@ class MigrationTestCase(unittest.TestCase):
         )
 
         self.assertEqual(return_code, 0)
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        print(f"Table counts: {la_table_count}, {influxdb_v3_table_count}")
+        self.assertEqual(
+            la_table_count,
+            influxdb_v3_table_count,
+        )
+
+    @pytest.mark.slow
+    def test_migration_massive_resume(self):
+        """
+        Tests migrating 2,000,000 records with --resume.
+
+        This tests assumes that migrating 2,000,000 records results in
+        two Parquet files. The test migrates the first with --max-parquet-files
+        equal to 1, then does a resume, migrating the second Parquet file.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=30)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = start_time + pandas.Timedelta(days=1)
+        assert isinstance(end_time, pandas.Timestamp)
+
+        current_record_time = start_time
+
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+            {"Name": "statat", "Value": "erwhile", "DimensionValueType": "VARCHAR"},
+            {"Name": "mono", "Value": "ter", "DimensionValueType": "VARCHAR"},
+            {"Name": "som", "Value": "lat", "DimensionValueType": "VARCHAR"},
+            {"Name": "cher", "Value": "tee", "DimensionValueType": "VARCHAR"},
+            {"Name": "no", "Value": "ma", "DimensionValueType": "VARCHAR"},
+            {"Name": "sine", "Value": "do", "DimensionValueType": "VARCHAR"},
+            {"Name": "reno", "Value": "badat", "DimensionValueType": "VARCHAR"},
+            {"Name": "sing", "Value": "lark", "DimensionValueType": "VARCHAR"},
+            {"Name": "bus", "Value": "tuff", "DimensionValueType": "VARCHAR"},
+        ]
+
+        print("Generating data")
+        records = []
+        for _ in range(2_000_000):
+            record = {
+                "Dimensions": dimensions,
+                "MeasureName": "cpu_utilization",
+                "MeasureValue": self.get_random_string(25),
+                "MeasureValueType": "VARCHAR",
+                "Time": str(current_record_time.value),
+                "TimeUnit": "NANOSECONDS",
+            }
+            records.append(record)
+            current_record_time = current_record_time + pandas.Timedelta(1, unit="ns")
+        self.put_records(records)
+
+        print("Migrating")
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--max-parquet-files",
+                "1",
+            ]
+        )
+        # Since not all files are migrated, final verification will fail.
+        self.assertEqual(return_code, 1)
+
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--resume",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
         la_table_count = self.check_live_analytics_table_count(
             database_name=self.la_database_name, table_name=self.la_table_name
         )
