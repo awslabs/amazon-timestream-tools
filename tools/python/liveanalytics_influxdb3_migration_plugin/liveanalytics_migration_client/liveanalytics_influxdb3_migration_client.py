@@ -595,64 +595,6 @@ class InfluxDBMigrationWrapper:
             self.error(f"Failed to write metadata to InfluxDB: ", str(e))
             sys.exit(1)
 
-    def get_s3_objects_list(
-        self, wait_period_seconds=20, max_wait_seconds=1_800
-    ) -> list[str]:
-        """
-        Gets a list of parquet files in an S3 bucket by scanning S3.
-
-        Returns:
-            list[str]: List of parquet file keys
-        """
-
-        parquet_keys: set[str] = set()
-        processed_keys: set[str] = set()
-        files_to_migrate: set[str] = set()
-
-        total_wait_seconds = 0
-        while total_wait_seconds < max_wait_seconds:
-            try:
-                # Use paginator to handle large buckets.
-                paginator = self.s3_client.get_paginator("list_objects_v2")
-                page_iterator = paginator.paginate(
-                    Bucket=self.s3_bucket_name, Prefix=self.liveanalytics_database
-                )
-
-                for page in page_iterator:
-                    for obj in page.get("Contents", []):
-                        key = obj.get("Key")
-                        if not key:
-                            continue
-                        if key.endswith(".parquet"):
-                            parquet_keys.add(key)
-                        if key.endswith("done.ack"):
-                            processed_keys.add(key.replace("/done.ack", ""))
-                files_to_migrate = parquet_keys - processed_keys
-
-            except ClientError as e:
-                error_code: str = e.response.get("Error", {}).get("Code", "")
-                if error_code == "NoSuchBucket":
-                    self.error(f"Error: Bucket {self.s3_bucket_name} does not exist.")
-                elif error_code == "AccessDenied":
-                    self.error(f"Error: Access denied to bucket {self.s3_bucket_name}.")
-                else:
-                    self.error(f"Error listing objects in bucket {self.s3_bucket_name}: {str(e)}")
-                return []
-            except Exception as e:
-                self.error(f"Unexpected error while listing objects: {str(e)}")
-                return []
-
-            if len(files_to_migrate) == 0:
-                if total_wait_seconds + wait_period_seconds >= max_wait_seconds:
-                    raise RuntimeError(f"No Parquet files found in {self.s3_bucket_name}")
-                self.warning(f"No parquet files found in bucket {self.s3_bucket_name}. Retrying")
-                total_wait_seconds += wait_period_seconds
-                time.sleep(wait_period_seconds)
-            else:
-                break
-
-        self.info(f"Found {len(files_to_migrate)} parquet files to migrate")
-        return list(files_to_migrate)
 
     def bulk_invoke_http_trigger(self, metadata):
         """
