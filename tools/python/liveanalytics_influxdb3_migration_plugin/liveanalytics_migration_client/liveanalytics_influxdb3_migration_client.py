@@ -932,26 +932,45 @@ class InfluxDBMigrationWrapper:
 
         return
 
+    def get_expected_row_counts_from_manifests(self) -> dict:
+        """
+        Aggregates expected row counts per table from manifest files in S3 bucket from UNLOAD operation.
+        
+        Returns:
+            dict: Table name to expected total row count.
+        """
+        if not hasattr(self, 'table_manifests') or not self.table_manifests:
+            return {}
+        
+        expected_counts = {}
+        for table_name, manifest_list in self.table_manifests.items():
+            total_rows = 0
+            for manifest_info in manifest_list:
+                total_rows += manifest_info.get("total_rows", 0)
+            expected_counts[table_name] = total_rows
+        
+        return expected_counts
+
     def verify_final_row_counts(self) -> bool:
         """
         Verifies that all tables in the migrated database have the correct row counts
-        by comparing the expected counts from plugin with actual InfluxDB counts.
-        We verify counts returned from plugin as records that contain NaN or Null
-        only values for measures will be ignored and skew the final count.
+        by comparing expected counts from S3 manifest files with actual InfluxDB counts.
         
         Returns:
             bool: True if all tables match, False if any mismatch is found.
         """
-        if not hasattr(self, 'expected_table_row_counts') or not self.expected_table_row_counts:
-            self.warning("No expected table row counts available for verification")
+        expected_counts = self.get_expected_row_counts_from_manifests()
+        
+        if not expected_counts:
+            self.warning("No manifest data available for row count verification")
             return True
         
-        self.info("Final verification to compare row counts")
+        self.info("Comparing manifest table row counts with InfluxDB table rows")
         
         all_verified = True
         verification_results = []
         
-        for table_name, expected_count in self.expected_table_row_counts.items():
+        for table_name, expected_count in expected_counts.items():
             actual_count = None
             try:
                 query_str = f'SELECT COUNT(*) AS row_count FROM "{table_name}"'
@@ -967,9 +986,12 @@ class InfluxDBMigrationWrapper:
                 all_verified = False
             elif actual_count == expected_count:
                 status = "MATCH"
-            else:
-                status = "MISMATCH"
+            elif actual_count < expected_count:
+                status = "DATA_LOSS"
                 all_verified = False
+            else:
+                # More rows than expected - duplicates or overlap
+                status = "EXTRA_ROWS"
             
             verification_results.append({
                 "table": table_name,
@@ -979,27 +1001,37 @@ class InfluxDBMigrationWrapper:
             })
         
         self.info("")
-        self.info(f"{'Table':<40} {'Expected':>15} {'Actual':>15} {'Status':>10}")
+        self.info(f"{'Table':<40} {'Manifest':>15} {'InfluxDB':>15} {'Status':>12}")
         
         for result in verification_results:
             expected = f"{result['expected_count']:,}"
             actual = f"{result['actual_count']:,}" if result['actual_count'] is not None else "ERROR"
-            self.info(f"{result['table']:<40} {expected:>15} {actual:>15} {result['status']:>10}")
+            self.info(f"{result['table']:<40} {expected:>15} {actual:>15} {result['status']:>12}")
         
         
         if all_verified:
-            self.info("All tables verified successfully")
+            self.info("Migration successful, all tables verified")
         else:
-            self.warning("Some tables have mismatched row counts during migration")
+            self.error("Some tables have unexpected row count issues")
             for result in verification_results:
-                if result["status"] == "MISMATCH":
+                if result["status"] == "DATA_LOSS":
+                    diff = (result['expected_count'] or 0) - (result['actual_count'] or 0)
+                    self.error(
+                        f"  DATA LOSS in '{result['table']}': "
+                        f"Manifest={result['expected_count']:,}, "
+                        f"InfluxDB={result['actual_count']:,}, "
+                        f"Missing={diff:,} rows"
+                    )
+                elif result["status"] == "EXTRA_ROWS":
                     diff = (result['actual_count'] or 0) - (result['expected_count'] or 0)
                     self.warning(
-                        f"  Table '{result['table']}': "
-                        f"Expected={result['expected_count']}, "
-                        f"Actual={result['actual_count']}, "
-                        f"Difference={diff:+d}"
+                        f"  EXTRA ROWS in '{result['table']}': "
+                        f"Manifest={result['expected_count']:,}, "
+                        f"InfluxDB={result['actual_count']:,}, "
+                        f"Extra={diff:,} rows (may be from overlapping time ranges)"
                     )
+                elif result["status"] == "ERROR":
+                    self.error(f"  ERROR querying '{result['table']}'")
         
         return all_verified
 
