@@ -364,11 +364,15 @@ class MigrationTestCase(unittest.TestCase):
             executor.map(self.post_records, batches)
 
     def post_records(self, batch):
-        self.timestream_write_client.write_records(
-            DatabaseName=self.la_database_name,
-            TableName=self.la_table_name,
-            Records=batch,
-        )
+        try:
+            self.timestream_write_client.write_records(
+                DatabaseName=self.la_database_name,
+                TableName=self.la_table_name,
+                Records=batch,
+            )
+        except Exception as e:
+            print(str(e))
+            raise
 
     @staticmethod
     def get_random_string(length: int):
@@ -441,6 +445,63 @@ class MigrationTestCase(unittest.TestCase):
             "Time": str(start_time.value),
             "TimeUnit": "NANOSECONDS",
         }
+        self.put_records([record])
+
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+            ]
+        )
+
+        self.assertEqual(return_code, 0)
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        print(f"Table counts: {la_table_count}, {influxdb_v3_table_count}")
+        self.assertEqual(
+            la_table_count,
+            influxdb_v3_table_count,
+        )
+
+    def test_migration_basic_timestamps(self):
+        """
+        Tests basic migration of a single table where the table's only
+        record uses a timestamp as its measure value.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=30)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = start_time + pandas.Timedelta(days=1)
+        assert isinstance(end_time, pandas.Timestamp)
+
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+        ]
+
+        # Only multi-measure records can use TIMESTAMP as a measure type.
+        record = {
+            "Dimensions": dimensions,
+            "MeasureName": "cpu_utilization",
+            "MeasureValueType": "MULTI",
+            "Time": str(start_time.value),
+            "TimeUnit": "NANOSECONDS",
+            "MeasureValues": [
+                {
+                    "Name": "request_time",
+                    "Value": str(start_time.value),
+                    "Type": "TIMESTAMP",
+                }
+            ],
+        }
+
         self.put_records([record])
 
         return_code = liveanalytics_influxdb3_migration_client.main(
@@ -723,23 +784,66 @@ class MigrationTestCase(unittest.TestCase):
 
         current_record_time = start_time
 
-        dimensions = [
-            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
-            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
-            {"Name": "statat", "Value": "erwhile", "DimensionValueType": "VARCHAR"},
-            {"Name": "mono", "Value": "ter", "DimensionValueType": "VARCHAR"},
-            {"Name": "som", "Value": "lat", "DimensionValueType": "VARCHAR"},
-            {"Name": "cher", "Value": "tee", "DimensionValueType": "VARCHAR"},
-            {"Name": "no", "Value": "ma", "DimensionValueType": "VARCHAR"},
-            {"Name": "sine", "Value": "do", "DimensionValueType": "VARCHAR"},
-            {"Name": "reno", "Value": "badat", "DimensionValueType": "VARCHAR"},
-            {"Name": "sing", "Value": "lark", "DimensionValueType": "VARCHAR"},
-            {"Name": "bus", "Value": "tuff", "DimensionValueType": "VARCHAR"},
-        ]
-
         print("Generating data")
         records = []
         for _ in range(2_000_000):
+            dimensions = [
+                {
+                    "Name": "hostname",
+                    "Value": self.get_random_string(12),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "region",
+                    "Value": self.get_random_string(18),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "statat",
+                    "Value": self.get_random_string(2),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "mono",
+                    "Value": self.get_random_string(25),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "som",
+                    "Value": self.get_random_string(10),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "cher",
+                    "Value": self.get_random_string(4),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "no",
+                    "Value": self.get_random_string(15),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "sine",
+                    "Value": self.get_random_string(26),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "reno",
+                    "Value": self.get_random_string(11),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "sing",
+                    "Value": self.get_random_string(6),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "bus",
+                    "Value": self.get_random_string(18),
+                    "DimensionValueType": "VARCHAR",
+                },
+            ]
             record = {
                 "Dimensions": dimensions,
                 "MeasureName": "cpu_utilization",

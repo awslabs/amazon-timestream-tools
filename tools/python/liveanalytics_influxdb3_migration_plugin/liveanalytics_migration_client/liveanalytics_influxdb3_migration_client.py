@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 MIGRATION_METADATA_TABLE: str = "liveanalytics_migration_metadata"
 TRIGGER_NAME: str = "migration_trigger"
+UNLOAD_WAIT_SECONDS: int = 20
 
 
 class InfluxDBMigrationWrapper:
@@ -150,7 +151,7 @@ class InfluxDBMigrationWrapper:
         self.info(f"Unloading table: {table_name}")
 
         try:
-            _ = self.timestream_query_client.query(
+            unload_result = self.timestream_query_client.query(
                 QueryString=f"""
                     UNLOAD (SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
                            FROM \"{self.liveanalytics_database}\".\"{table_name}\") 
@@ -159,10 +160,32 @@ class InfluxDBMigrationWrapper:
                           format = 'PARQUET', 
                           max_file_size='16MB', 
                           compression = 'NONE')
-                """
+                    """
             )
 
             self.info(f"Successfully initiated unload for table: {table_name}")
+            next_token = unload_result.get("NextToken")
+            while next_token is not None:
+                unload_result = self.timestream_query_client.query(
+                    NextToken=next_token,
+                    QueryString=f"""
+                    UNLOAD (SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
+                           FROM \"{self.liveanalytics_database}\".\"{table_name}\") 
+                    TO 's3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}' 
+                    WITH (partitioned_by = ARRAY['partition_date'], 
+                          format = 'PARQUET', 
+                          max_file_size='16MB', 
+                          compression = 'NONE')
+                    """,
+                )
+                next_token = unload_result.get("NextToken")
+                unload_progress = unload_result.get("QueryStatus", {}).get(
+                    "ProgressPercentage"
+                )
+                self.info(f"Unload progress: {unload_progress}%")
+                if unload_progress >= 100.0:
+                    break
+                time.sleep(UNLOAD_WAIT_SECONDS)
         except (ClientError, BotoCoreError) as e:
             self.error("UNLOAD operation failed: ", str(e))
 
