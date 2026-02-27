@@ -141,134 +141,307 @@ class InfluxDBMigrationWrapper:
     def unload_table(self, table_name: str) -> None:
         """
         Unloads a specific table from Timestream for LiveAnalytics to S3.
+        Splits the UNLOAD into multiple queries, each covering at most 99 days
+        to avoid the 100 partition limit with partition_by.
 
         Args:
             table_name (str): Name of the table to unload.
 
         Returns:
             None
+            
+        Raises:
+            RuntimeError: If UNLOAD fails, indicating partial writes may exist in S3.
         """
         self.info(f"Unloading table: {table_name}")
 
         try:
-            unload_result = self.timestream_query_client.query(
+            time_range = self.get_table_time_range(table_name)
+            if not time_range:
+                self.warning(f"No data found in table {table_name}, skipping UNLOAD")
+                return
+            
+            min_time, max_time = time_range
+            self.info(f"Table {table_name} time range: {min_time} to {max_time}")
+            
+            # Calculate total days and number of UNLOAD chunks needed
+            from datetime import timedelta
+            total_days = (max_time - min_time).days + 1
+            max_days_per_chunk = 99
+            num_chunks = (total_days + max_days_per_chunk - 1) // max_days_per_chunk
+            
+            self.info(f"Splitting UNLOAD into {num_chunks} chunk(s)")
+            
+            chunk_start = min_time
+            chunk_num = 0
+            
+            while chunk_start <= max_time:
+                chunk_num += 1
+                chunk_end = min(chunk_start + timedelta(days=max_days_per_chunk - 1), max_time)
+                
+                start_str = chunk_start.strftime("%Y-%m-%d 00:00:00")
+                end_str = (chunk_end + timedelta(days=1)).strftime("%Y-%m-%d 00:00:00")
+                
+                self.info(f"UNLOAD chunk {chunk_num}/{num_chunks}: {chunk_start.date()} to {chunk_end.date()}")
+                
+                self.unload_table_chunk(table_name, start_str, end_str, chunk_num)
+                
+                chunk_start = chunk_end + timedelta(days=1)
+            
+            self.info(f"UNLOAD complete for table {table_name}: {chunk_num} chunk(s) processed")
+            
+        except Exception as e:
+            self.error(f"UNLOAD operation failed for s3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}/")
+            self.error(f"Error: {str(e)}")
+            
+            raise RuntimeError(
+                f"UNLOAD failed for table {table_name}: {str(e)}. "
+                f"Partial writes may exist in S3. Migration cancelled."
+            )
+
+    def get_table_time_range(self, table_name: str) -> tuple | None:
+        """
+        Gets the min and max time values from a Timestream table.
+
+        Args:
+            table_name (str): Name of the table.
+
+        Returns:
+            tuple: (min_datetime, max_datetime) or None if no data.
+        """
+        try:
+            response = self.timestream_query_client.query(
                 QueryString=f"""
-                    UNLOAD (SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
-                           FROM \"{self.liveanalytics_database}\".\"{table_name}\") 
-                    TO 's3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}' 
+                    SELECT min(time) as min_time, max(time) as max_time 
+                    FROM "{self.liveanalytics_database}"."{table_name}"
+                """
+            )
+            
+            rows = response.get("Rows", [])
+            if not rows:
+                return None
+            
+            row_data = rows[0].get("Data", [])
+            if len(row_data) < 2:
+                return None
+            
+            min_time_str = row_data[0].get("ScalarValue")
+            max_time_str = row_data[1].get("ScalarValue")
+            
+            if not min_time_str or not max_time_str:
+                return None
+            
+            from datetime import datetime
+            min_time = datetime.fromisoformat(min_time_str.replace(" ", "T").split(".")[0])
+            max_time = datetime.fromisoformat(max_time_str.replace(" ", "T").split(".")[0])
+            
+            return (min_time, max_time)
+            
+        except Exception as e:
+            self.warning(f"Failed to get time range for table {table_name}: {e}")
+            return None
+
+    def unload_table_chunk(self, table_name: str, start_time: str, end_time: str, chunk_num: int) -> None:
+        """
+        Unloads a time-bounded chunk of a table to S3 with partition_by day.
+        Each chunk writes to a unique path to get its own manifest file.
+
+        Args:
+            table_name (str): Name of the table.
+            start_time (str): Start time (inclusive) in format 'YYYY-MM-DD HH:MM:SS'.
+            end_time (str): End time (exclusive) in format 'YYYY-MM-DD HH:MM:SS'.
+            chunk_num (int): Chunk number for unique S3 path.
+        """
+        try:
+            chunk_path = f"s3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}/chunk_{chunk_num:03d}"
+            
+            # Use partition_by for smaller files (one per day)
+            response = self.timestream_query_client.query(
+                QueryString=f"""
+                    UNLOAD (
+                        SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
+                        FROM "{self.liveanalytics_database}"."{table_name}"
+                        WHERE time >= '{start_time}' AND time < '{end_time}'
+                    ) 
+                    TO '{chunk_path}' 
                     WITH (partitioned_by = ARRAY['partition_date'], 
                           format = 'PARQUET', 
                           max_file_size='16MB', 
                           compression = 'NONE')
                     """
             )
-
-            self.info(f"Successfully initiated unload for table: {table_name}")
-            next_token = unload_result.get("NextToken")
-            while next_token is not None:
-                unload_result = self.timestream_query_client.query(
-                    NextToken=next_token,
-                    QueryString=f"""
-                    UNLOAD (SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
-                           FROM \"{self.liveanalytics_database}\".\"{table_name}\") 
-                    TO 's3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}' 
-                    WITH (partitioned_by = ARRAY['partition_date'], 
-                          format = 'PARQUET', 
-                          max_file_size='16MB', 
-                          compression = 'NONE')
-                    """,
+            
+            http_status = response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
+            if http_status < 200 or http_status >= 300:
+                raise RuntimeError(f"UNLOAD chunk returned HTTP {http_status}")
+            
+            self.info(f"UNLOAD chunk completed")
+            
+            # Wait for manifest file and store info
+            manifest_info = self.wait_for_manifest_file(table_name, chunk_num)
+            if manifest_info:
+                if not hasattr(self, 'table_manifests'):
+                    self.table_manifests = {}
+                if table_name not in self.table_manifests:
+                    self.table_manifests[table_name] = []
+                self.table_manifests[table_name].append(manifest_info)
+                self.info(
+                    f"Chunk {chunk_num} manifest: {manifest_info['file_count']} files, "
+                    f"{manifest_info['total_rows']:,} rows"
                 )
-                next_token = unload_result.get("NextToken")
-                unload_progress = unload_result.get("QueryStatus", {}).get(
-                    "ProgressPercentage"
-                )
-                self.info(f"Unload progress: {unload_progress}%")
-                if unload_progress >= 100.0:
-                    break
-                time.sleep(UNLOAD_WAIT_SECONDS)
-        except (ClientError, BotoCoreError) as e:
-            self.error("UNLOAD operation failed: ", str(e))
+            else:
+                raise RuntimeError(f"Manifest file not found for chunk {chunk_num}")
+            
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            raise RuntimeError(f"UNLOAD chunk failed: {error_code} - {str(e)}")
 
-    def get_s3_objects_list(
-        self, wait_period_seconds=20, max_wait_seconds=1_800
-    ) -> list[str]:
+    def wait_for_manifest_file(
+        self,
+        table_name: str,
+        chunk_num: int,
+        poll_interval_seconds: int = 5,
+        max_wait_seconds: int = 300
+    ) -> dict | None:
         """
-        Gets a list of parquet files in an S3 bucket.
+        Waits for the Timestream UNLOAD manifest file to appear in S3.
+        The manifest file contains the complete list of parquet files and row counts.
+
+        Args:
+            table_name (str): Name of the table being unloaded.
+            chunk_num (int): Chunk number to find specific manifest.
+            poll_interval_seconds (int): Seconds between S3 checks. Default 5.
+            max_wait_seconds (int): Maximum seconds to wait. Default 300 (5 minutes).
 
         Returns:
-            list[str]: List of parquet file keys
+            dict: Manifest info with 'file_count', 'total_rows', 'files' or None if not found.
         """
-
-        parquet_keys: set[str] = set()
-        processed_keys: set[str] = set()
-        files_to_migrate: set[str] = set()
-
-        total_wait_seconds = 0
-        while total_wait_seconds < max_wait_seconds:
+        manifest_prefix = f"{self.liveanalytics_database}/{table_name}/chunk_{chunk_num:03d}/"
+        elapsed_seconds = 0
+        
+        self.info(f"Waiting for manifest file for table {table_name}...")
+        
+        while elapsed_seconds < max_wait_seconds:
             try:
-                # Use paginator to handle large buckets.
                 paginator = self.s3_client.get_paginator("list_objects_v2")
-                page_iterator = paginator.paginate(
-                    Bucket=self.s3_bucket_name, Prefix=self.liveanalytics_database
-                )
-
-                for page in page_iterator:
+                
+                for page in paginator.paginate(Bucket=self.s3_bucket_name, Prefix=manifest_prefix):
                     for obj in page.get("Contents", []):
-                        key = obj.get("Key")
-                        if not key:
-                            continue
-                        if key.endswith(".parquet"):
-                            self.info(f"Parquet file size: {obj.get('Size')} bytes")
-                            parquet_keys.add(key)
-                        if key.endswith("done.ack"):
-                            processed_keys.add(key.strip("/done.ack"))
-                files_to_migrate = parquet_keys - processed_keys
-
-            except ClientError as e:
-                error_code: str = e.response.get("Error", {}).get("Code", "")
-                if error_code == "NoSuchBucket":
-                    self.info(
-                        "Error: Bucket " + self.s3_bucket_name + " does not exist."
-                    )
-                elif error_code == "AccessDenied":
-                    self.info(
-                        "Error: Access denied to bucket "
-                        + self.s3_bucket_name
-                        + ". Check your AWS credentials and permissions."
-                    )
-                else:
-                    self.info(
-                        "Error listing objects in bucket "
-                        + self.s3_bucket_name
-                        + ": "
-                        + str(e)
-                    )
-                return []
+                        key = obj.get("Key", "")
+                        if "_manifest" in key:
+                            self.info(f"Found manifest file: {key}")
+                            return self.parse_manifest_file(key)
+                
+                self.info(f"Waiting for manifest file... ({elapsed_seconds}s elapsed)")
+                
             except Exception as e:
-                self.info("Unexpected error while listing objects: " + str(e))
-                return []
+                self.warning(f"Error checking for manifest file: {e}")
+            
+            time.sleep(poll_interval_seconds)
+            elapsed_seconds += poll_interval_seconds
+        
+        self.warning(
+            f"Manifest file not found for table {table_name} after {max_wait_seconds}s"
+        )
+        return None
 
-            if len(files_to_migrate) == 0:
-                if total_wait_seconds + wait_period_seconds >= max_wait_seconds:
-                    raise RuntimeError(
-                        f"No Parquet files found in {self.s3_bucket_name}"
-                    )
-                self.warning(
-                    f"No parquet files found in bucket {self.s3_bucket_name}. Retrying"
-                )
-                total_wait_seconds += wait_period_seconds
-                time.sleep(wait_period_seconds)
-            else:
-                break
+    def parse_manifest_file(self, manifest_key: str) -> dict | None:
+        """
+        Parses the Timestream UNLOAD manifest file to get file list and row counts.
+        
+        Manifest format:
+        {
+          "result_files": [
+            {"url": "s3://...", "file_metadata": {"row_count": 10}},
+            ...
+          ],
+          "query_metadata": {"total_row_count": 30},
+          "author": {"name": "Amazon Timestream", "manifest_file_version": "1.0"}
+        }
 
-        self.info(f"Found {len(files_to_migrate)} parquet files")
-        return list(files_to_migrate)
+        Args:
+            manifest_key (str): S3 key of the manifest file.
+
+        Returns:
+            dict: Contains 'file_count', 'total_rows', 'files' list.
+        """
+        try:
+            response = self.s3_client.get_object(
+                Bucket=self.s3_bucket_name, Key=manifest_key
+            )
+            manifest_content = response["Body"].read().decode("utf-8")
+            manifest = json.loads(manifest_content)
+            
+            result_files = manifest.get("result_files", [])
+            query_metadata = manifest.get("query_metadata", {})
+            total_rows = query_metadata.get("total_row_count", 0)
+            
+            if total_rows == 0:
+                raise RuntimeError(f"Failed to get row count for manifest {manifest_key}")
+            
+            return {
+                "file_count": len(result_files),
+                "total_rows": total_rows,
+                "files": result_files,
+            }
+            
+        except Exception as e:
+            self.warning(f"Failed to parse manifest file {manifest_key}: {e}")
+            return None
+
+    def get_parquet_files_from_manifests(self) -> list[str]:
+        """
+        Gets the list of parquet files from manifest files generated during UNLOAD.
+
+        Returns:
+            list[str]: List of parquet file S3 keys
+
+        Raises:
+            RuntimeError: If no manifest files are available.
+        """
+        if not hasattr(self, 'table_manifests') or not self.table_manifests:
+            raise RuntimeError(
+                "No manifest files found. UNLOAD must complete successfully "
+                "and generate manifest files before migration can proceed."
+            )
+        
+        parquet_keys: list[str] = []
+        total_rows = 0
+        
+        for table_name, manifest_list in self.table_manifests.items():
+            table_files = 0
+            table_rows = 0
+            
+            for manifest_info in manifest_list:
+                files = manifest_info.get("files", [])
+                table_files += len(files)
+                table_rows += manifest_info.get("total_rows", 0)
+                
+                for file_entry in files:
+                    url = file_entry.get("url", "")
+                    if url:
+                        parts = url.replace("s3://", "").split("/", 1)
+                        if len(parts) == 2:
+                            s3_key = parts[1]
+                            parquet_keys.append(s3_key)
+            
+            self.info(f"Table {table_name}: {table_files} files, {table_rows:,} rows from {len(manifest_list)} chunks")
+            total_rows += table_rows
+        
+        if not parquet_keys:
+            raise RuntimeError(
+                "No parquet files found in manifest files. "
+                "UNLOAD may have produced empty results."
+            )
+        
+        self.info(f"Total: {len(parquet_keys)} parquet files, {total_rows:,} rows")
+        return parquet_keys
 
     def generate_metadata(
         self, parquet_file_names: list[str], expiration: int = 604_800
     ) -> dict[str, dict[str, str]]:
         """
-        Generates metadata, including pre-signed URLs for S3 objects.
+        Generates metadata, including presigned URLs for S3 objects.
         This metadata will be a dict[str, dict[str, str]] with the following structure:
 
             {
@@ -291,25 +464,20 @@ class InfluxDBMigrationWrapper:
                 and PUT URLs.
         """
 
-        # Metadata is eventually ingested into InfluxDB v3 and is used by the plugin
-        # to manage states and access S3 using pre-signed (GET and PUT) URLs.
         metadata = {}
 
         for file_key in parquet_file_names:
             try:
-                # Place legal hold object lock on Parquet file.
                 _ = self.s3_client.put_object_legal_hold(
                     Bucket=self.s3_bucket_name, Key=file_key, LegalHold={"Status": "ON"}
                 )
 
-                # Generate pre-signed URLs.
                 presigned_get_url: str = self.s3_client.generate_presigned_url(
                     "get_object",
                     Params={"Bucket": self.s3_bucket_name, "Key": file_key},
                     ExpiresIn=expiration,
                 )
                 # "Done" files (done.ack) will not have an object lock. Object locks for
-                # pre-signed put_object calls are not supported.
                 presigned_done_url: str = self.s3_client.generate_presigned_url(
                     "put_object",
                     Params={
@@ -433,22 +601,36 @@ class InfluxDBMigrationWrapper:
             self.error(f"Failed to write metadata to InfluxDB: ", str(e))
             sys.exit(1)
 
+
     def bulk_invoke_http_trigger(self, metadata):
         """
         Invokes the HTTP migration processing engine trigger for all Parquet files to be migrated.
 
         Args:
-            metadata (dict[str, dict[str, str]]): Mapping of random UUIDs to a file's
-                pre-signed (GET and DELETE) URLs and migration status.
+            metadata (dict[str, dict[str, str]]): Mapping of S3 keys to presigned URLs.
 
         Returns:
             None
         """
+        session = requests.Session()
+        
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=10,
+            max_retries=requests.adapters.Retry(
+                total=3,
+                backoff_factor=1,
+                status_forcelist=[500, 502, 503, 504],
+                allowed_methods=["POST"],
+            ),
+        )
+        session.mount("https://", adapter)
+        session.headers.update({"Connection": "keep-alive"})
+        
         try:
             metadata_table_deleted: bool = False
             url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
             headers = {"Authorization": f"Bearer {self.influx_token}"}
-            num_parquet_files_submitted = 0
             for s3_key in metadata:
                 if (
                     self.max_parquet_files is not None
@@ -456,11 +638,10 @@ class InfluxDBMigrationWrapper:
                 ):
                     break
                 table_name = s3_key.split("/")[1]
-                self.info(
-                    f'Migrating {s3_key} to "{self.influx_database}"."{table_name}"'
-                )
+                self.info(f'Migrating {s3_key} to "{self.influx_database}"."{table_name}"')
                 json_body = {"parquet_path": s3_key}
-                trigger_invocation_response = requests.post(
+                
+                trigger_invocation_response = session.post(
                     url=url,
                     json=json_body,
                     headers=headers,
@@ -468,10 +649,10 @@ class InfluxDBMigrationWrapper:
                 )
                 trigger_invocation_response.raise_for_status()
                 response_body = trigger_invocation_response.json()
+                
                 if response_body["status"] != 200 and response_body["status"] != 202:
-                    raise RuntimeError(
-                        f"Migrating {s3_key} failed: {response_body['message']}"
-                    )
+                    raise RuntimeError(f"Migrating {s3_key} failed: {response_body['message']}")
+                    
                 if not metadata_table_deleted:
                     self.delete_metadata_table()
                     metadata_table_deleted = True
@@ -479,24 +660,27 @@ class InfluxDBMigrationWrapper:
 
             # Final verification invocation.
             verification_params = {"verify": True, "delete_cache": True}
-            final_invocation_response = requests.post(
+            final_invocation_response = session.post(
                 url=url,
                 headers=headers,
                 params=verification_params,
                 timeout=self.timeout_seconds,
             )
             final_invocation_response.raise_for_status()
-            if final_invocation_response.json()["status"] != 200:
-                raise Exception(
-                    f"Final verification failed: {final_invocation_response.json()['message']}"
-                )
+            response_json = final_invocation_response.json()
+            
+            if response_json["status"] != 200:
+                raise Exception(f"Final verification failed: {response_json['message']}")
+            
+            # Store expected table row counts for final verification
+            self.expected_table_row_counts = response_json.get("table_row_counts", {})
+            
         except Exception as e:
-            self.error(
-                f"HTTP invocation failed: {e}. View processing engine logs for more information"
-            )
+            self.error(f"HTTP invocation failed: {e}. View processing engine logs for more information")
             raise
         # Trigger is only deleted when a migration is successful. This allows users to resume a
         # migration if an error occurs.
+        session.close()
         self.delete_trigger()
 
     def get_num_completed_and_total_parquet_files(self):
@@ -674,7 +858,8 @@ class InfluxDBMigrationWrapper:
         else:
             self.info("Resuming migration and skipping unload operations")
 
-        parquet_file_names: list[str] = self.get_s3_objects_list()
+        # Get parquet file list from manifest files (generated during each UNLOAD chunk)
+        parquet_file_names: list[str] = self.get_parquet_files_from_manifests()
 
         metadata: dict[str, dict[str, str]] = self.generate_metadata(
             parquet_file_names=parquet_file_names
@@ -688,6 +873,10 @@ class InfluxDBMigrationWrapper:
         self.write_metadata_to_influxdb(metadata)
         self.create_processing_engine_trigger()
         self.bulk_invoke_http_trigger(metadata)
+        
+        # Final verification: compare expected row counts from plugin with actual InfluxDB counts
+        self.verify_final_row_counts()
+        
         self.delete_unloaded_data()
 
         self.info("Migration wrapper completed successfully")
@@ -753,6 +942,109 @@ class InfluxDBMigrationWrapper:
                     )
 
         return
+
+    def get_expected_row_counts_from_manifests(self) -> dict:
+        """
+        Aggregates expected row counts per table from manifest files in S3 bucket from UNLOAD operation.
+        
+        Returns:
+            dict: Table name to expected total row count.
+        """
+        if not hasattr(self, 'table_manifests') or not self.table_manifests:
+            return {}
+        
+        expected_counts = {}
+        for table_name, manifest_list in self.table_manifests.items():
+            total_rows = 0
+            for manifest_info in manifest_list:
+                total_rows += manifest_info.get("total_rows", 0)
+            expected_counts[table_name] = total_rows
+        
+        return expected_counts
+
+    def verify_final_row_counts(self) -> bool:
+        """
+        Verifies that all tables in the migrated database have the correct row counts
+        by comparing expected counts from S3 manifest files with actual InfluxDB counts.
+        
+        Returns:
+            bool: True if all tables match, False if any mismatch is found.
+        """
+        expected_counts = self.get_expected_row_counts_from_manifests()
+        
+        if not expected_counts:
+            self.warning("No manifest data available for row count verification")
+            return True
+        
+        self.info("Comparing manifest table row counts with InfluxDB table rows")
+        
+        all_verified = True
+        verification_results = []
+        
+        for table_name, expected_count in expected_counts.items():
+            actual_count = None
+            try:
+                query_str = f'SELECT COUNT(*) AS row_count FROM "{table_name}"'
+                result = self.influxdb_client.query(query_str)
+                if result and len(result) > 0:
+                    actual_count = result.column("row_count")[0].as_py()
+            except Exception as e:
+                self.error(f"Failed to query InfluxDB table {table_name}: {e}")
+                actual_count = None
+            
+            if actual_count is None:
+                status = "ERROR"
+                all_verified = False
+            elif actual_count == expected_count:
+                status = "MATCH"
+            elif actual_count < expected_count:
+                status = "DATA_LOSS"
+                all_verified = False
+            else:
+                # More rows than expected - duplicates or overlap
+                status = "EXTRA_ROWS"
+            
+            verification_results.append({
+                "table": table_name,
+                "expected_count": expected_count,
+                "actual_count": actual_count,
+                "status": status,
+            })
+        
+        self.info("")
+        self.info(f"{'Table':<40} {'Manifest':>15} {'InfluxDB':>15} {'Status':>12}")
+        
+        for result in verification_results:
+            expected = f"{result['expected_count']:,}"
+            actual = f"{result['actual_count']:,}" if result['actual_count'] is not None else "ERROR"
+            self.info(f"{result['table']:<40} {expected:>15} {actual:>15} {result['status']:>12}")
+        
+        
+        if all_verified:
+            self.info("Migration successful, all tables verified")
+        else:
+            self.error("Some tables have unexpected row count issues")
+            for result in verification_results:
+                if result["status"] == "DATA_LOSS":
+                    diff = (result['expected_count'] or 0) - (result['actual_count'] or 0)
+                    self.error(
+                        f"  DATA LOSS in '{result['table']}': "
+                        f"Manifest={result['expected_count']:,}, "
+                        f"InfluxDB={result['actual_count']:,}, "
+                        f"Missing={diff:,} rows"
+                    )
+                elif result["status"] == "EXTRA_ROWS":
+                    diff = (result['actual_count'] or 0) - (result['expected_count'] or 0)
+                    self.warning(
+                        f"  EXTRA ROWS in '{result['table']}': "
+                        f"Manifest={result['expected_count']:,}, "
+                        f"InfluxDB={result['actual_count']:,}, "
+                        f"Extra={diff:,} rows (may be from overlapping time ranges)"
+                    )
+                elif result["status"] == "ERROR":
+                    self.error(f"  ERROR querying '{result['table']}'")
+        
+        return all_verified
 
     def verify_bucket(self):
         """
@@ -957,3 +1249,4 @@ Examples:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
