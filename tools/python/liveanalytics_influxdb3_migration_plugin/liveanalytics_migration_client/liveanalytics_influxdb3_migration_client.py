@@ -764,7 +764,7 @@ class InfluxDBMigrationWrapper:
             trigger_payload = {
                 "db": self.influx_database,
                 "trigger_name": TRIGGER_NAME,
-                "plugin_filename": "gh:liveanalytics_migration_plugin/liveanalytics_migration_plugin.py",
+                "plugin_filename": "liveanalytics_migration_plugin/liveanalytics_migration_plugin.py",
                 "trigger_specification": f"request:{TRIGGER_NAME}",  # Creates /api/v3/engine/<TRIGGER_NAME> endpoint.
                 "trigger_settings": {"run_async": False, "error_behavior": "log"},
                 "disabled": "true",
