@@ -76,6 +76,7 @@ class MigrationTestCase(unittest.TestCase):
                 "/usr/lib/influxdb3/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             )
             .with_env("LOG_FILTER", "info")
+            .with_kwargs(mem_limit="8g", memswap_limit="8g")
             .waiting_for(LogMessageWaitStrategy(re.compile(".*startup time.*")))
             .with_bind_ports(container="8181/tcp", host=8183)
             .start()
