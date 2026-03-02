@@ -231,8 +231,7 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
             parquet_path=current_parquet_path,
         )
         migration_records[current_parquet_path]["status"] = MIGRATION_NEEDS_VERIFICATION
-        # Store ingestion stats (row count and time bounds) for efficient verification later
-        # This avoids having to re-read the parquet file from S3 during verification
+        # Store ingestion stats (row count and time bounds) for row count verification
         migration_records[current_parquet_path]["row_count"] = ingestion_stats["row_count"]
         migration_records[current_parquet_path]["min_time_ns"] = ingestion_stats["min_time_ns"]
         migration_records[current_parquet_path]["max_time_ns"] = ingestion_stats["max_time_ns"]
@@ -374,9 +373,9 @@ def verify_previous_migrations(influxdb3_local, migration_id):
                 actual_row_count = query_response[0]["row_count"]
                 
                 # For time-bounded queries: actual >= expected is success
-                # because other parquet files may have overlapping time ranges.
-                # Timestream UNLOAD doesn't guarantee non-overlapping timestamps.
-                # Only fail if actual < expected (data is missing).
+                # because other parquet files may have overlapping time ranges
+                # Timestream UNLOAD doesn't guarantee non-overlapping timestamps
+                # Only fail if actual < expected and data is missing
                 if actual_row_count >= expected_row_count:
                     # Verification passed
                     if actual_row_count > expected_row_count:
@@ -410,7 +409,6 @@ def verify_previous_migrations(influxdb3_local, migration_id):
             else:
                 migration_record["status"] = MIGRATION_COMPLETED
                 migration_records[parquet_path] = migration_record
-                # Update cumulative table count for potential fallback scenarios
                 table_tally = table_counts.get(table_name, 0)
                 table_counts[table_name] = table_tally + current_parquet_row_count
                 influxdb3_local.cache.put(
@@ -555,7 +553,6 @@ def ingest_parquet_file_in_chunks(
     chunk_number = 0
     processing_start_time = time.time()
     
-    # Track time bounds during ingestion for efficient verification later
     min_time_ns = None
     max_time_ns = None
 
@@ -627,7 +624,6 @@ def ingest_parquet_file_in_chunks(
         f"Processing rate: {records_processed / processing_time:.0f} records/second"
     )
     
-    # Return stats for verification
     return {
         "row_count": records_processed,
         "min_time_ns": min_time_ns,

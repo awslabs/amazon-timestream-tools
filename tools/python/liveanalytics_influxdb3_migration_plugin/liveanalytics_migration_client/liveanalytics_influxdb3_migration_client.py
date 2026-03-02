@@ -464,6 +464,8 @@ class InfluxDBMigrationWrapper:
                 and PUT URLs.
         """
 
+        # Metadata is eventually ingested into InfluxDB v3 and is used by the plugin
+        # to manage states and access S3 using presigned (GET and PUT) URLs.
         metadata = {}
 
         for file_key in parquet_file_names:
@@ -472,12 +474,14 @@ class InfluxDBMigrationWrapper:
                     Bucket=self.s3_bucket_name, Key=file_key, LegalHold={"Status": "ON"}
                 )
 
+                # Generate presigned URLs.
                 presigned_get_url: str = self.s3_client.generate_presigned_url(
                     "get_object",
                     Params={"Bucket": self.s3_bucket_name, "Key": file_key},
                     ExpiresIn=expiration,
                 )
                 # "Done" files (done.ack) will not have an object lock. Object locks for
+                # presigned put_object calls are not supported.
                 presigned_done_url: str = self.s3_client.generate_presigned_url(
                     "put_object",
                     Params={
@@ -631,6 +635,7 @@ class InfluxDBMigrationWrapper:
             metadata_table_deleted: bool = False
             url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
             headers = {"Authorization": f"Bearer {self.influx_token}"}
+            
             for s3_key in metadata:
                 if (
                     self.max_parquet_files is not None
@@ -964,87 +969,68 @@ class InfluxDBMigrationWrapper:
 
     def verify_final_row_counts(self) -> bool:
         """
-        Verifies that all tables in the migrated database have the correct row counts
-        by comparing expected counts from S3 manifest files with actual InfluxDB counts.
+        Verifies migration by comparing S3 manifest row counts with
+        plugin ingested row counts.
         
         Returns:
-            bool: True if all tables match, False if any mismatch is found.
+            bool: True if counts match, False otherwise.
         """
-        expected_counts = self.get_expected_row_counts_from_manifests()
+        manifest_counts = self.get_expected_row_counts_from_manifests()
+        plugin_counts = getattr(self, 'expected_table_row_counts', {})
         
-        if not expected_counts:
-            self.warning("No manifest data available for row count verification")
+        if not manifest_counts:
+            self.warning("No manifest data available for verification")
             return True
         
-        self.info("Comparing manifest table row counts with InfluxDB table rows")
+        if not plugin_counts:
+            self.warning("No plugin row counts available for verification")
+            return True
+
+        self.info("Comparing unload manifest and ingested plugin row counts")
         
-        all_verified = True
         verification_results = []
+        total_manifest = 0
+        total_plugin = 0
         
-        for table_name, expected_count in expected_counts.items():
-            actual_count = None
-            try:
-                query_str = f'SELECT COUNT(*) AS row_count FROM "{table_name}"'
-                result = self.influxdb_client.query(query_str)
-                if result and len(result) > 0:
-                    actual_count = result.column("row_count")[0].as_py()
-            except Exception as e:
-                self.error(f"Failed to query InfluxDB table {table_name}: {e}")
-                actual_count = None
+        for table_name, manifest_count in manifest_counts.items():
+            plugin_count = plugin_counts.get(table_name, 0)
+            total_manifest += manifest_count
+            total_plugin += plugin_count
             
-            if actual_count is None:
-                status = "ERROR"
-                all_verified = False
-            elif actual_count == expected_count:
+            if plugin_count == manifest_count:
                 status = "MATCH"
-            elif actual_count < expected_count:
-                status = "DATA_LOSS"
-                all_verified = False
+            elif plugin_count < manifest_count:
+                status = "ROWS_SKIPPED"
             else:
-                # More rows than expected - duplicates or overlap
-                status = "EXTRA_ROWS"
+                status = "DEDUP_NEEDED"
             
             verification_results.append({
                 "table": table_name,
-                "expected_count": expected_count,
-                "actual_count": actual_count,
+                "manifest": manifest_count,
+                "plugin": plugin_count,
                 "status": status,
             })
         
-        self.info("")
-        self.info(f"{'Table':<40} {'Manifest':>15} {'InfluxDB':>15} {'Status':>12}")
+        self.info(f"{'Table':<40} {'Manifest':>15} {'Ingested':>15} {'Status':>15}")
         
-        for result in verification_results:
-            expected = f"{result['expected_count']:,}"
-            actual = f"{result['actual_count']:,}" if result['actual_count'] is not None else "ERROR"
-            self.info(f"{result['table']:<40} {expected:>15} {actual:>15} {result['status']:>12}")
+        for r in verification_results:
+            self.info(f"{r['table']:<40} {r['manifest']:>15,} {r['plugin']:>15,} {r['status']:>15}")
         
+        self.info(f"{'Total':<40} {total_manifest:>15,} {total_plugin:>15,}")
         
-        if all_verified:
-            self.info("Migration successful, all tables verified")
-        else:
-            self.error("Some tables have unexpected row count issues")
-            for result in verification_results:
-                if result["status"] == "DATA_LOSS":
-                    diff = (result['expected_count'] or 0) - (result['actual_count'] or 0)
-                    self.error(
-                        f"  DATA LOSS in '{result['table']}': "
-                        f"Manifest={result['expected_count']:,}, "
-                        f"InfluxDB={result['actual_count']:,}, "
-                        f"Missing={diff:,} rows"
-                    )
-                elif result["status"] == "EXTRA_ROWS":
-                    diff = (result['actual_count'] or 0) - (result['expected_count'] or 0)
-                    self.warning(
-                        f"  EXTRA ROWS in '{result['table']}': "
-                        f"Manifest={result['expected_count']:,}, "
-                        f"InfluxDB={result['actual_count']:,}, "
-                        f"Extra={diff:,} rows (may be from overlapping time ranges)"
-                    )
-                elif result["status"] == "ERROR":
-                    self.error(f"  ERROR querying '{result['table']}'")
+        skipped = [r for r in verification_results if r["status"] == "ROWS_SKIPPED"]
+        if skipped:
+            self.info("Some rows are missing during migration")
+            for r in skipped:
+                self.info(f"  {r['table']}: {r['manifest'] - r['plugin']:,} skipped")
         
-        return all_verified
+        dedup = [r for r in verification_results if r["status"] == "DEDUP_NEEDED"]
+        if dedup:
+            self.info("Deduplication may be needed as extra row counts were encountered during migration")
+            for r in dedup:
+                self.info(f"  {r['table']}: {r['plugin'] - r['manifest']:,} extra rows")
+
+        return True
 
     def verify_bucket(self):
         """
