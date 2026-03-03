@@ -751,9 +751,11 @@ class InfluxDBMigrationWrapper:
                 f"HTTP invocation failed: {e}. View processing engine logs for more information"
             )
             raise
+        finally:
+            session.close()
+
         # Trigger is only deleted when a migration is successful. This allows users to resume a
         # migration if an error occurs.
-        session.close()
         self.delete_trigger()
 
     def get_num_completed_and_total_parquet_files(self):
