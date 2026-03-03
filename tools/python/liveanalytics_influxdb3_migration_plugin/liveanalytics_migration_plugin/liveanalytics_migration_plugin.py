@@ -18,6 +18,9 @@ MIGRATION_NEEDS_VERIFICATION = "needs verification"
 MIGRATION_COMPLETED = "completed"
 MIGRATION_FAILED = "failed"
 
+# 10 minutes.
+GET_PARQUET_TIMEOUT_SECONDS = 600
+
 # Items placed in the cache will stay for
 # seven days.
 CACHE_PUT_TTL_SECONDS = 604800
@@ -42,7 +45,11 @@ class PresignedRangeReader(io.RawIOBase):
         # Reuse session for connection pooling
         self.session = requests.Session()
 
-        head = self.session.get(self.url, headers={"Range": "bytes=0-0"})
+        head = self.session.get(
+            self.url,
+            headers={"Range": "bytes=0-0"},
+            timeout=GET_PARQUET_TIMEOUT_SECONDS,
+        )
         head.raise_for_status()
         self.length = int(head.headers["Content-Range"].split("/")[-1])
 
@@ -222,6 +229,14 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
         error_message = f"{migration_id}: Migration failed: Parquet path {current_parquet_path} not found"
         influxdb3_local.error(error_message)
         return create_http_response(HttpStatus.NOT_FOUND, error_message)
+
+    if (
+        migration_records.get(current_parquet_path, {}).get("status")
+        == MIGRATION_COMPLETED
+    ):
+        return create_http_response(
+            HttpStatus.OK, "Parquet file was previously migrated, skipping migration"
+        )
 
     try:
         presigned_get_url = migration_records[current_parquet_path]["presigned_get_url"]

@@ -96,6 +96,9 @@ class InfluxDBMigrationWrapper:
     def info(self, message: str) -> None:
         self.logger.info(message)
 
+    def debug(self, message: str) -> None:
+        self.logger.debug(message)
+
     def error(self, message: str, error_details: str = "") -> None:
         self.logger.error(f"{message} {error_details}")
 
@@ -378,18 +381,14 @@ class InfluxDBMigrationWrapper:
         Returns:
             dict: Manifest info with 'file_count', 'total_rows', 'files' or None if not found.
         """
-        prefix = (
-            f"{self.liveanalytics_database}/{table_name}/"
-        )
+        prefix = f"{self.liveanalytics_database}/{table_name}/"
 
         self.info(f"Getting manifest file for table {table_name}...")
 
         try:
             paginator = self.s3_client.get_paginator("list_objects_v2")
 
-            for page in paginator.paginate(
-                Bucket=self.s3_bucket_name, Prefix=prefix
-            ):
+            for page in paginator.paginate(Bucket=self.s3_bucket_name, Prefix=prefix):
                 for obj in page.get("Contents", []):
                     key = obj.get("Key", "")
                     if "_manifest" in key:
@@ -745,6 +744,7 @@ class InfluxDBMigrationWrapper:
 
             # Store expected table row counts for final verification
             self.expected_table_row_counts = response_json.get("table_row_counts", {})
+            self.debug(f"Invocation response: {response_json}")
 
         except Exception as e:
             self.error(
