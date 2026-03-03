@@ -198,6 +198,14 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
 
     migration_records = influxdb3_local.cache.get("migration-records", default={})
 
+    if (
+        migration_records.get(current_parquet_path, {}).get("status")
+        == MIGRATION_COMPLETED
+    ):
+        return create_http_response(
+            HttpStatus.OK, "Parquet file was previously migrated, skipping migration"
+        )
+
     # Shared migration_records dict has not been populated. We will assume this is the
     # first invocation and populate it from the metadata table. The metadata table only exists for an hour.
     if not migration_records:
@@ -229,14 +237,6 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
         error_message = f"{migration_id}: Migration failed: Parquet path {current_parquet_path} not found"
         influxdb3_local.error(error_message)
         return create_http_response(HttpStatus.NOT_FOUND, error_message)
-
-    if (
-        migration_records.get(current_parquet_path, {}).get("status")
-        == MIGRATION_COMPLETED
-    ):
-        return create_http_response(
-            HttpStatus.OK, "Parquet file was previously migrated, skipping migration"
-        )
 
     try:
         presigned_get_url = migration_records[current_parquet_path]["presigned_get_url"]
