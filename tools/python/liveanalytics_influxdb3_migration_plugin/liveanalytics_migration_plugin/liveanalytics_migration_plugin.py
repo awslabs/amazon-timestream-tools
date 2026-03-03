@@ -156,28 +156,42 @@ def process_request(
             HttpStatus.INVALID_REQUEST, f"Invalid argument: {str(e)}"
         )
 
-    if "verify" in query_parameters:
+    if "verify" in query_parameters and "delete_cache" in query_parameters:
         response = verify_previous_migrations(influxdb3_local, migration_id)
-        if "delete_cache" in query_parameters:
-            deleted_migration_records = influxdb3_local.cache.delete(
-                "migration-records"
+        deleted_migration_records = influxdb3_local.cache.delete("migration-records")
+        if deleted_migration_records:
+            influxdb3_local.info("Deleted migration records from in-memory cache")
+        else:
+            influxdb3_local.error(
+                "Failed to delete migration records from in-memory cache"
             )
-            if deleted_migration_records:
-                influxdb3_local.info("Deleted migration records from in-memory cache")
-            else:
-                influxdb3_local.error(
-                    "Failed to delete migration records from in-memory cache"
-                )
-            deleted_table_counts = influxdb3_local.cache.delete(
-                "migration-table-counts"
-            )
-            if deleted_table_counts:
-                influxdb3_local.info("Deleted table counts from in-memmory cache")
-            else:
-                influxdb3_local.error(
-                    "Failed to delete table counts from in-memory cache"
-                )
+        deleted_table_counts = influxdb3_local.cache.delete("migration-table-counts")
+        if deleted_table_counts:
+            influxdb3_local.info("Deleted table counts from in-memmory cache")
+        else:
+            influxdb3_local.error("Failed to delete table counts from in-memory cache")
         return response
+
+    if "verify" in query_parameters:
+        return verify_previous_migrations(influxdb3_local, migration_id)
+    if "delete_cache" in query_parameters:
+        deleted_migration_records = influxdb3_local.cache.delete("migration-records")
+        if deleted_migration_records:
+            influxdb3_local.info("Deleted migration records from in-memory cache")
+        else:
+            return create_http_response(
+                HttpStatus.INTERNAL_ERROR,
+                "Failed to delete migration records from in-memory cache",
+            )
+        deleted_table_counts = influxdb3_local.cache.delete("migration-table-counts")
+        if deleted_table_counts:
+            influxdb3_local.info("Deleted table counts from in-memmory cache")
+        else:
+            return create_http_response(
+                HttpStatus.INTERNAL_ERROR,
+                "Failed to delete table counts from in-memory cache",
+            )
+        return create_http_response(HttpStatus.OK, "Cache deleted")
 
     # Body of the incoming request.
     data = {}

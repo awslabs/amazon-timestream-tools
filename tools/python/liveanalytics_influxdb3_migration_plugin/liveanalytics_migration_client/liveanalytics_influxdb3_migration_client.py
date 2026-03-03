@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 
 MIGRATION_METADATA_TABLE: str = "liveanalytics_migration_metadata"
 TRIGGER_NAME: str = "migration_trigger"
-UNLOAD_WAIT_SECONDS: int = 20
+UNLOAD_WAIT_SECONDS: int = 10
 
 
 class InfluxDBMigrationWrapper:
@@ -594,6 +594,9 @@ class InfluxDBMigrationWrapper:
                 self.error(f"Error creating database: ", str(e))
                 return False
 
+            if not self.resume_migration:
+                self.delete_metadata_table(silence_errors=True)
+
             # Create metadata table with 1h retention period.
             self.info(f"Creating {MIGRATION_METADATA_TABLE} table with 1h retention")
             table_url: str = f"{self.influx_host}/api/v3/configure/table"
@@ -690,10 +693,20 @@ class InfluxDBMigrationWrapper:
         session.mount("https://", adapter)
         session.headers.update({"Connection": "keep-alive"})
 
+        url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
+        headers = {"Authorization": f"Bearer {self.influx_token}"}
+
+        # For a new migration, delete the trigger cache.
+        if not self.resume_migration:
+            params = {"delete_cache": True}
+            _ = session.post(
+                url=url,
+                headers=headers,
+                params=params,
+                timeout=self.timeout_seconds,
+            )
         try:
             metadata_table_deleted: bool = False
-            url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
-            headers = {"Authorization": f"Bearer {self.influx_token}"}
             num_parquet_files_submitted = 0
             for s3_key in metadata:
                 if (
@@ -827,7 +840,7 @@ class InfluxDBMigrationWrapper:
             self.error("Failed to delete processing engine trigger:", str(e))
         return
 
-    def delete_metadata_table(self):
+    def delete_metadata_table(self, silence_errors: bool = False):
         """
         Deletes the InfluxDB v3 migration metadata table.
 
@@ -854,9 +867,10 @@ class InfluxDBMigrationWrapper:
             delete_table_response.raise_for_status()
             self.info(f'Deleted "{self.influx_database}"."{MIGRATION_METADATA_TABLE}"')
         except Exception as e:
-            self.error(
-                f'Failed to delete "{self.liveanalytics_database}"."{MIGRATION_METADATA_TABLE}": {e}'
-            )
+            if not silence_errors:
+                self.error(
+                    f'Failed to delete "{self.liveanalytics_database}"."{MIGRATION_METADATA_TABLE}": {e}'
+                )
 
     def create_processing_engine_trigger(self):
         """
