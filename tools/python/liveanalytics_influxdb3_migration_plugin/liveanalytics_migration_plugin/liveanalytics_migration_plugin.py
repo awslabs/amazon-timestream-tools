@@ -411,7 +411,7 @@ def verify_previous_migrations(influxdb3_local, migration_id):
                 migration_record["status"] = MIGRATION_FAILED
                 migration_records[parquet_path] = migration_record
                 influxdb3_local.cache.put(
-                    key=f"{migration_id}-records",
+                    key="migration-records",
                     value=migration_records,
                     ttl=CACHE_PUT_TTL_SECONDS,
                 )
@@ -422,12 +422,12 @@ def verify_previous_migrations(influxdb3_local, migration_id):
                 table_tally = table_counts.get(table_name, 0)
                 table_counts[table_name] = table_tally + current_parquet_row_count
                 influxdb3_local.cache.put(
-                    key=f"{migration_id}-table-counts",
+                    key="migration-table-counts",
                     value=table_counts,
                     ttl=CACHE_PUT_TTL_SECONDS,
                 )
                 influxdb3_local.cache.put(
-                    key=f"{migration_id}-records",
+                    key="migration-records",
                     value=migration_records,
                     ttl=CACHE_PUT_TTL_SECONDS,
                 )
