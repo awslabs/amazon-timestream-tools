@@ -167,7 +167,7 @@ def process_request(
             )
         deleted_table_counts = influxdb3_local.cache.delete("migration-table-counts")
         if deleted_table_counts:
-            influxdb3_local.info("Deleted table counts from in-memmory cache")
+            influxdb3_local.info("Deleted table counts from in-memory cache")
         else:
             influxdb3_local.error("Failed to delete table counts from in-memory cache")
         return response
@@ -185,7 +185,7 @@ def process_request(
             )
         deleted_table_counts = influxdb3_local.cache.delete("migration-table-counts")
         if deleted_table_counts:
-            influxdb3_local.info("Deleted table counts from in-memmory cache")
+            influxdb3_local.info("Deleted table counts from in-memory cache")
         else:
             return create_http_response(
                 HttpStatus.INTERNAL_ERROR,
@@ -216,9 +216,9 @@ def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet
         migration_records.get(current_parquet_path, {}).get("status")
         == MIGRATION_COMPLETED
     ):
-        return create_http_response(
-            HttpStatus.OK, "Parquet file was previously migrated, skipping migration"
-        )
+        message = f"Parquet file was previously migrated, skipping migration of {current_parquet_path}"
+        influxdb3_local.info(message)
+        return create_http_response(HttpStatus.OK, message)
 
     # Shared migration_records dict has not been populated. We will assume this is the
     # first invocation and populate it from the metadata table. The metadata table only exists for an hour.
