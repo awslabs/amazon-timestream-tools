@@ -651,6 +651,130 @@ class MigrationTestCase(unittest.TestCase):
             influxdb_v3_table_count,
         )
 
+    def test_migration_basic_resume_multiple_chunks(self):
+        """
+        Tests migrating multiple chunks with --resume.
+
+        This test will generate 3 chunks, assuming each chunk fits 99 days.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=200)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = current_time
+        assert isinstance(end_time, pandas.Timestamp)
+
+        current_record_time = start_time
+
+        print("Generating data")
+        records = []
+        for _ in range(200):
+            dimensions = [
+                {
+                    "Name": "hostname",
+                    "Value": self.get_random_string(12),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "region",
+                    "Value": self.get_random_string(18),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "statat",
+                    "Value": self.get_random_string(2),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "mono",
+                    "Value": self.get_random_string(25),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "som",
+                    "Value": self.get_random_string(10),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "cher",
+                    "Value": self.get_random_string(4),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "no",
+                    "Value": self.get_random_string(15),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "sine",
+                    "Value": self.get_random_string(26),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "reno",
+                    "Value": self.get_random_string(11),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "sing",
+                    "Value": self.get_random_string(6),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "bus",
+                    "Value": self.get_random_string(18),
+                    "DimensionValueType": "VARCHAR",
+                },
+            ]
+            record = {
+                "Dimensions": dimensions,
+                "MeasureName": "cpu_utilization",
+                "MeasureValue": self.get_random_string(25),
+                "MeasureValueType": "VARCHAR",
+                "Time": str(current_record_time.value),
+                "TimeUnit": "NANOSECONDS",
+            }
+            records.append(record)
+            current_record_time = current_record_time + pandas.Timedelta(days=1)
+        self.put_records(records)
+
+        print("Migrating")
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--max-parquet-files",
+                "1",
+            ]
+        )
+        # Since not all files are migrated, final verification will fail.
+        self.assertEqual(return_code, 1)
+
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--resume",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        print(f"Table counts: {la_table_count}, {influxdb_v3_table_count}")
+        self.assertEqual(
+            la_table_count,
+            influxdb_v3_table_count,
+        )
+
     def test_edge_case_migration(self):
         """
         Migrates all data from the test-data directory.

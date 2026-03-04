@@ -141,6 +141,22 @@ class InfluxDBMigrationWrapper:
         for table in tables:
             self.unload_table(table, resume)
 
+            # Set manifest information.
+            manifest_info = self.get_manifest_files(table)
+            if manifest_info:
+                if not hasattr(self, "table_manifests"):
+                    self.table_manifests = {}
+                self.table_manifests[table] = manifest_info
+                file_count = 0
+                row_count = 0
+                for manifest in manifest_info:
+                    file_count += manifest.get("file_count", 0)
+                    row_count += manifest.get("total_rows", 0)
+                self.info(
+                    f"Manifest information for {table}: {file_count} files, "
+                    f"{row_count} rows"
+                )
+
     def unload_table(self, table_name: str, resume: bool = False) -> None:
         """
         Unloads a specific table from Timestream for LiveAnalytics to S3.
@@ -353,25 +369,12 @@ class InfluxDBMigrationWrapper:
                 error_code = e.response.get("Error", {}).get("Code", "")
                 raise RuntimeError(f"UNLOAD chunk failed: {error_code} - {str(e)}")
 
-        # Set manifest information.
-        manifest_info = self.get_manifest_file(table_name)
-        if manifest_info:
-            if not hasattr(self, "table_manifests"):
-                self.table_manifests = {}
-            if table_name not in self.table_manifests:
-                self.table_manifests[table_name] = []
-            self.table_manifests[table_name].append(manifest_info)
-            self.info(
-                f"Chunk {chunk_num} manifest: {manifest_info['file_count']} files, "
-                f"{manifest_info['total_rows']:,} rows"
-            )
-
-    def get_manifest_file(
+    def get_manifest_files(
         self,
         table_name: str,
-    ) -> dict | None:
+    ) -> list[dict] | None:
         """
-        Gets the manifest file for a chunk from S3.
+        Gets the manifest file for a table and each chunk from S3.
         The manifest file contains the complete list of parquet files and row counts.
 
         Args:
@@ -383,7 +386,9 @@ class InfluxDBMigrationWrapper:
         """
         prefix = f"{self.liveanalytics_database}/{table_name}/"
 
-        self.info(f"Getting manifest file for table {table_name}...")
+        self.info(f"Getting manifest files for table {table_name}...")
+
+        manifests = []
 
         try:
             paginator = self.s3_client.get_paginator("list_objects_v2")
@@ -393,13 +398,15 @@ class InfluxDBMigrationWrapper:
                     key = obj.get("Key", "")
                     if "_manifest" in key:
                         self.info(f"Found manifest file: {key}")
-                        return self.parse_manifest_file(key)
+                        manifests.append(self.parse_manifest_file(key))
 
         except Exception as e:
             self.warning(f"Error checking for manifest file: {e}")
 
-        self.error(f"Manifest file not found for table {table_name}")
-        return None
+        if not manifests:
+            self.error(f"Manifest file not found for table {table_name}")
+            return None
+        return manifests
 
     def parse_manifest_file(self, manifest_key: str) -> dict | None:
         """
@@ -1044,6 +1051,8 @@ class InfluxDBMigrationWrapper:
         for table_name, manifest_list in self.table_manifests.items():
             total_rows = 0
             for manifest_info in manifest_list:
+                self.info("Manifest info: ")
+                self.info(manifest_info)
                 total_rows += manifest_info.get("total_rows", 0)
             expected_counts[table_name] = total_rows
 
@@ -1059,6 +1068,8 @@ class InfluxDBMigrationWrapper:
         """
         manifest_counts = self.get_expected_row_counts_from_manifests()
         plugin_counts = getattr(self, "expected_table_row_counts", {})
+        self.info("Plugin counts")
+        self.info(plugin_counts)
 
         if not manifest_counts:
             self.warning("No manifest data available for verification")
