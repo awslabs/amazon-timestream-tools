@@ -822,7 +822,14 @@ class InfluxDBMigrationWrapper:
                 num_parquet_files_submitted += 1
 
             # Final verification invocation.
-            verification_params = {"verify": True, "delete_cache": True}
+            is_partial_migration = (
+                self.max_parquet_files is not None
+                and self.max_parquet_files < len(metadata)
+            )
+            if is_partial_migration:
+                verification_params = {"verify": True}
+            else:
+                verification_params = {"verify": True, "delete_cache": True}
             final_invocation_response = session.post(
                 url=url,
                 headers=headers,
