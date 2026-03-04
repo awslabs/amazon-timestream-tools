@@ -66,7 +66,8 @@ class MigrationTestCase(unittest.TestCase):
                     "--node-id=my-node-0 "
                     "--object-store=file "
                     "--data-dir=/var/lib/influxdb3/data "
-                    "--plugin-dir=/var/lib/influxdb3/plugins"
+                    "--plugin-dir=/var/lib/influxdb3/plugins "
+                    "--query-file-limit=5000"
                 ),
                 volumes=[(str(plugin_dir), "/var/lib/influxdb3/plugins", "rw")],
             )
@@ -75,6 +76,7 @@ class MigrationTestCase(unittest.TestCase):
                 "/usr/lib/influxdb3/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             )
             .with_env("LOG_FILTER", "info")
+            .with_kwargs(mem_limit="8g", memswap_limit="8g")
             .waiting_for(LogMessageWaitStrategy(re.compile(".*startup time.*")))
             .with_bind_ports(container="8181/tcp", host=8183)
             .start()
@@ -363,11 +365,15 @@ class MigrationTestCase(unittest.TestCase):
             executor.map(self.post_records, batches)
 
     def post_records(self, batch):
-        self.timestream_write_client.write_records(
-            DatabaseName=self.la_database_name,
-            TableName=self.la_table_name,
-            Records=batch,
-        )
+        try:
+            self.timestream_write_client.write_records(
+                DatabaseName=self.la_database_name,
+                TableName=self.la_table_name,
+                Records=batch,
+            )
+        except Exception as e:
+            print(str(e))
+            raise
 
     @staticmethod
     def get_random_string(length: int):
@@ -440,6 +446,63 @@ class MigrationTestCase(unittest.TestCase):
             "Time": str(start_time.value),
             "TimeUnit": "NANOSECONDS",
         }
+        self.put_records([record])
+
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+            ]
+        )
+
+        self.assertEqual(return_code, 0)
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        print(f"Table counts: {la_table_count}, {influxdb_v3_table_count}")
+        self.assertEqual(
+            la_table_count,
+            influxdb_v3_table_count,
+        )
+
+    def test_migration_basic_timestamps(self):
+        """
+        Tests basic migration of a single table where the table's only
+        record uses a timestamp as its measure value.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=30)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = start_time + pandas.Timedelta(days=1)
+        assert isinstance(end_time, pandas.Timestamp)
+
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+        ]
+
+        # Only multi-measure records can use TIMESTAMP as a measure type.
+        record = {
+            "Dimensions": dimensions,
+            "MeasureName": "cpu_utilization",
+            "MeasureValueType": "MULTI",
+            "Time": str(start_time.value),
+            "TimeUnit": "NANOSECONDS",
+            "MeasureValues": [
+                {
+                    "Name": "request_time",
+                    "Value": str(start_time.value),
+                    "Type": "TIMESTAMP",
+                }
+            ],
+        }
+
         self.put_records([record])
 
         return_code = liveanalytics_influxdb3_migration_client.main(
@@ -588,6 +651,84 @@ class MigrationTestCase(unittest.TestCase):
             influxdb_v3_table_count,
         )
 
+    def test_migration_basic_resume_multiple_chunks(self):
+        """
+        Tests migrating multiple chunks with --resume.
+
+        This test will generate 3 chunks, assuming each chunk fits 99 days.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=200)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = current_time
+        assert isinstance(end_time, pandas.Timestamp)
+
+        current_record_time = start_time
+
+        print("Generating data")
+        records = []
+        dimensions = [
+            {
+                "Name": "hostname",
+                "Value": self.get_random_string(12),
+                "DimensionValueType": "VARCHAR",
+            },
+            {
+                "Name": "region",
+                "Value": self.get_random_string(18),
+                "DimensionValueType": "VARCHAR",
+            },
+        ]
+        for _ in range(200):
+            record = {
+                "Dimensions": dimensions,
+                "MeasureName": "cpu_utilization",
+                "MeasureValue": self.get_random_string(25),
+                "MeasureValueType": "VARCHAR",
+                "Time": str(current_record_time.value),
+                "TimeUnit": "NANOSECONDS",
+            }
+            records.append(record)
+            current_record_time = current_record_time + pandas.Timedelta(days=1)
+        self.put_records(records)
+
+        print("Migrating")
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--max-parquet-files",
+                "1",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--resume",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        print(f"Table counts: {la_table_count}, {influxdb_v3_table_count}")
+        self.assertEqual(
+            la_table_count,
+            influxdb_v3_table_count,
+        )
+
     def test_edge_case_migration(self):
         """
         Migrates all data from the test-data directory.
@@ -692,6 +833,132 @@ class MigrationTestCase(unittest.TestCase):
         )
 
         self.assertEqual(return_code, 0)
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        print(f"Table counts: {la_table_count}, {influxdb_v3_table_count}")
+        self.assertEqual(
+            la_table_count,
+            influxdb_v3_table_count,
+        )
+
+    @pytest.mark.slow
+    def test_migration_massive_resume(self):
+        """
+        Tests migrating 2,000,000 records with --resume.
+
+        This tests assumes that migrating 2,000,000 records results in
+        two Parquet files. The test migrates the first with --max-parquet-files
+        equal to 1, then does a resume, migrating the second Parquet file.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=30)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = start_time + pandas.Timedelta(days=1)
+        assert isinstance(end_time, pandas.Timestamp)
+
+        current_record_time = start_time
+
+        print("Generating data")
+        records = []
+        for _ in range(2_000_000):
+            dimensions = [
+                {
+                    "Name": "hostname",
+                    "Value": self.get_random_string(12),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "region",
+                    "Value": self.get_random_string(18),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "statat",
+                    "Value": self.get_random_string(2),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "mono",
+                    "Value": self.get_random_string(25),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "som",
+                    "Value": self.get_random_string(10),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "cher",
+                    "Value": self.get_random_string(4),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "no",
+                    "Value": self.get_random_string(15),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "sine",
+                    "Value": self.get_random_string(26),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "reno",
+                    "Value": self.get_random_string(11),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "sing",
+                    "Value": self.get_random_string(6),
+                    "DimensionValueType": "VARCHAR",
+                },
+                {
+                    "Name": "bus",
+                    "Value": self.get_random_string(18),
+                    "DimensionValueType": "VARCHAR",
+                },
+            ]
+            record = {
+                "Dimensions": dimensions,
+                "MeasureName": "cpu_utilization",
+                "MeasureValue": self.get_random_string(25),
+                "MeasureValueType": "VARCHAR",
+                "Time": str(current_record_time.value),
+                "TimeUnit": "NANOSECONDS",
+            }
+            records.append(record)
+            current_record_time = current_record_time + pandas.Timedelta(1, unit="ns")
+        self.put_records(records)
+
+        print("Migrating")
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--max-parquet-files",
+                "1",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--resume",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
         la_table_count = self.check_live_analytics_table_count(
             database_name=self.la_database_name, table_name=self.la_table_name
         )
