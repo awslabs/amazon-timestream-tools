@@ -1051,8 +1051,6 @@ class InfluxDBMigrationWrapper:
         for table_name, manifest_list in self.table_manifests.items():
             total_rows = 0
             for manifest_info in manifest_list:
-                self.info("Manifest info: ")
-                self.info(manifest_info)
                 total_rows += manifest_info.get("total_rows", 0)
             expected_counts[table_name] = total_rows
 
@@ -1068,8 +1066,6 @@ class InfluxDBMigrationWrapper:
         """
         manifest_counts = self.get_expected_row_counts_from_manifests()
         plugin_counts = getattr(self, "expected_table_row_counts", {})
-        self.info("Plugin counts")
-        self.info(plugin_counts)
 
         if not manifest_counts:
             self.warning("No manifest data available for verification")
