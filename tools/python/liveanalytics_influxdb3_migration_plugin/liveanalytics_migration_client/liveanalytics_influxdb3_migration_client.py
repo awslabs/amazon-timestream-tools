@@ -504,6 +504,81 @@ class InfluxDBMigrationWrapper:
         self.info(f"Total: {len(parquet_keys)} parquet files, {total_rows:,} rows")
         return parquet_keys
 
+    def get_s3_objects_list(
+        self, wait_period_seconds=20, max_wait_seconds=1_800
+    ) -> list[str]:
+        """
+        Gets a list of parquet files in an S3 bucket.
+
+        Returns:
+            list[str]: List of parquet file keys
+        """
+
+        parquet_keys: set[str] = set()
+        processed_keys: set[str] = set()
+        files_to_migrate: set[str] = set()
+
+        total_wait_seconds = 0
+        while total_wait_seconds < max_wait_seconds:
+            try:
+                # Use paginator to handle large buckets.
+                paginator = self.s3_client.get_paginator("list_objects_v2")
+                page_iterator = paginator.paginate(
+                    Bucket=self.s3_bucket_name, Prefix=self.liveanalytics_database
+                )
+
+                for page in page_iterator:
+                    for obj in page.get("Contents", []):
+                        key = obj.get("Key")
+                        if not key:
+                            continue
+                        if key.endswith(".parquet"):
+                            self.debug(f"Parquet file size: {obj.get('Size')} bytes")
+                            parquet_keys.add(key)
+                        if key.endswith("done.ack"):
+                            processed_keys.add(key.strip("/done.ack"))
+                files_to_migrate = parquet_keys - processed_keys
+
+            except ClientError as e:
+                error_code: str = e.response.get("Error", {}).get("Code", "")
+                if error_code == "NoSuchBucket":
+                    self.info(
+                        "Error: Bucket " + self.s3_bucket_name + " does not exist."
+                    )
+                elif error_code == "AccessDenied":
+                    self.info(
+                        "Error: Access denied to bucket "
+                        + self.s3_bucket_name
+                        + ". Check your AWS credentials and permissions."
+                    )
+                else:
+                    self.info(
+                        "Error listing objects in bucket "
+                        + self.s3_bucket_name
+                        + ": "
+                        + str(e)
+                    )
+                return []
+            except Exception as e:
+                self.info("Unexpected error while listing objects: " + str(e))
+                return []
+
+            if len(files_to_migrate) == 0:
+                if total_wait_seconds + wait_period_seconds >= max_wait_seconds:
+                    raise RuntimeError(
+                        f"No Parquet files found in {self.s3_bucket_name}"
+                    )
+                self.warning(
+                    f"No parquet files found in bucket {self.s3_bucket_name}. Retrying"
+                )
+                total_wait_seconds += wait_period_seconds
+                time.sleep(wait_period_seconds)
+            else:
+                break
+
+        self.info(f"Found {len(files_to_migrate)} parquet files")
+        return list(files_to_migrate)
+
     def generate_metadata(
         self, parquet_file_names: list[str], expiration: int = 604_800
     ) -> dict[str, dict[str, str]]:
@@ -758,6 +833,14 @@ class InfluxDBMigrationWrapper:
             response_json = final_invocation_response.json()
 
             if response_json["status"] != 200:
+                if self.max_parquet_files is not None and self.max_parquet_files < len(
+                    metadata
+                ):
+                    num_remaining_files = len(metadata) - self.max_parquet_files
+                    self.warning(
+                        f"{self.max_parquet_files} files have been migrated, {num_remaining_files} remain. Final verification failed: {response_json['message']}"
+                    )
+                    return
                 raise Exception(
                     f"Final verification failed: {response_json['message']}"
                 )
@@ -953,7 +1036,7 @@ class InfluxDBMigrationWrapper:
         self.unload_db(self.resume_migration)
 
         # Get parquet file list from manifest files (generated during each UNLOAD chunk)
-        parquet_file_names: list[str] = self.get_parquet_files_from_manifests()
+        parquet_file_names: list[str] = self.get_s3_objects_list()
 
         metadata: dict[str, dict[str, str]] = self.generate_metadata(
             parquet_file_names=parquet_file_names
@@ -967,6 +1050,11 @@ class InfluxDBMigrationWrapper:
         self.write_metadata_to_influxdb(metadata)
         self.create_processing_engine_trigger()
         self.bulk_invoke_http_trigger(metadata)
+        if self.max_parquet_files is not None and self.max_parquet_files < len(
+            metadata
+        ):
+            self.warning("Migration partially completed")
+            return
 
         # Final verification: compare expected row counts from plugin with actual InfluxDB counts
         self.verify_final_row_counts()

@@ -668,64 +668,19 @@ class MigrationTestCase(unittest.TestCase):
 
         print("Generating data")
         records = []
+        dimensions = [
+            {
+                "Name": "hostname",
+                "Value": self.get_random_string(12),
+                "DimensionValueType": "VARCHAR",
+            },
+            {
+                "Name": "region",
+                "Value": self.get_random_string(18),
+                "DimensionValueType": "VARCHAR",
+            },
+        ]
         for _ in range(200):
-            dimensions = [
-                {
-                    "Name": "hostname",
-                    "Value": self.get_random_string(12),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "region",
-                    "Value": self.get_random_string(18),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "statat",
-                    "Value": self.get_random_string(2),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "mono",
-                    "Value": self.get_random_string(25),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "som",
-                    "Value": self.get_random_string(10),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "cher",
-                    "Value": self.get_random_string(4),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "no",
-                    "Value": self.get_random_string(15),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "sine",
-                    "Value": self.get_random_string(26),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "reno",
-                    "Value": self.get_random_string(11),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "sing",
-                    "Value": self.get_random_string(6),
-                    "DimensionValueType": "VARCHAR",
-                },
-                {
-                    "Name": "bus",
-                    "Value": self.get_random_string(18),
-                    "DimensionValueType": "VARCHAR",
-                },
-            ]
             record = {
                 "Dimensions": dimensions,
                 "MeasureName": "cpu_utilization",
@@ -749,8 +704,7 @@ class MigrationTestCase(unittest.TestCase):
                 "1",
             ]
         )
-        # Since not all files are migrated, final verification will fail.
-        self.assertEqual(return_code, 1)
+        self.assertEqual(return_code, 0)
 
         return_code = liveanalytics_influxdb3_migration_client.main(
             [
@@ -992,8 +946,7 @@ class MigrationTestCase(unittest.TestCase):
                 "1",
             ]
         )
-        # Since not all files are migrated, final verification will fail.
-        self.assertEqual(return_code, 1)
+        self.assertEqual(return_code, 0)
 
         return_code = liveanalytics_influxdb3_migration_client.main(
             [
