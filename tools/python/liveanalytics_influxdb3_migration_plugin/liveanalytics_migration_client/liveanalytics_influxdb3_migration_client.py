@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 MIGRATION_METADATA_TABLE: str = "liveanalytics_migration_metadata"
 TRIGGER_NAME: str = "migration_trigger"
+UNLOAD_WAIT_SECONDS: int = 10
 
 
 class InfluxDBMigrationWrapper:
@@ -34,6 +35,7 @@ class InfluxDBMigrationWrapper:
         resume_migration: bool = False,
         timeout_seconds: int = 120,
         region: str = "us-west-2",
+        max_parquet_files: int | None = None,
     ) -> None:
         """
         Initialize
@@ -44,6 +46,7 @@ class InfluxDBMigrationWrapper:
             resume_migration (bool): Whether to resume an existing migration, skipping unload operations.
             timeout_seconds (int): The number of seconds to wait for each migration request.
             region (str): The AWS Region to use.
+            max_parquet_files (int | None): The maximum number of Parquet files to migrate.
 
         Returns:
             None
@@ -53,6 +56,7 @@ class InfluxDBMigrationWrapper:
         self.resume_migration: bool = resume_migration
         self.timeout_seconds: int = timeout_seconds
         self.region: str = region
+        self.max_parquet_files: int | None = max_parquet_files
 
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -92,13 +96,16 @@ class InfluxDBMigrationWrapper:
     def info(self, message: str) -> None:
         self.logger.info(message)
 
+    def debug(self, message: str) -> None:
+        self.logger.debug(message)
+
     def error(self, message: str, error_details: str = "") -> None:
         self.logger.error(f"{message} {error_details}")
 
     def warning(self, message: str) -> None:
         self.logger.warning(message)
 
-    def unload_db(self) -> None:
+    def unload_db(self, resume: bool = False) -> None:
         """
         Unloads an entire database from Timestream for LiveAnalytics to S3.
 
@@ -132,9 +139,25 @@ class InfluxDBMigrationWrapper:
         self.info(f"Found {len(tables)} tables to unload: {tables}")
 
         for table in tables:
-            self.unload_table(table)
+            self.unload_table(table, resume)
 
-    def unload_table(self, table_name: str) -> None:
+            # Set manifest information.
+            manifest_info = self.get_manifest_files(table)
+            if manifest_info:
+                if not hasattr(self, "table_manifests"):
+                    self.table_manifests = {}
+                self.table_manifests[table] = manifest_info
+                file_count = 0
+                row_count = 0
+                for manifest in manifest_info:
+                    file_count += manifest.get("file_count", 0)
+                    row_count += manifest.get("total_rows", 0)
+                self.info(
+                    f"Manifest information for {table}: {file_count} files, "
+                    f"{row_count} rows"
+                )
+
+    def unload_table(self, table_name: str, resume: bool = False) -> None:
         """
         Unloads a specific table from Timestream for LiveAnalytics to S3.
         Splits the UNLOAD into multiple queries, each covering at most 99 days
@@ -142,6 +165,8 @@ class InfluxDBMigrationWrapper:
 
         Args:
             table_name (str): Name of the table to unload.
+            resume (bool): Whether a migration is being resumed. If this is
+                True, no UNLOAD queries will be sent.
 
         Returns:
             None
@@ -149,8 +174,6 @@ class InfluxDBMigrationWrapper:
         Raises:
             RuntimeError: If UNLOAD fails, indicating partial writes may exist in S3.
         """
-        self.info(f"Unloading table: {table_name}")
-
         try:
             time_range = self.get_table_time_range(table_name)
             if not time_range:
@@ -167,7 +190,9 @@ class InfluxDBMigrationWrapper:
             max_days_per_chunk = 99
             num_chunks = (total_days + max_days_per_chunk - 1) // max_days_per_chunk
 
-            self.info(f"Splitting UNLOAD into {num_chunks} chunk(s)")
+            self.info(
+                f"Dataset will be chronologically split into {num_chunks} chunk(s)"
+            )
 
             chunk_start = min_time
             chunk_num = 0
@@ -185,7 +210,9 @@ class InfluxDBMigrationWrapper:
                     f"UNLOAD chunk {chunk_num}/{num_chunks}: {chunk_start.date()} to {chunk_end.date()}"
                 )
 
-                self.unload_table_chunk(table_name, start_str, end_str, chunk_num)
+                self.unload_table_chunk(
+                    table_name, start_str, end_str, chunk_num, resume
+                )
 
                 chunk_start = chunk_end + timedelta(days=1)
 
@@ -222,6 +249,18 @@ class InfluxDBMigrationWrapper:
                 """
             )
 
+            next_token = response.get("NextToken")
+            while next_token is not None:
+                response = self.timestream_query_client.query(
+                    NextToken=next_token,
+                    QueryString=f"""
+                    SELECT min(time) as min_time, max(time) as max_time 
+                    FROM "{self.liveanalytics_database}"."{table_name}"
+                """,
+                )
+                next_token = response.get("NextToken")
+                time.sleep(UNLOAD_WAIT_SECONDS)
+
             rows = response.get("Rows", [])
             if not rows:
                 return None
@@ -252,7 +291,12 @@ class InfluxDBMigrationWrapper:
             return None
 
     def unload_table_chunk(
-        self, table_name: str, start_time: str, end_time: str, chunk_num: int
+        self,
+        table_name: str,
+        start_time: str,
+        end_time: str,
+        chunk_num: int,
+        resume: bool = False,
     ) -> None:
         """
         Unloads a time-bounded chunk of a table to S3 with partition_by day.
@@ -263,103 +307,106 @@ class InfluxDBMigrationWrapper:
             start_time (str): Start time (inclusive) in format 'YYYY-MM-DD HH:MM:SS'.
             end_time (str): End time (exclusive) in format 'YYYY-MM-DD HH:MM:SS'.
             chunk_num (int): Chunk number for unique S3 path.
+            resume (bool): Whether a migration is being resumed. If this is True, no UNLOAD
+                queries will be sent.
         """
-        try:
-            chunk_path = f"s3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}/chunk_{chunk_num:03d}"
+        # Unload from Timestream for LiveAnalytics to S3.
+        if not resume:
+            self.info(f"Unloading table: {table_name}")
+            try:
+                chunk_path = f"s3://{self.s3_bucket_name}/{self.liveanalytics_database}/{table_name}/chunk_{chunk_num:03d}"
 
-            # Use partition_by for smaller files (one per day)
-            response = self.timestream_query_client.query(
-                QueryString=f"""
-                    UNLOAD (
-                        SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
-                        FROM "{self.liveanalytics_database}"."{table_name}"
-                        WHERE time >= '{start_time}' AND time < '{end_time}'
-                    ) 
-                    TO '{chunk_path}' 
-                    WITH (partitioned_by = ARRAY['partition_date'], 
-                          format = 'PARQUET', 
-                          max_file_size='16MB', 
-                          compression = 'NONE')
-                """
-            )
-
-            http_status = response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
-            if http_status < 200 or http_status >= 300:
-                raise RuntimeError(f"UNLOAD chunk returned HTTP {http_status}")
-
-            self.info(f"UNLOAD chunk completed")
-
-            # Wait for manifest file and store info
-            manifest_info = self.wait_for_manifest_file(table_name, chunk_num)
-            if manifest_info:
-                if not hasattr(self, "table_manifests"):
-                    self.table_manifests = {}
-                if table_name not in self.table_manifests:
-                    self.table_manifests[table_name] = []
-                self.table_manifests[table_name].append(manifest_info)
-                self.info(
-                    f"Chunk {chunk_num} manifest: {manifest_info['file_count']} files, "
-                    f"{manifest_info['total_rows']:,} rows"
+                # Use partition_by for smaller files (one per day)
+                response = self.timestream_query_client.query(
+                    QueryString=f"""
+                        UNLOAD (
+                            SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
+                            FROM "{self.liveanalytics_database}"."{table_name}"
+                            WHERE time >= '{start_time}' AND time < '{end_time}'
+                        ) 
+                        TO '{chunk_path}' 
+                        WITH (partitioned_by = ARRAY['partition_date'], 
+                              format = 'PARQUET', 
+                              max_file_size='16MB', 
+                              compression = 'NONE')
+                        """
                 )
-            else:
-                raise RuntimeError(f"Manifest file not found for chunk {chunk_num}")
 
-        except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "")
-            raise RuntimeError(f"UNLOAD chunk failed: {error_code} - {str(e)}")
+                http_status = response.get("ResponseMetadata", {}).get(
+                    "HTTPStatusCode", 0
+                )
+                if http_status < 200 or http_status >= 300:
+                    raise RuntimeError(f"UNLOAD chunk returned HTTP {http_status}")
 
-    def wait_for_manifest_file(
+                # Wait for UNLOAD to complete.
+                next_token = response.get("NextToken")
+                while next_token is not None:
+                    # Note: whitespace must match the original query.
+                    response = self.timestream_query_client.query(
+                        NextToken=next_token,
+                        QueryString=f"""
+                        UNLOAD (
+                            SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
+                            FROM "{self.liveanalytics_database}"."{table_name}"
+                            WHERE time >= '{start_time}' AND time < '{end_time}'
+                        ) 
+                        TO '{chunk_path}' 
+                        WITH (partitioned_by = ARRAY['partition_date'], 
+                              format = 'PARQUET', 
+                              max_file_size='16MB', 
+                              compression = 'NONE')
+                        """,
+                    )
+                    next_token = response.get("NextToken")
+                    unload_progress = response.get("QueryStatus", {}).get(
+                        "ProgressPercentage"
+                    )
+                    self.info(f"Unload progress: {str(unload_progress)}%")
+                    if unload_progress >= 100.0:
+                        break
+                    time.sleep(UNLOAD_WAIT_SECONDS)
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code", "")
+                raise RuntimeError(f"UNLOAD chunk failed: {error_code} - {str(e)}")
+
+    def get_manifest_files(
         self,
         table_name: str,
-        chunk_num: int,
-        poll_interval_seconds: int = 5,
-        max_wait_seconds: int = 300,
-    ) -> dict | None:
+    ) -> list[dict] | None:
         """
-        Waits for the Timestream UNLOAD manifest file to appear in S3.
+        Gets the manifest file for a table and each chunk from S3.
         The manifest file contains the complete list of parquet files and row counts.
 
         Args:
             table_name (str): Name of the table being unloaded.
             chunk_num (int): Chunk number to find specific manifest.
-            poll_interval_seconds (int): Seconds between S3 checks. Default 5.
-            max_wait_seconds (int): Maximum seconds to wait. Default 300 (5 minutes).
 
         Returns:
             dict: Manifest info with 'file_count', 'total_rows', 'files' or None if not found.
         """
-        manifest_prefix = (
-            f"{self.liveanalytics_database}/{table_name}/chunk_{chunk_num:03d}/"
-        )
-        elapsed_seconds = 0
+        prefix = f"{self.liveanalytics_database}/{table_name}/"
 
-        self.info(f"Waiting for manifest file for table {table_name}...")
+        self.info(f"Getting manifest files for table {table_name}...")
 
-        while elapsed_seconds < max_wait_seconds:
-            try:
-                paginator = self.s3_client.get_paginator("list_objects_v2")
+        manifests = []
 
-                for page in paginator.paginate(
-                    Bucket=self.s3_bucket_name, Prefix=manifest_prefix
-                ):
-                    for obj in page.get("Contents", []):
-                        key = obj.get("Key", "")
-                        if "_manifest" in key:
-                            self.info(f"Found manifest file: {key}")
-                            return self.parse_manifest_file(key)
+        try:
+            paginator = self.s3_client.get_paginator("list_objects_v2")
 
-                self.info(f"Waiting for manifest file... ({elapsed_seconds}s elapsed)")
+            for page in paginator.paginate(Bucket=self.s3_bucket_name, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj.get("Key", "")
+                    if "_manifest" in key:
+                        self.info(f"Found manifest file: {key}")
+                        manifests.append(self.parse_manifest_file(key))
 
-            except Exception as e:
-                self.warning(f"Error checking for manifest file: {e}")
+        except Exception as e:
+            self.warning(f"Error checking for manifest file: {e}")
 
-            time.sleep(poll_interval_seconds)
-            elapsed_seconds += poll_interval_seconds
-
-        self.warning(
-            f"Manifest file not found for table {table_name} after {max_wait_seconds}s"
-        )
-        return None
+        if not manifests:
+            self.error(f"Manifest file not found for table {table_name}")
+            return None
+        return manifests
 
     def parse_manifest_file(self, manifest_key: str) -> dict | None:
         """
@@ -457,6 +504,81 @@ class InfluxDBMigrationWrapper:
         self.info(f"Total: {len(parquet_keys)} parquet files, {total_rows:,} rows")
         return parquet_keys
 
+    def get_s3_objects_list(
+        self, wait_period_seconds=20, max_wait_seconds=1_800
+    ) -> list[str]:
+        """
+        Gets a list of parquet files in an S3 bucket.
+
+        Returns:
+            list[str]: List of parquet file keys
+        """
+
+        parquet_keys: set[str] = set()
+        processed_keys: set[str] = set()
+        files_to_migrate: set[str] = set()
+
+        total_wait_seconds = 0
+        while total_wait_seconds < max_wait_seconds:
+            try:
+                # Use paginator to handle large buckets.
+                paginator = self.s3_client.get_paginator("list_objects_v2")
+                page_iterator = paginator.paginate(
+                    Bucket=self.s3_bucket_name, Prefix=self.liveanalytics_database
+                )
+
+                for page in page_iterator:
+                    for obj in page.get("Contents", []):
+                        key = obj.get("Key")
+                        if not key:
+                            continue
+                        if key.endswith(".parquet"):
+                            self.debug(f"Parquet file size: {obj.get('Size')} bytes")
+                            parquet_keys.add(key)
+                        if key.endswith("done.ack"):
+                            processed_keys.add(key.strip("/done.ack"))
+                files_to_migrate = parquet_keys - processed_keys
+
+            except ClientError as e:
+                error_code: str = e.response.get("Error", {}).get("Code", "")
+                if error_code == "NoSuchBucket":
+                    self.info(
+                        "Error: Bucket " + self.s3_bucket_name + " does not exist."
+                    )
+                elif error_code == "AccessDenied":
+                    self.info(
+                        "Error: Access denied to bucket "
+                        + self.s3_bucket_name
+                        + ". Check your AWS credentials and permissions."
+                    )
+                else:
+                    self.info(
+                        "Error listing objects in bucket "
+                        + self.s3_bucket_name
+                        + ": "
+                        + str(e)
+                    )
+                return []
+            except Exception as e:
+                self.info("Unexpected error while listing objects: " + str(e))
+                return []
+
+            if len(files_to_migrate) == 0:
+                if total_wait_seconds + wait_period_seconds >= max_wait_seconds:
+                    raise RuntimeError(
+                        f"No Parquet files found in {self.s3_bucket_name}"
+                    )
+                self.warning(
+                    f"No parquet files found in bucket {self.s3_bucket_name}. Retrying"
+                )
+                total_wait_seconds += wait_period_seconds
+                time.sleep(wait_period_seconds)
+            else:
+                break
+
+        self.info(f"Found {len(files_to_migrate)} parquet files")
+        return list(files_to_migrate)
+
     def generate_metadata(
         self, parquet_file_names: list[str], expiration: int = 604_800
     ) -> dict[str, dict[str, str]]:
@@ -490,7 +612,6 @@ class InfluxDBMigrationWrapper:
 
         for file_key in parquet_file_names:
             try:
-                # Place legal hold object lock on Parquet file.
                 _ = self.s3_client.put_object_legal_hold(
                     Bucket=self.s3_bucket_name, Key=file_key, LegalHold={"Status": "ON"}
                 )
@@ -554,6 +675,9 @@ class InfluxDBMigrationWrapper:
             except requests.exceptions.RequestException as e:
                 self.error(f"Error creating database: ", str(e))
                 return False
+
+            if not self.resume_migration:
+                self.delete_metadata_table(silence_errors=True)
 
             # Create metadata table with 1h retention period.
             self.info(f"Creating {MIGRATION_METADATA_TABLE} table with 1h retention")
@@ -651,12 +775,27 @@ class InfluxDBMigrationWrapper:
         session.mount("https://", adapter)
         session.headers.update({"Connection": "keep-alive"})
 
+        url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
+        headers = {"Authorization": f"Bearer {self.influx_token}"}
+
+        # For a new migration, delete the trigger cache.
+        if not self.resume_migration:
+            params = {"delete_cache": True}
+            _ = session.post(
+                url=url,
+                headers=headers,
+                params=params,
+                timeout=self.timeout_seconds,
+            )
         try:
             metadata_table_deleted: bool = False
-            url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
-            headers = {"Authorization": f"Bearer {self.influx_token}"}
-
+            num_parquet_files_submitted = 0
             for s3_key in metadata:
+                if (
+                    self.max_parquet_files is not None
+                    and num_parquet_files_submitted >= self.max_parquet_files
+                ):
+                    break
                 table_name = s3_key.split("/")[1]
                 self.info(
                     f'Migrating {s3_key} to "{self.influx_database}"."{table_name}"'
@@ -680,9 +819,17 @@ class InfluxDBMigrationWrapper:
                 if not metadata_table_deleted:
                     self.delete_metadata_table()
                     metadata_table_deleted = True
+                num_parquet_files_submitted += 1
 
             # Final verification invocation.
-            verification_params = {"verify": True, "delete_cache": True}
+            is_partial_migration = (
+                self.max_parquet_files is not None
+                and self.max_parquet_files < len(metadata)
+            )
+            if is_partial_migration:
+                verification_params = {"verify": True}
+            else:
+                verification_params = {"verify": True, "delete_cache": True}
             final_invocation_response = session.post(
                 url=url,
                 headers=headers,
@@ -693,12 +840,21 @@ class InfluxDBMigrationWrapper:
             response_json = final_invocation_response.json()
 
             if response_json["status"] != 200:
+                if self.max_parquet_files is not None and self.max_parquet_files < len(
+                    metadata
+                ):
+                    num_remaining_files = len(metadata) - self.max_parquet_files
+                    self.warning(
+                        f"{self.max_parquet_files} files have been migrated, {num_remaining_files} remain. Final verification failed: {response_json['message']}"
+                    )
+                    return
                 raise Exception(
                     f"Final verification failed: {response_json['message']}"
                 )
 
             # Store expected table row counts for final verification
             self.expected_table_row_counts = response_json.get("table_row_counts", {})
+            self.debug(f"Invocation response: {response_json}")
 
         except Exception as e:
             self.error(
@@ -707,7 +863,10 @@ class InfluxDBMigrationWrapper:
             raise
         finally:
             session.close()
-            self.delete_trigger()
+
+        # Trigger is only deleted when a migration is successful. This allows users to resume a
+        # migration if an error occurs.
+        self.delete_trigger()
 
     def get_num_completed_and_total_parquet_files(self):
         """
@@ -778,7 +937,7 @@ class InfluxDBMigrationWrapper:
             self.error("Failed to delete processing engine trigger:", str(e))
         return
 
-    def delete_metadata_table(self):
+    def delete_metadata_table(self, silence_errors: bool = False):
         """
         Deletes the InfluxDB v3 migration metadata table.
 
@@ -805,9 +964,10 @@ class InfluxDBMigrationWrapper:
             delete_table_response.raise_for_status()
             self.info(f'Deleted "{self.influx_database}"."{MIGRATION_METADATA_TABLE}"')
         except Exception as e:
-            self.error(
-                f'Failed to delete "{self.liveanalytics_database}"."{MIGRATION_METADATA_TABLE}": {e}'
-            )
+            if not silence_errors:
+                self.error(
+                    f'Failed to delete "{self.liveanalytics_database}"."{MIGRATION_METADATA_TABLE}": {e}'
+                )
 
     def create_processing_engine_trigger(self):
         """
@@ -878,14 +1038,12 @@ class InfluxDBMigrationWrapper:
         if not self.verify_bucket():
             raise RuntimeError("Unable to verify bucket")
 
-        if not self.resume_migration:
-            self.info("Performing Timestream for LiveAnalytics unload operations")
-            self.unload_db()
-        else:
+        if self.resume_migration:
             self.info("Resuming migration and skipping unload operations")
+        self.unload_db(self.resume_migration)
 
         # Get parquet file list from manifest files (generated during each UNLOAD chunk)
-        parquet_file_names: list[str] = self.get_parquet_files_from_manifests()
+        parquet_file_names: list[str] = self.get_s3_objects_list()
 
         metadata: dict[str, dict[str, str]] = self.generate_metadata(
             parquet_file_names=parquet_file_names
@@ -899,7 +1057,13 @@ class InfluxDBMigrationWrapper:
         self.write_metadata_to_influxdb(metadata)
         self.create_processing_engine_trigger()
         self.bulk_invoke_http_trigger(metadata)
+        if self.max_parquet_files is not None and self.max_parquet_files < len(
+            metadata
+        ):
+            self.warning("Migration partially completed")
+            return
 
+        # Final verification: compare expected row counts from plugin with actual InfluxDB counts
         self.verify_final_row_counts()
 
         self.delete_unloaded_data()
@@ -989,8 +1153,8 @@ class InfluxDBMigrationWrapper:
 
     def verify_final_row_counts(self) -> bool:
         """
-        Verifies migration by comparing S3 manifest row counts with
-        plugin ingested row counts.
+        Verifies that all tables in the migrated database have the correct row counts
+        by comparing expected counts from S3 manifest files with actual InfluxDB counts.
 
         Returns:
             bool: True if counts match, False otherwise.
@@ -1212,6 +1376,12 @@ Examples:
         default="us-west-2",
         help="Optional. The AWS Region to use. Defaults to us-west-2.",
     )
+    parser.add_argument(
+        "--max-parquet-files",
+        required=False,
+        type=int,
+        help="Optional. The maximum number of Parquet files to migrate. Default behaviour is to migrate all Parquet files.",
+    )
 
     args = parser.parse_args(input_args)
 
@@ -1220,6 +1390,7 @@ Examples:
     resume_migration: bool = args.resume
     timeout_seconds: int = args.timeout_seconds
     region: str = args.region
+    max_parquet_files: int | None = args.max_parquet_files
 
     required_env_vars = [
         "INFLUXDB3_HOST_URL",
@@ -1241,6 +1412,7 @@ Examples:
         resume_migration=resume_migration,
         timeout_seconds=timeout_seconds,
         region=region,
+        max_parquet_files=max_parquet_files,
     )
 
     try:
