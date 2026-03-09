@@ -106,42 +106,62 @@ Before starting a migration, the following prerequisites must be met:
 
     ```json
     {
-        "Sid": "QueryLiveAnalytics",
-        "Effect": "Allow",
-        "Action": [
-           "timestream:Select",
-           "timestream:DescribeEndpoints",
-           "timestream:ListDatabases",
-           "timestream:ListTables",
-           "timestream:DescribeDatabase",
-           "timestream:DescribeTable",
-           "timestream:SelectValues"
-        ],
-        "Resource": "*"
-    },
-    {
-       "Sid": "MigrationDataBucketMetadata",
-       "Effect": "Allow",
-       "Action": [
-          "s3:ListBucket",
-          "s3:GetBucketLocation",
-          "s3:GetBucketVersioning"
-       ],
-       "Resource": "arn:aws:s3:::LAtoV3MigrationDataBucket-*"
-    },
-    {
-       "Sid": "AccessDataBucket",
-       "Effect": "Allow",
-       "Action": [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:PutObjectLegalHold",
-          "s3:DeleteObject",
-          "s3:DeleteObjectVersion",
-          "s3:BypassGovernanceRetention"
-       ],
-       "Resource": "arn:aws:s3:::LAtoV3MigrationDataBucket-*/*"
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "DescribeLiveAnalytics",
+                "Effect": "Allow",
+                "Action": [
+                    "timestream:DescribeEndpoints",
+                    "timestream:ListDatabases"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Sid": "QueryLiveAnalytics",
+                "Effect": "Allow",
+                "Action": [
+                    "timestream:Select",
+                    "timestream:ListTables",
+                    "timestream:DescribeDatabase",
+                    "timestream:DescribeTable",
+                    "timestream:SelectValues",
+                    "timestream:unload"
+                ],
+                "Resource": [
+                    "arn:aws:timestream:<aws region>:<account id>:database/<database name>/*",
+                    "arn:aws:timestream:<aws region>:<account id>:database/<database name>"
+                ]
+            },
+            {
+                "Sid": "MigrationDataBucketMetadata",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:ListBucket",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketAcl",
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketObjectLockConfiguration",
+                    "s3:GetEncryptionConfiguration",
+                    "s3:GetBucketPolicy"
+                ],
+                "Resource": "arn:aws:s3:::<bucket name>"
+            },
+            {
+                "Sid": "AccessDataBucket",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                    "s3:PutObjectLegalHold",
+                    "s3:DeleteObject",
+                    "s3:DeleteObjectVersion",
+                    "s3:BypassGovernanceRetention"
+                ],
+                "Resource": "arn:aws:s3:::<bucket name>/*"
+            }
+        ]
     }
     ```
 
