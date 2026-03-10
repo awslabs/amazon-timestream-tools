@@ -126,7 +126,7 @@ Before starting a migration, the following prerequisites must be met:
                     "timestream:DescribeDatabase",
                     "timestream:DescribeTable",
                     "timestream:SelectValues",
-                    "timestream:unload"
+                    "timestream:Unload"
                 ],
                 "Resource": [
                     "arn:aws:timestream:<aws region>:<account id>:database/<database name>/*",
