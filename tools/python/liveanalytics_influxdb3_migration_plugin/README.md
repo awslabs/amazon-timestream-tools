@@ -50,7 +50,12 @@ The overall migration process is as follows:
 2. After meeting the pre-requisites, the client is run and provided with a Timestream for LiveAnalytics database to migrate; the InfluxDB v3 host, token, and database name as environment variables; and the name of an [Amazon S3](https://aws.amazon.com/s3/) bucket.
 3. The client sends a query to Timestream for LiveAnalytics, unloading all data in the database into the S3 bucket in the form of Parquet files. Parquet files are organized into `s3://<bucket name>/<database name>/<table name>` object keys.
 4. The client creates a metadata table in InfluxDB v3. This metadata table is used as a work queue by the plugin.
-5. The client generates [presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html) for all Parquet files in the S3 bucket. Additionally, presigned PUT URLs are generated so that the plugin can mark a file as having been migrated. This is done by putting an empty `done.ack` file, using a Parquet file's name as an object key. For example, `s3://<bucket name>/<database name>/<table name>/example.parquet/done.ack`. Presigned URLs are given a maximum expiration date of 7 days.
+5. The client generates [presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html) for all Parquet files in the S3 bucket. Additionally, presigned PUT URLs are generated so that the plugin can mark a file as having been migrated. This is done by putting an empty `done.ack` file, using a Parquet file's name as an object key. For example, `s3://<bucket name>/<database name>/<table name>/example.parquet/done.ack`. Presigned URLs are given a maximum expiration date which is summarized below:
+
+- Default EC2 instance: ~6 hours max
+- With AssumeRole: up to 12 hours max
+- For 7 days: must use IAM user access keys
+
 6. The client places all presigned URLs in the metadata table so that the plugin can use them.
 7. The client creates an HTTP trigger with arguments specifying the S3 bucket name, database name, and a unique migration ID.
 8. The client, using the HTTP trigger, sends a request for each Parquet file. Since the plugin writes to a buffer and does not persist writes, each invocation of the trigger verifies the previous migration. When an invocation verifies a previous migration, it places an empty `done.ack` file in the S3 bucket, marking that Parquet file as completed, preventing it from being migrated if `--resume` is used in the future.
@@ -106,42 +111,62 @@ Before starting a migration, the following prerequisites must be met:
 
     ```json
     {
-        "Sid": "QueryLiveAnalytics",
-        "Effect": "Allow",
-        "Action": [
-           "timestream:Select",
-           "timestream:DescribeEndpoints",
-           "timestream:ListDatabases",
-           "timestream:ListTables",
-           "timestream:DescribeDatabase",
-           "timestream:DescribeTable",
-           "timestream:SelectValues"
-        ],
-        "Resource": "*"
-    },
-    {
-       "Sid": "MigrationDataBucketMetadata",
-       "Effect": "Allow",
-       "Action": [
-          "s3:ListBucket",
-          "s3:GetBucketLocation",
-          "s3:GetBucketVersioning"
-       ],
-       "Resource": "arn:aws:s3:::LAtoV3MigrationDataBucket-*"
-    },
-    {
-       "Sid": "AccessDataBucket",
-       "Effect": "Allow",
-       "Action": [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:PutObjectLegalHold",
-          "s3:DeleteObject",
-          "s3:DeleteObjectVersion",
-          "s3:BypassGovernanceRetention"
-       ],
-       "Resource": "arn:aws:s3:::LAtoV3MigrationDataBucket-*/*"
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "DescribeLiveAnalytics",
+                "Effect": "Allow",
+                "Action": [
+                    "timestream:DescribeEndpoints",
+                    "timestream:ListDatabases"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Sid": "QueryLiveAnalytics",
+                "Effect": "Allow",
+                "Action": [
+                    "timestream:Select",
+                    "timestream:ListTables",
+                    "timestream:DescribeDatabase",
+                    "timestream:DescribeTable",
+                    "timestream:SelectValues",
+                    "timestream:Unload"
+                ],
+                "Resource": [
+                    "arn:aws:timestream:<aws region>:<account id>:database/<database name>/*",
+                    "arn:aws:timestream:<aws region>:<account id>:database/<database name>"
+                ]
+            },
+            {
+                "Sid": "MigrationDataBucketMetadata",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:ListBucket",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketAcl",
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketObjectLockConfiguration",
+                    "s3:GetEncryptionConfiguration",
+                    "s3:GetBucketPolicy"
+                ],
+                "Resource": "arn:aws:s3:::<bucket name>"
+            },
+            {
+                "Sid": "AccessDataBucket",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                    "s3:PutObjectLegalHold",
+                    "s3:DeleteObject",
+                    "s3:DeleteObjectVersion",
+                    "s3:BypassGovernanceRetention"
+                ],
+                "Resource": "arn:aws:s3:::<bucket name>/*"
+            }
+        ]
     }
     ```
 

@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 MIGRATION_METADATA_TABLE: str = "liveanalytics_migration_metadata"
 TRIGGER_NAME: str = "migration_trigger"
 UNLOAD_WAIT_SECONDS: int = 10
+# InfluxDB has a 10MB max request size, using 8MB as a safe limit.
+INFLUXDB_MAX_WRITE_BATCH_BYTES: int = 8 * 1024 * 1024
 
 
 class InfluxDBMigrationWrapper:
@@ -717,6 +719,7 @@ class InfluxDBMigrationWrapper:
     def write_metadata_to_influxdb(self, metadata):
         """
         Writes metadata to InfluxDB v3 using line protocol.
+        Automatically batches writes to stay under the InfluxDB max request size limit.
 
         Args:
             metadata (dict[str, dict[str, str]]): Mapping of random UUIDs to a file's
@@ -727,23 +730,57 @@ class InfluxDBMigrationWrapper:
         """
         try:
             self.info("Writing metadata to InfluxDB")
-            lines: list[str] = []
+
+            current_batch: list[str] = []
+            current_batch_size: int = 0
+            batch_number: int = 0
+            total_entries_written: int = 0
 
             for s3_key, migration_metadata in metadata.items():
-                lines.append(
+                line = (
                     f"{MIGRATION_METADATA_TABLE},"
                     f"s3_key={s3_key} "
                     f'presigned_get_url="{migration_metadata["presigned_get_url"]}",'
                     f'presigned_done_url="{migration_metadata["presigned_done_url"]}"\n'
                 )
+                line_size = len(line.encode("utf-8"))
 
-            self.influxdb_client.write(
-                database=self.influx_database,
-                record=lines,
-                write_precision=WritePrecision.NS,
-            )
+                # If adding this line would exceed the batch limit, write current batch first
+                if (
+                    current_batch_size + line_size > INFLUXDB_MAX_WRITE_BATCH_BYTES
+                    and current_batch
+                ):
+                    batch_number += 1
+                    self.info(
+                        f"Writing metadata batch {batch_number} ({len(current_batch)} entries, {current_batch_size:,} bytes)"
+                    )
+                    self.influxdb_client.write(
+                        database=self.influx_database,
+                        record=current_batch,
+                        write_precision=WritePrecision.NS,
+                    )
+                    total_entries_written += len(current_batch)
+                    current_batch = []
+                    current_batch_size = 0
+
+                current_batch.append(line)
+                current_batch_size += line_size
+
+            # Write any remaining entries in the final batch
+            if current_batch:
+                batch_number += 1
+                self.info(
+                    f"Writing metadata batch {batch_number} ({len(current_batch)} entries, {current_batch_size:,} bytes)"
+                )
+                self.influxdb_client.write(
+                    database=self.influx_database,
+                    record=current_batch,
+                    write_precision=WritePrecision.NS,
+                )
+                total_entries_written += len(current_batch)
+
             self.info(
-                f"Successfully wrote {len(metadata)} metadata entries to InfluxDB"
+                f"Successfully wrote {total_entries_written} metadata entries to InfluxDB in {batch_number} batch(es)"
             )
 
         except Exception as e:
@@ -1425,3 +1462,4 @@ Examples:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
