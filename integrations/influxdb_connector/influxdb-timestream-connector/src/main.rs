@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use influxdb_timestream_connector::{
     lambda_handler,
     timestream_utils::{get_connection, TimestreamEnvConfig},
