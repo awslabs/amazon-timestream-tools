@@ -35,7 +35,7 @@ class InfluxDBMigrationWrapper:
         liveanalytics_database: str,
         s3_bucket_name: str,
         resume_migration: bool = False,
-        timeout_seconds: int = 120,
+        timeout_seconds: int = 360,  # 6 minutes.
         region: str = "us-west-2",
         max_parquet_files: int | None = None,
     ) -> None:
@@ -1396,10 +1396,10 @@ Examples:
     )
     parser.add_argument(
         "--timeout-seconds",
-        default=120,
+        default=360,
         type=int,
         required=False,
-        help="The number of seconds to wait for each Parquet file migration. Defaults to 120.",
+        help="The number of seconds to wait for each Parquet file migration. Defaults to 360.",
     )
     parser.add_argument(
         "--resume",
@@ -1462,4 +1462,3 @@ Examples:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-
