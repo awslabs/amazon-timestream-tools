@@ -538,7 +538,7 @@ class InfluxDBMigrationWrapper:
                             self.debug(f"Parquet file size: {obj.get('Size')} bytes")
                             parquet_keys.add(key)
                         if key.endswith("done.ack"):
-                            processed_keys.add(key.strip("/done.ack"))
+                            processed_keys.add(key.removesuffix("/done.ack"))
                 files_to_migrate = parquet_keys - processed_keys
 
             except ClientError as e:
@@ -678,8 +678,7 @@ class InfluxDBMigrationWrapper:
                 self.error(f"Error creating database: ", str(e))
                 return False
 
-            if not self.resume_migration:
-                self.delete_metadata_table(silence_errors=True)
+            self.delete_metadata_table(silence_errors=True)
 
             # Create metadata table with 1h retention period.
             self.info(f"Creating {MIGRATION_METADATA_TABLE} table with 1h retention")
@@ -815,15 +814,14 @@ class InfluxDBMigrationWrapper:
         url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
         headers = {"Authorization": f"Bearer {self.influx_token}"}
 
-        # For a new migration, delete the trigger cache.
-        if not self.resume_migration:
-            params = {"delete_cache": True}
-            _ = session.post(
-                url=url,
-                headers=headers,
-                params=params,
-                timeout=self.timeout_seconds,
-            )
+        # Always clear the plugin cache before starting so it reloads fresh presigned URLs
+        params = {"delete_cache": True}
+        _ = session.post(
+            url=url,
+            headers=headers,
+            params=params,
+            timeout=self.timeout_seconds,
+        )
         try:
             metadata_table_deleted: bool = False
             num_parquet_files_submitted = 0
