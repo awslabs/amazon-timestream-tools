@@ -32,6 +32,9 @@ tokio-test = "0.4.4"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 aws-lc-sys = "0.39.0"
+aws-lc-rs = "1.16.2"
+time = "0.3.47"
+rustls-webpki = "0.103.10"
 
 [package.metadata.lambda.env]
 region = "us-east-1"
