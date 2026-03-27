@@ -574,12 +574,8 @@ def put_done_file(influxdb3_local, s3_key: str, presigned_done_url: str):
         response: requests.Response = requests.put(presigned_done_url, data=b"")
         response.raise_for_status()
         influxdb3_local.info(f"Put done file for {s3_key}")
-    except Exception as e:
-        error_traceback = e.with_traceback(None)
-        sanitized_error_traceback = sanitize_string(str(error_traceback))
-        error_message = (
-            f"Error putting done file for {s3_key}: {sanitized_error_traceback}"
-        )
+    except Exception:
+        error_message = f"Error putting done file for {s3_key}: {sanitize_string(traceback.format_exc())}"
         influxdb3_local.error(error_message)
         raise RuntimeError(error_message)
     return
