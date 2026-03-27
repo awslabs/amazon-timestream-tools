@@ -1,25 +1,27 @@
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-import os
-from pathlib import Path
 import json
-import re
-import time
-from typing import Any
-import unittest
+import logging
+import os
 import random
+import re
 import string
 import sys
-import logging
+import time
+import unittest
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 import boto3
-from botocore.exceptions import ClientError
 import pandas
-import requests
-from influxdb_client_3 import InfluxDBClient3
-from testcontainers.core.wait_strategies import LogMessageWaitStrategy
-from testcontainers.core.container import DockerContainer, ExecResult
 import pytest
+import requests
+from botocore.exceptions import ClientError
+from influxdb_client_3 import InfluxDBClient3
+from testcontainers.core.container import DockerContainer, ExecResult
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
+
+logger = logging.getLogger()
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
@@ -352,7 +354,7 @@ class MigrationTestCase(unittest.TestCase):
                         Key=marker["Key"],
                         VersionId=marker["VersionId"],
                     )
-                except Exception as e:
+                except Exception:
                     logging.error(
                         f"Failed to delete deletion marker for object {marker['Key']} with version ID {marker['VersionId']}"
                     )
@@ -1022,6 +1024,54 @@ class MigrationTestCase(unittest.TestCase):
             la_table_count,
             influxdb_v3_table_count,
         )
+
+    def test_migration_expired_presigned_urls(self):
+        """
+        Tests migrating a single record where all presigned URLs are expired.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+
+        start_time = current_time - pandas.Timedelta(days=30)
+        assert isinstance(start_time, pandas.Timestamp)
+        end_time = start_time + pandas.Timedelta(days=1)
+        assert isinstance(end_time, pandas.Timestamp)
+
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+        ]
+
+        record = {
+            "Dimensions": dimensions,
+            "MeasureName": "cpu_utilization",
+            "MeasureValue": "13.5",
+            "MeasureValueType": "DOUBLE",
+            "Time": str(start_time.value),
+            "TimeUnit": "NANOSECONDS",
+        }
+        self.put_records([record])
+
+        with self.assertLogs(
+            "liveanalytics_influxdb3_migration_client", level="INFO"
+        ) as captured_logs:
+            return_code = liveanalytics_influxdb3_migration_client.main(
+                [
+                    "--live-analytics-database-name",
+                    self.la_database_name,
+                    "--s3-bucket-name",
+                    self.s3_bucket_name,
+                    "--presigned-url-expiry-seconds",
+                    "0",
+                ]
+            )
+
+            self.assertEqual(return_code, 1)
+
+            expected_error = "403 Client Error: Forbidden for url: *****"
+            self.assertTrue(
+                any(expected_error in log for log in captured_logs.output),
+                f"Expected error not found in logs: {expected_error}",
+            )
 
 
 if __name__ == "__main__":
