@@ -1,5 +1,6 @@
 import os
 import time
+from botocore.exceptions import ClientError
 import boto3
 import psycopg2
 import glob
@@ -389,8 +390,10 @@ def get_secret(secret_arn, logger):
         response = client.get_secret_value(
             SecretId=secret_arn
         )
-    except Exception as e:
-        logger.info(f"Error retrieving secret: {str(e)}")
+    except ClientError as e:
+        logger.info(f"Error retrieving secret: {e.response['Error']['Code']}")
+    except Exception:
+        logger.info("Error retrieving secret: unknown exception occurred")
         raise
 
     if 'SecretString' in response:
