@@ -10,6 +10,7 @@ RUN apt-get update && \
 
 # Download and install Influx CLI
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb2-client-2.7.5-linux-arm64.tar.gz && \
+    echo "867c3cbabd63a34a9b1ac643fd5c5d268b694acc98e3b75fa5a78d63037097dd influxdb2-client-2.7.5-linux-arm64.tar.gz" | sha256sum --check && \
     tar -xzf influxdb2-client-2.7.5-linux-arm64.tar.gz && \
     mv influx /usr/local/bin/ && \
     chmod +x /usr/local/bin/influx && \
