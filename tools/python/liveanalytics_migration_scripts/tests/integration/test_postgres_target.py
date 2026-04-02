@@ -80,7 +80,7 @@ class PostgresTargetTestCase(BaseIntegrationTestCase):
         )
         cls.secret_arn = create_secret_response["ARN"]
 
-        # Create directory to hold nested directories of line protocol data.
+        # Create directory to hold nested directories of CSV data.
         os.makedirs(cls.csv_base_directory, exist_ok=True)
 
     def setUp(self):
@@ -120,7 +120,7 @@ class PostgresTargetTestCase(BaseIntegrationTestCase):
         except Exception as e:
             if not cls.silence_cleanup_logging:
                 logging.warning(
-                    f"tearDownClass: Failed to delete local line protocol base directory: {e}"
+                    f"tearDownClass: Failed to delete local CSV base directory: {e}"
                 )
 
         try:
@@ -157,7 +157,7 @@ class PostgresTargetTestCase(BaseIntegrationTestCase):
         except Exception as e:
             if not self.silence_cleanup_logging:
                 logging.warning(
-                    f"tearDown: Failed to delete local line protocol directory: {e}"
+                    f"tearDown: Failed to delete local CSV directory: {e}"
                 )
 
         try:
