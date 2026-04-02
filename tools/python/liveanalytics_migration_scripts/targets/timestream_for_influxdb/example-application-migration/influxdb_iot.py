@@ -4,11 +4,11 @@ A simple application providing a basic example of how to use the InfluxDB APIs.
 This application reads a sample JSON dataset and creates InfluxDB line protocol points to ingest into InfluxDB.
 """
 
-from datetime import datetime
 import json
 import os
 import sys
-from typing import Dict, List, Any
+from datetime import datetime
+from typing import Any, Dict, List
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -27,7 +27,9 @@ def create_influxdb_client() -> InfluxDBClient:
     return InfluxDBClient.from_env_properties()
 
 
-def create_bucket_if_nonexistent(client: InfluxDBClient, bucket_name: str, retention_hours: int) -> None:
+def create_bucket_if_nonexistent(
+    client: InfluxDBClient, bucket_name: str, retention_hours: int
+) -> None:
     """
     Create an InfluxDB bucket if it doesn't already exist.
 
@@ -46,13 +48,13 @@ def create_bucket_if_nonexistent(client: InfluxDBClient, bucket_name: str, reten
 
         retention_rules = None
         if retention_hours > 0:
-            retention_rules = BucketRetentionRules(type="expire", every_seconds=retention_hours * 3600)
+            retention_rules = BucketRetentionRules(
+                type="expire", every_seconds=retention_hours * 3600
+            )
             print(f"Setting retention policy: {retention_hours} hours")
 
         buckets_api.create_bucket(
-            bucket_name=bucket_name, 
-            org=client.org,
-            retention_rules=retention_rules
+            bucket_name=bucket_name, org=client.org, retention_rules=retention_rules
         )
     else:
         print(f"Bucket {bucket_name} already exists")
@@ -100,13 +102,14 @@ def set_point_fields(point: Point, fields: Dict[str, Any]) -> Point:
         Point: The modified point
     """
     for name, value in fields.items():
-        if isinstance(value, dict) and 'value' in value:
-            field_value = value['value']
+        if isinstance(value, dict) and "value" in value:
+            field_value = value["value"]
             point = point.field(name, field_value)
         else:
             point = point.field(name, value)
 
     return point
+
 
 def set_point_timestamp(point: Point, timestamp: str) -> Point:
     """
@@ -133,7 +136,7 @@ def set_point_timestamp(point: Point, timestamp: str) -> Point:
     # Convert to nanoseconds and add the nanosecond part
     epoch_nanoseconds = int(epoch_seconds * 1_000_000_000) + int(nanosecond_part)
 
-    point = point.time(epoch_nanoseconds, write_precision='ns')
+    point = point.time(epoch_nanoseconds, write_precision="ns")
 
     return point
 
@@ -148,11 +151,13 @@ def load_json_data(file_path: str) -> List[Dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: List of records from the JSON file
     """
-    with open(file_path, 'r') as f:
+    with open(file_path, "r") as f:
         return json.load(f)
 
 
-def build_line_protocol(json_records: List[Dict[str, Any]], measurement: str) -> List[Point]:
+def build_line_protocol(
+    json_records: List[Dict[str, Any]], measurement: str
+) -> List[Point]:
     """
     Convert JSON records to InfluxDB points.
 
@@ -170,20 +175,22 @@ def build_line_protocol(json_records: List[Dict[str, Any]], measurement: str) ->
         point = create_point(measurement)
 
         # Set tags (dimensions in Timestream)
-        point = set_point_tags(point, json_record['dimensions'])
+        point = set_point_tags(point, json_record["dimensions"])
 
         # Set fields (measures in Timestream)
-        point = set_point_fields(point, json_record['measures'])
+        point = set_point_fields(point, json_record["measures"])
 
         # Set timestamp
-        point = set_point_timestamp(point, json_record['timestamp'])
+        point = set_point_timestamp(point, json_record["timestamp"])
 
         influxdb_points.append(point)
 
     return influxdb_points
 
 
-def write_line_protocol(client: InfluxDBClient, bucket: str, points: List[Point]) -> int:
+def write_line_protocol(
+    client: InfluxDBClient, bucket: str, points: List[Point]
+) -> int:
     """
     Write line protocol to InfluxDB in batches of max 5000 points.
 
@@ -202,22 +209,21 @@ def write_line_protocol(client: InfluxDBClient, bucket: str, points: List[Point]
 
     # Process points in batches of MAX_BATCH_SIZE
     for i in range(0, total_points, MAX_BATCH_SIZE):
-        batch = points[i:i + MAX_BATCH_SIZE]
+        batch = points[i : i + MAX_BATCH_SIZE]
         try:
             write_api.write(bucket=bucket, org=client.org, record=batch)
             points_written += len(batch)
-            print(f"Successfully wrote {len(batch)} points. Total: {points_written}/{total_points}")
+            print(
+                f"Successfully wrote {len(batch)} points. Total: {points_written}/{total_points}"
+            )
         except Exception as e:
             print(f"Error writing points: {e}")
 
     return points_written
 
+
 def check_required_env_vars():
-    required_vars = [
-        'INFLUXDB_V2_URL',
-        'INFLUXDB_V2_TOKEN',
-        'INFLUXDB_V2_ORG'
-    ]
+    required_vars = ["INFLUXDB_V2_URL", "INFLUXDB_V2_TOKEN", "INFLUXDB_V2_ORG"]
 
     missing_vars = []
     for var in required_vars:
@@ -225,8 +231,11 @@ def check_required_env_vars():
             missing_vars.append(var)
 
     if missing_vars:
-        print(f"Error: The following required environment variables are not set: {', '.join(missing_vars)}")
+        print(
+            f"Error: The following required environment variables are not set: {', '.join(missing_vars)}"
+        )
         sys.exit(1)
+
 
 def main():
     """
@@ -260,4 +269,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
