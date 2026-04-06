@@ -16,10 +16,10 @@ import time
 from datetime import datetime
 
 import boto3
-import psycopg2
-import psycopg2.pool
-import psycopg2.sql
+import pg8000
+import sqlalchemy
 from botocore.exceptions import ClientError
+from sqlalchemy.engine.interfaces import DBAPICursor
 
 sys.path.append("../../unload/utils/")
 from logger_utils import create_logger
@@ -48,7 +48,11 @@ def _extract_column_names(csv_filepath, delimiter=","):
         return [col.strip() for col in header_line.split(delimiter)]
 
 
-def _execute_copy_command(cur, table_name, csv_file, column_names, logger):
+def quote_identifier(name: str):
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _execute_copy_command(cur: DBAPICursor, table_name, csv_file, column_names, logger):
     """
     Execute the COPY command to load data from a CSV file into PostgreSQL.
 
@@ -62,16 +66,12 @@ def _execute_copy_command(cur, table_name, csv_file, column_names, logger):
     Returns:
         int: Number of rows ingested
     """
-    cols = psycopg2.sql.SQL(", ").join(
-        psycopg2.sql.Identifier(column_name) for column_name in column_names
-    )
-    copy_sql = psycopg2.sql.SQL(
-        "COPY {} ({}) FROM STDIN WITH (FORMAT csv, HEADER true,NULL '');"
-    ).format(psycopg2.sql.Identifier(table_name), cols)
+    cols = ", ".join(quote_identifier(column_name) for column_name in column_names)
+    copy_sql = f"COPY {quote_identifier(table_name)} ({cols}) FROM STDIN WITH (FORMAT csv, HEADER true,NULL '');"
     logger.info(copy_sql)
 
     start_time = time.time()
-    cur.copy_expert(sql=copy_sql, file=csv_file)
+    cur.execute(copy_sql, stream=csv_file)
     rows_ingested = cur.rowcount
 
     end_time = time.time()
@@ -162,7 +162,7 @@ def copy_to_postgres(
     Copies data from a CSV file into a PostgreSQL table with retry logic.
 
     Args:
-        conn_pool (dict): connecton pool
+        conn_pool (QueuePool): Connecton pool
         table_name (str): Target table name
         csv_filepath (str): Path to the CSV file
         processed_dir (str): Directory to move processed files to
@@ -189,7 +189,7 @@ def copy_to_postgres(
         )
 
         try:
-            conn = conn_pool.getconn()
+            conn = conn_pool.connect()
             try:
                 with conn.cursor() as cur:
                     logger.info(f"Processing file: {csv_filepath}")
@@ -208,7 +208,7 @@ def copy_to_postgres(
                     success = True
                     break  # Exit the retry loop on success
 
-            except psycopg2.Error as e:
+            except sqlalchemy.exc.SQLAlchemyError as e:
                 conn.rollback()
                 last_exception = e
                 retry_count += 1
@@ -223,10 +223,10 @@ def copy_to_postgres(
 
             finally:
                 if conn:
-                    conn_pool.putconn(conn)
+                    conn_pool.dispose()
                     conn = None
 
-        except psycopg2.Error as e:
+        except sqlalchemy.exc.SQLAlchemyError as e:
             last_exception = e
             retry_count += 1
             _handle_failure(
@@ -313,7 +313,7 @@ def list_files(glob_pattern, file_extension, logger):
         return []
 
 
-def check_table_exists(conn_pool, table_name, schema):
+def check_table_exists(conn_pool: sqlalchemy.QueuePool, table_name: str, schema: str):
     """
     Check if a table exists in the specified schema.
 
@@ -325,21 +325,22 @@ def check_table_exists(conn_pool, table_name, schema):
     Returns:
         bool: True if the table exists, False otherwise
     """
-    conn = conn_pool.getconn()
+    conn: sqlalchemy.PoolProxiedConnection = conn_pool.connect()
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = %s AND table_name = %s
-                );
+        cur: DBAPICursor = conn.cursor()
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = %s
+            );
             """,
-                (schema, table_name),
-            )
-            return cur.fetchone()[0]
+            (schema, table_name),
+        )
+        row = cur.fetchone()
+        return row[0] if row is not None else None
     finally:
-        conn_pool.putconn(conn)
+        conn_pool.dispose()
 
 
 def thread_handler(
@@ -634,7 +635,7 @@ def main(input_args):
         logger.error(f"Invalid port number: {args.port}")
         sys.exit(1)
 
-    db_params = {"dbname": database_name, "user": user, "host": host, "port": port}
+    db_params = {"database": database_name, "user": user, "host": host, "port": port}
 
     # Retrieve secret value if secret-arn has been provided
     if secret is None:
@@ -657,9 +658,13 @@ def main(input_args):
     logger.info(f"Connecting to {host} as user {user} for database {database_name}")
 
     try:
-        conn_pool = psycopg2.pool.SimpleConnectionPool(1, num_of_threads, **db_params)
+        conn_pool = sqlalchemy.pool.QueuePool(
+            lambda: pg8000.connect(**db_params),
+            pool_size=num_of_threads,
+            max_overflow=-1,
+        )
         logger.info("Successfully created database connection pool")
-    except psycopg2.Error as e:
+    except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(f"Failed to create connection pool: {str(e)}")
         message = f"Failed to connect to database: {str(e)}"
         timestream_utility.sns_publish_message(
@@ -723,7 +728,7 @@ def main(input_args):
     logger.info(
         f"Starting ingestion of {len(csv_files)} files in {min({len(csv_files)}, {num_of_threads})} threads"
     )
-    handle_ingestion(
+    _ = handle_ingestion(
         num_of_threads,
         conn_pool,
         table_name,
@@ -733,7 +738,7 @@ def main(input_args):
         logger,
         timestream_utility,
     )
-    conn_pool.closeall()
+    conn_pool.dispose()
     end_time = datetime.now()
     duration = end_time - start_time
     logger.info(f"Start time: {start_time}")

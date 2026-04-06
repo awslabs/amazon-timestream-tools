@@ -66,6 +66,7 @@ class PostgresTargetTestCase(BaseIntegrationTestCase):
             image="postgres:16",
             username=cls.postgres_username,
             password=cls.postgres_password,
+            driver="pg8000",
         ).start()
         cls.postgres_host = cls.postgres_container.get_container_host_ip()
         cls.postgres_port = int(cls.postgres_container.get_exposed_port(5432))
@@ -159,9 +160,7 @@ class PostgresTargetTestCase(BaseIntegrationTestCase):
                 shutil.rmtree(self.csv_directory)
         except Exception as e:
             if not self.silence_cleanup_logging:
-                logging.warning(
-                    f"tearDown: Failed to delete local CSV directory: {e}"
-                )
+                logging.warning(f"tearDown: Failed to delete local CSV directory: {e}")
 
         try:
             engine = sqlalchemy.create_engine(
