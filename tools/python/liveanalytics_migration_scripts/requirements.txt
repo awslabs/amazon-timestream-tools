@@ -1,7 +1,7 @@
 boto3==1.38.23
 influxdb-client==1.48.0
 python-dotenv==1.1.0
-requests==2.32.4
+requests==2.33.0
 pg8000==1.31.5
 pyarrow==22.0.0
 pyyaml==6.0.2

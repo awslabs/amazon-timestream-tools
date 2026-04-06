@@ -12,7 +12,7 @@ dependencies = [
     "httpx==0.28.1",
     "influxdb-client==1.48.0",
     "influxdb3-python==0.16.0",
-    "requests==2.32.5"
+    "requests==2.33.0"
 ]
 authors = [
     {name = "Trevor Bonas", email = "Trevor.Bonas@improving.com"},
