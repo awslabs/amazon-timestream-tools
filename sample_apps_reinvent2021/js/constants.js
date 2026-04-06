@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 // Constants
 const DATABASE_NAME = 'devops_multi_sample_application';
 const TABLE_NAME = 'host_metrics_sample_application';

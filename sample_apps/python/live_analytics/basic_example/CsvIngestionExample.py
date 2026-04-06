@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 import csv
 import time
 from Constant import DATABASE_NAME, TABLE_NAME

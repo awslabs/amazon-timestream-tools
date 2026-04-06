@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 ##################################################
 ## A multi-process and multi-threaded driver #####
 ## that executes the specified query workload ####

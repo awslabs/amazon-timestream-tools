@@ -1,3 +1,6 @@
+-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-- SPDX-License-Identifier: MIT-0
+
 -- Example 1 - Standard JOIN
 SELECT events.time, events.gpio, temperature, humidity, name, status
 FROM "amazon-timestream-tools"."sensor_events" as events

@@ -1,3 +1,6 @@
+-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+-- SPDX-License-Identifier: MIT-0
+
 with time_seq_only as ( -- Timesequence is 30,240 data points, starting 2 weeks ago of total 3 weeks (1 week in future) with 1 min intervals
     select
     date_add('day', day,

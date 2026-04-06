@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 use crate::metric::Metric;
 use anyhow::Error;
 use async_trait::async_trait;

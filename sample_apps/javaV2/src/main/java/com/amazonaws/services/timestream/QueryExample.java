@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 package com.amazonaws.services.timestream;
 
 import software.amazon.awssdk.services.timestreamquery.TimestreamQueryClient;

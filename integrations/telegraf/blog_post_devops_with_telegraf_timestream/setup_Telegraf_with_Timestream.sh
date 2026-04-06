@@ -1,5 +1,8 @@
 #!/bin/bash -xe
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 echo Running setup_Telegraf_with_Timestream.sh
 
 yum update -y
@@ -21,7 +24,15 @@ sudo yum install telegraf -y
 
 echo Setting up Telegraf
 cd /tmp
-wget https://raw.githubusercontent.com/awslabs/amazon-timestream-tools/master/integrations/telegraf/blog_post_devops_with_telegraf_timestream/telegraf.conf
+wget https://raw.githubusercontent.com/awslabs/amazon-timestream-tools/master/integrations/telegraf/blog_post_devops_with_telegraf_timestream/telegraf.conf && \
+    echo "484a42d2e2229cda357f0b0512c296c4581291d56f2ca2b862f902a4b6dbae45 telegraf.conf" | sha256sum -c -
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+    echo "Failed to verify checksum for telegraf.conf"
+    exit 1
+fi
+
 TIMESTREAM_DATABASE=$1
 sudo sed "s/yourDatabaseNameHere/${TIMESTREAM_DATABASE}/g" telegraf.conf | sudo tee /etc/telegraf/telegraf.conf
 

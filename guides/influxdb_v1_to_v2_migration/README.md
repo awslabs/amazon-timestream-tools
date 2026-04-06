@@ -19,13 +19,14 @@ This guide uses an ARM64 Amazon Linux 2023 EC2 instance to perform the migration
    mkdir ~/influxdb2-binary
    cd ~/influxdb2-binary
 
-   wget https://download.influxdata.com/influxdb/releases/v2.7.12/influxdb2-2.7.12_linux_arm64.tar.gz
-   tar xvfz influxdb2-2.7.12_linux_arm64.tar.gz
+   wget https://download.influxdata.com/influxdb/releases/v2.8.0/influxdb2-2.8.0-2_linux_arm64.tar.gz && \
+      echo "67118f0aad0b50fb1278bb982a02d65d8aaa64d23aa6678f8787e7ca754a5ec1 influxdb2-2.8.0-2_linux_arm64.tar.gz" | sha256sum -c - && \
+      tar xvfz influxdb2-2.8.0-2_linux_arm64.tar.gz
    ```
 
 2. Perform the upgrade:
    ```shell
-   ~/influxdb2-binary/influxdb2-2.7.12/usr/bin/influxd upgrade
+   ~/influxdb2-binary/influxdb2-2.8.0/usr/bin/influxd upgrade
    ```
 
    **Note**: You will need to set the `--engine-path` flag, if the database engine directory is not in the default - (default `"/home/ec2-user/.influxdbv2/engine"`).
@@ -46,7 +47,7 @@ Now that we have a dataset that the InfluxDB v2 daemon can work with, we can exp
 2. Start the InfluxDB v2 daemon in order to find the mapping between InfluxDB v2 buckets and IDs. You will need to spawn another terminal while the database server is running in order to run the script in the next step:
 
    ```shell
-   ~/influxdb2-binary/influxdb2-2.7.12/usr/bin/influxd
+   ~/influxdb2-binary/influxdb2-2.8.0/usr/bin/influxd
    ```
 
    **Note**: If there is another program using the current port (such as InfluxDB v1), consider copying the data over to a new system at this point, or stop InfluxDB v1.
@@ -82,7 +83,7 @@ Paste the following into a new script, `export-influxdb2-buckets.sh`:
    read -r BUCKET_NAME BUCKET_ID; do
        echo "Beginning export for bucket $BUCKET_NAME"
        mkdir buckets/$BUCKET_NAME
-       ~/influxdb2-binary/influxdb2-2.7.12/usr/bin/influxd inspect export-lp \
+       ~/influxdb2-binary/influxdb2-2.8.0/usr/bin/influxd inspect export-lp \
            --bucket-id $BUCKET_ID \
            --engine-path ~/.influxdbv2/engine \
            --output-path buckets/$BUCKET_NAME/$BUCKET_ID.gz \

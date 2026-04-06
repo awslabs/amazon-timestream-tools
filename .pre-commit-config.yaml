@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 repos:
   - repo: https://github.com/awslabs/git-secrets
     rev: 5357e18bc27b42a827b6780564ea873a72ca1f01

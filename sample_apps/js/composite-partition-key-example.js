@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import { constants } from "./constants.js";
 import { getAllRows }  from "./query-example.js";
 import { printRejectedRecordsException } from "./crud-and-simple-ingestion-example.js";

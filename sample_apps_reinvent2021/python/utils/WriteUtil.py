@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 import time
 from utils.Constant import HT_TTL_HOURS, CT_TTL_DAYS
 
@@ -178,4 +181,3 @@ class WriteUtil:
     def print_databases(databases):
         for database in databases:
             print(database['DatabaseName'])
-

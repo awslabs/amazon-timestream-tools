@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 # Script to manually run the InfluxDB backup/restore ECS task
 
 set -e
@@ -123,4 +126,3 @@ echo "Task started successfully: $TASK_ARN"
 echo "You can monitor the task status with:"
 printf "\taws ecs describe-tasks --cluster $CLUSTER_NAME --tasks $TASK_ARN --query \"tasks[0].containers[0]\" --no-cli-pager\n"
 echo "And view logs in CloudWatch Logs."
-
