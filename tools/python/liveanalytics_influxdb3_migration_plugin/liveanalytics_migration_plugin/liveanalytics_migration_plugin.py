@@ -1,18 +1,19 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-from enum import IntEnum
 import io
 import json
 import re
 import sys
 import time
+import traceback
+from enum import IntEnum
+
 import numpy
 import pandas
-import pyarrow.parquet as pq
 import pyarrow as pa
+import pyarrow.parquet as pq
 import requests
-
 
 METADATA_TABLE_NAME = "liveanalytics_migration_metadata"
 MIGRATION_PENDING = "pending"
@@ -53,7 +54,11 @@ class PresignedRangeReader(io.RawIOBase):
             headers={"Range": "bytes=0-0"},
             timeout=GET_PARQUET_TIMEOUT_SECONDS,
         )
-        head.raise_for_status()
+        try:
+            head.raise_for_status()
+        except Exception:
+            error_message = sanitize_string(traceback.format_exc())
+            raise RuntimeError(f"Failed to get Parquet file size: {error_message}")
         self.length = int(head.headers["Content-Range"].split("/")[-1])
 
         self.buffer = b""
@@ -84,7 +89,11 @@ class PresignedRangeReader(io.RawIOBase):
 
         headers = {"Range": f"bytes={start}-{end}"}
         response = self.session.get(self.url, headers=headers, stream=True)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception:
+            error_message = sanitize_string(traceback.format_exc())
+            raise RuntimeError(f"Failed to read Parquet file: {error_message}")
 
         # Update buffer
         self.buffer = response.content
@@ -115,6 +124,23 @@ class PresignedRangeReader(io.RawIOBase):
         return self.pos
 
 
+def sanitize_string(string: str) -> str:
+    """
+    Sanitizes a string, removing any presigned URLs and tokens.
+
+    Args:
+        string (str): The string to sanitize.
+
+    Returns:
+        str: The original string but with presigned URLs and tokens replaced with "*****".
+    """
+    presigned_url_regex = r"(http|https)://.*"
+    token_regex = r"apiv3_.*"
+    sanitized_string = re.sub(presigned_url_regex, "*****", string)
+    sanitized_string = re.sub(token_regex, "*****", sanitized_string)
+    return sanitized_string
+
+
 def create_http_response(
     status: HttpStatus, message: str, table_row_counts: dict = None
 ):
@@ -129,10 +155,7 @@ def create_http_response(
     Returns:
         dict: Response with status, message, and optional table row counts.
     """
-    presigned_url_regex = r"(http|https)://.*"
-    token_regex = r"apiv3_.*"
-    sanitized_message = re.sub(presigned_url_regex, "*****", message)
-    sanitized_message = re.sub(token_regex, "*****", sanitized_message)
+    sanitized_message = sanitize_string(message)
     response = {"status": status, "message": sanitized_message}
 
     # Include table row counts if provided (for client to verify at end of migration)
@@ -159,51 +182,64 @@ def process_request(
             HttpStatus.INVALID_REQUEST, f"Invalid argument: {str(e)}"
         )
 
-    if "verify" in query_parameters and "delete_cache" in query_parameters:
-        response = verify_previous_migrations(influxdb3_local, migration_id)
-        deleted_migration_records = influxdb3_local.cache.delete("migration-records")
-        if deleted_migration_records:
-            influxdb3_local.info("Deleted migration records from in-memory cache")
-        else:
-            influxdb3_local.error(
-                "Failed to delete migration records from in-memory cache"
+    try:
+        if "verify" in query_parameters and "delete_cache" in query_parameters:
+            response = verify_previous_migrations(influxdb3_local, migration_id)
+            deleted_migration_records = influxdb3_local.cache.delete(
+                "migration-records"
             )
-        deleted_table_counts = influxdb3_local.cache.delete("migration-table-counts")
-        if deleted_table_counts:
-            influxdb3_local.info("Deleted table counts from in-memory cache")
-        else:
-            influxdb3_local.error("Failed to delete table counts from in-memory cache")
-        return response
+            if deleted_migration_records:
+                influxdb3_local.info("Deleted migration records from in-memory cache")
+            else:
+                influxdb3_local.error(
+                    "Failed to delete migration records from in-memory cache"
+                )
+            deleted_table_counts = influxdb3_local.cache.delete(
+                "migration-table-counts"
+            )
+            if deleted_table_counts:
+                influxdb3_local.info("Deleted table counts from in-memory cache")
+            else:
+                influxdb3_local.error(
+                    "Failed to delete table counts from in-memory cache"
+                )
+            return response
 
-    if "verify" in query_parameters:
-        return verify_previous_migrations(influxdb3_local, migration_id)
-    if "delete_cache" in query_parameters:
-        deleted_migration_records = influxdb3_local.cache.delete("migration-records")
-        if deleted_migration_records:
-            influxdb3_local.info("Deleted migration records from in-memory cache")
-        else:
-            return create_http_response(
-                HttpStatus.INTERNAL_ERROR,
-                "Failed to delete migration records from in-memory cache",
+        if "verify" in query_parameters:
+            return verify_previous_migrations(influxdb3_local, migration_id)
+        if "delete_cache" in query_parameters:
+            deleted_migration_records = influxdb3_local.cache.delete(
+                "migration-records"
             )
-        deleted_table_counts = influxdb3_local.cache.delete("migration-table-counts")
-        if deleted_table_counts:
-            influxdb3_local.info("Deleted table counts from in-memory cache")
-        else:
-            return create_http_response(
-                HttpStatus.INTERNAL_ERROR,
-                "Failed to delete table counts from in-memory cache",
+            if deleted_migration_records:
+                influxdb3_local.info("Deleted migration records from in-memory cache")
+            else:
+                return create_http_response(
+                    HttpStatus.INTERNAL_ERROR,
+                    "Failed to delete migration records from in-memory cache",
+                )
+            deleted_table_counts = influxdb3_local.cache.delete(
+                "migration-table-counts"
             )
-        return create_http_response(HttpStatus.OK, "Cache deleted")
+            if deleted_table_counts:
+                influxdb3_local.info("Deleted table counts from in-memory cache")
+            else:
+                return create_http_response(
+                    HttpStatus.INTERNAL_ERROR,
+                    "Failed to delete table counts from in-memory cache",
+                )
+            return create_http_response(HttpStatus.OK, "Cache deleted")
 
-    # Body of the incoming request.
-    data = {}
-    if request_body:
-        data = json.loads(request_body)
-        return migrate_parquet_file(
-            influxdb3_local, migration_id, db_name, data.get("parquet_path", "")
-        )
-    return create_http_response(HttpStatus.INVALID_REQUEST, "Invalid request")
+        # Body of the incoming request.
+        data = {}
+        if request_body:
+            data = json.loads(request_body)
+            return migrate_parquet_file(
+                influxdb3_local, migration_id, db_name, data.get("parquet_path", "")
+            )
+        return create_http_response(HttpStatus.INVALID_REQUEST, "Invalid request")
+    except Exception as e:
+        return create_http_response(HttpStatus.INTERNAL_ERROR, str(e))
 
 
 def migrate_parquet_file(influxdb3_local, migration_id, db_name, current_parquet_path):
@@ -325,7 +361,7 @@ def get_migration_metadata(influxdb3_local, migration_id):
                 "presigned_done_url": presigned_done_url,
             }
         return migration_records
-    except Exception as e:
+    except Exception:
         raise Exception(f"{migration_id}: Failed to retrieve migration metadata")
 
 
@@ -498,7 +534,7 @@ def write_to_ingestion_buffer(
         influxdb3_local: InfluxDB v3 local client.
         migration_id (str): The migration ID.
         db_name (str): Database name.
-        presigned_get_url (str): Pre-signed GET URL for the Parquet file.
+        presigned_get_url (str): Presigned GET URL for the Parquet file.
         parquet_path (str): S3 path to the parquet file.
 
     Returns:
@@ -524,13 +560,13 @@ def write_to_ingestion_buffer(
 
 def put_done_file(influxdb3_local, s3_key: str, presigned_done_url: str):
     """
-    Using a pre-signed URL, PUTs a done.ack file in an S3 bucket. For a Parquet file,
+    Using a presigned URL, PUTs a done.ack file in an S3 bucket. For a Parquet file,
     done.ack will be placed in example.parquet/done.ack.
 
     Args:
         influxdb3_local: The local InfluxDB v3 client.
         s3_key (str): The S3 key that identifies the Parquet file.
-        presigned_done_url (str): The pre-signed URL that allows PUTting a done.ack file
+        presigned_done_url (str): The presigned URL that allows PUTting a done.ack file
             in a Parquet file's object key.
 
     Returns:
@@ -541,8 +577,10 @@ def put_done_file(influxdb3_local, s3_key: str, presigned_done_url: str):
         response: requests.Response = requests.put(presigned_done_url, data=b"")
         response.raise_for_status()
         influxdb3_local.info(f"Put done file for {s3_key}")
-    except Exception as e:
-        influxdb3_local.error(f"Error putting done file for {s3_key}: {str(e)}")
+    except Exception:
+        error_message = f"Error putting done file for {s3_key}: {sanitize_string(traceback.format_exc())}"
+        influxdb3_local.error(error_message)
+        raise RuntimeError(error_message)
     return
 
 
@@ -579,7 +617,7 @@ def ingest_parquet_file_in_chunks(
 
     Args:
         influxdb3_local: InfluxDB v3 local client.
-        presigned_get_url (str): Pre-signed GET URL for a Parquet file.
+        presigned_get_url (str): Presigned GET URL for a Parquet file.
         db_name (str): Database name.
         table_name (str): Table name.
         s3_key (str): S3 object key.
