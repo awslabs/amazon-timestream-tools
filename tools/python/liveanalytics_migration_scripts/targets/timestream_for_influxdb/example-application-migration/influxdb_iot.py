@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 """
 A simple application providing a basic example of how to use the InfluxDB APIs.
 This application reads a sample JSON dataset and creates InfluxDB line protocol points to ingest into InfluxDB.

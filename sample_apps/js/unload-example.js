@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import fs from 'fs';
 import readline from 'readline';
 import {WriteRecordsCommand} from "@aws-sdk/client-timestream-write";

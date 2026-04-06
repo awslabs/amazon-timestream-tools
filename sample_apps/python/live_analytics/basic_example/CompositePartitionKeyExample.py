@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 import random
 import string
 from Constant import DATABASE_NAME
@@ -247,4 +250,3 @@ class CompositePartitionKeyExample:
                 self.write_util.delete_table(DATABASE_NAME, self.partition_key_measure_table_name)
                 self.write_util.delete_database(DATABASE_NAME)
                 self.timestream_dependency_helper.delete_s3_bucket(self.s3_bucket_name)
-

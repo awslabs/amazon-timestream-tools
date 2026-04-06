@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Parallel processing of ingesting gzip line protocol files to InfluxDB.
 This module extracts and ingests gzip files using multiple processes.

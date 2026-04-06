@@ -1,4 +1,7 @@
 #!/usr/bin/python
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 import sys
 import traceback
 
@@ -343,4 +346,3 @@ class QueryUtil:
             print("Query has been successfully cancelled")
         except Exception as err:
             print("Cancelling query failed:", err)
-

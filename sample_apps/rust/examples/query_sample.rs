@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 use anyhow::{Error, Result};
 use clap::Parser;
 use sample_timestream_app::utils::query_common::{get_connection, run_query, write, Args};
