@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 assets-path: ""
 bolt-path: /var/lib/influxdb2/influxd.bolt
 e2e-testing: false

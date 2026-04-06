@@ -1,5 +1,8 @@
 #!/bin/bash -xe
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 echo Running setup_sample_application.sh
 yum update -y
 

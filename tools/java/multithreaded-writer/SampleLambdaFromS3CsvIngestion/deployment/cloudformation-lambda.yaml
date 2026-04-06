@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "A Lambda function which reads a CSV file from S3 and ingests records with multithreaded writer to Timestream."
 
