@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 from .air_quality_data_generator import AirQualityDataGenerator
 from .custom_data_generator import CustomDataGenerator
 from .data_generator import DataGenerator, Direction

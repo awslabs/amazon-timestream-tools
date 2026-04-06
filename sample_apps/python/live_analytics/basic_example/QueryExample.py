@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 from Constant import DATABASE_NAME, TABLE_NAME
 
 class QueryExample:
@@ -338,4 +341,3 @@ class QueryExample:
             print("Query has been successfully cancelled")
         except Exception as err:
             print("Cancelling query failed:", err)
-

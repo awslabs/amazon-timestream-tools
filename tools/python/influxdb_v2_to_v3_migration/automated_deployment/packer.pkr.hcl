@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 packer {
   required_plugins {
     amazon = {
@@ -47,6 +50,7 @@ build {
       "mkdir -p influx_cli",
       "cd influx_cli",
       "wget https://dl.influxdata.com/influxdb/releases/influxdb2-client-2.7.5-linux-arm64.tar.gz",
+      "echo \"867c3cbabd63a34a9b1ac643fd5c5d268b694acc98e3b75fa5a78d63037097dd influxdb2-client-2.7.5-linux-arm64.tar.gz\" | sha256sum -c -",
       "tar -xzf influxdb2-client-2.7.5-linux-arm64.tar.gz",
       "sudo mv influx /usr/local/bin/",
       "sudo chmod +x /usr/local/bin/influx",
@@ -59,12 +63,13 @@ build {
   provisioner "shell" {
     inline = [
       "cd /home/ec2-user",
-      "curl -LO https://download.influxdata.com/influxdb/releases/v2.7.12/influxdb2-2.7.12_linux_arm64.tar.gz",
-      "tar -xzf influxdb2-2.7.12_linux_arm64.tar.gz",
-      "sudo mv influxdb2-2.7.12/usr/bin/influxd /usr/local/bin/",
+      "wget https://download.influxdata.com/influxdb/releases/v2.8.0/influxdb2-2.8.0-2_linux_arm64.tar.gz",
+      "echo \"67118f0aad0b50fb1278bb982a02d65d8aaa64d23aa6678f8787e7ca754a5ec1 influxdb2-2.8.0-2_linux_arm64.tar.gz\" | sha256sum -c -",
+      "tar -xzf influxdb2-2.8.0-2_linux_arm64.tar.gz",
+      "sudo mv influxdb2-2.8.0/usr/bin/influxd /usr/local/bin/",
       "sudo chmod +x /usr/local/bin/influxd",
-      "rm -rf influxdb2-2.7.12",
-      "rm influxdb2-2.7.12_linux_arm64.tar.gz"
+      "rm -rf influxdb2-2.8.0",
+      "rm influxdb2-2.8.0-2_linux_arm64.tar.gz"
     ]
   }
 

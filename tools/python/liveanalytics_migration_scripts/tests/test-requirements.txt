@@ -1,3 +1,4 @@
 -r ../requirements.txt
 pytest==8.4.2
+sqlalchemy==2.0.48
 testcontainers==4.13.2

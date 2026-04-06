@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 async function listReportFilesInS3(s3ErrorReportBucketName, errorReportPrefix) {
     const params = {
         Bucket: s3ErrorReportBucketName,

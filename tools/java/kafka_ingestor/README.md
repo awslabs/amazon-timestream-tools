@@ -32,8 +32,9 @@ following the instructions described in [Connect to your Linux instance using an
 1. Download and extract the jmeter application in the Kafka producer machine:
 ````shell
 cd ~
-wget https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.6.2.tgz
-tar -xf apache-jmeter-5.6.2.tgz
+wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.2.tgz && \
+   echo "5abe849f537ccdb17e3ea051e8c359f34e2cd9a112d831ef39aaaea59e42fb69acec853e99099a7527375dac5fa4a847ee150025d3191fa55aae64fbf3bb5289 apache-jmeter-5.6.2.tgz" | sha512sum -c - && \
+   tar -xf apache-jmeter-5.6.2.tgz
 ````
 
 2. Verify that jmeter is installed:
@@ -49,14 +50,16 @@ The output should look like the following screenshot.
 ```shell
 cd ~
 cd apache-jmeter-5.6.2/lib/ext 
-wget https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/2.8.1/kafka-clients-2.8.1.jar
+wget https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/2.8.1/kafka-clients-2.8.1.jar && \
+   echo "cf4abb87e0d49670cf7a94e79eba14616be27418 kafka-clients-2.8.1.jar" | sha1sum -c -
 ```
 
 4. Download the msk-iam-auth-all.jar file, which contains classes for working with Amazon MSK that have been configured with IAM authentication, and place it in the jmeter /lib/ext directory:
 ```shell
 cd ~ 
 cd apache-jmeter-5.6.2/lib/ext 
-wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.9/aws-msk-iam-auth-1.1.9-all.jar
+wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.9/aws-msk-iam-auth-1.1.9-all.jar && \
+   echo "16b3fbb2fbc7f0a5e60f2b8152b85c4892ed2459595a6400bc29126d98dcdf78 aws-msk-iam-auth-1.1.9-all.jar" | sha256sum -c -
 ````
 5. Create a directory in the jMeter _/examples_ directory:
 ```shell

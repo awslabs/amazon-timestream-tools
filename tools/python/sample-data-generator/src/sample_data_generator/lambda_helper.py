@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 from boto3 import session
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest

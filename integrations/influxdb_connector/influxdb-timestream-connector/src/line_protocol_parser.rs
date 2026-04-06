@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 use crate::metric::{self, Metric};
 use anyhow::{anyhow, Error};
 use influxdb_line_protocol::{self, parse_lines, ParsedLine};

@@ -1,10 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+import json
+import os
 import random
+import sys
+import time
+
 import boto3
 import botocore
-import json
-import time
-import os
-import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
@@ -331,6 +335,81 @@ class S3Utility:
             )
             line_protocol_path = f"{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload}/line-protocol-output"
             prefix_parts = line_protocol_path.split("/")[1:]
+            prefix = "/".join(prefix_parts)
+
+        s3_keys = []
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=s3_bucket_name, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                s3_key = obj["Key"]
+                if s3_key == prefix:
+                    continue
+                s3_keys.append(s3_key)
+                rel_path = s3_key[len(prefix) :]
+                # A leading "/" will cause os.path.join to believe the path is
+                # the root directory.
+                rel_path = rel_path.lstrip("/")
+                local_file_path = os.path.join(directory, rel_path)
+                os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+                self.s3_client.download_file(s3_bucket_name, s3_key, local_file_path)
+
+    def sync_csv_to_storage(
+        self,
+        s3_bucket_path: str,
+        directory: str,
+        timestream_database_name="",
+        timestream_table_name="",
+    ):
+        """
+        Downloads CSV data from an S3 bucket path to a directory.
+        If provided simply the bucket path and the Timestream database and
+        table name, the latest unload directory will be searched for. If the
+        S3 bucket path is a path within an S3 bucket, such as s3://my-bucket/my-path,
+        then all objects will be downloaded from this path.
+
+        Args:
+            s3_bucket_path (str): The path of the S3 bucket to download objects from,
+                for example, s3://my-bucket, or, s3://my-bucket/my-path.
+            directory (str): The path to the local directory to download objects to.
+            timestream_database_name (str): The name of the Timestream for LiveAnalytics
+                database used in the unload process.
+            timestream_table_name (str): The name of the Timestream for LiveAnalytics
+                table used in the unload process.
+        Returns:
+            None
+        """
+        if s3_bucket_path.lower().startswith("s3://"):
+            s3_bucket_path = s3_bucket_path[5:]
+        s3_bucket_parts = s3_bucket_path.split("/")
+        if not s3_bucket_parts:
+            raise RuntimeError("S3 bucket path was empty")
+        s3_bucket_name = s3_bucket_parts[0]
+        if not self.s3_bucket_exists(s3_bucket_name):
+            raise RuntimeError(f"S3 bucket {s3_bucket_name} does not exist")
+
+        os.makedirs(directory, exist_ok=True)
+
+        if len(s3_bucket_parts) > 1:
+            prefix = "/".join(s3_bucket_parts[1:])
+            if not self.s3_bucket_path_exists(
+                bucket_name=s3_bucket_name, prefix=prefix
+            ):
+                raise RuntimeError(
+                    f"The S3 bucket path {s3_bucket_path} does not exist"
+                )
+            csv_path = s3_bucket_path
+        else:
+            if not timestream_database_name or not timestream_table_name:
+                raise RuntimeError(
+                    "Timestream database and table name are required when syncing using only an S3 bucket name"
+                )
+            latest_unload = self.get_latest_unload_path(
+                bucket_name=s3_bucket_name,
+                timestream_database_name=timestream_database_name,
+                timestream_table_name=timestream_table_name,
+            )
+            csv_path = f"{s3_bucket_name}/{timestream_database_name}/{timestream_table_name}/{latest_unload}/"
+            prefix_parts = csv_path.split("/")[1:]
             prefix = "/".join(prefix_parts)
 
         s3_keys = []

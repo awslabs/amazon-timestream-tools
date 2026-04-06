@@ -1,5 +1,8 @@
 #!/bin/bash -xe
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 echo Running setup_sample_application.sh
 yum update -y
 
@@ -24,10 +27,25 @@ pip install pip --upgrade
 pip install influxdb
 
 ## Download the sample application code
-wget https://raw.githubusercontent.com/awslabs/amazon-timestream-tools/master/integrations/telegraf/blog_post_devops_with_telegraf_timestream/app.py
+wget https://raw.githubusercontent.com/awslabs/amazon-timestream-tools/master/integrations/telegraf/blog_post_devops_with_telegraf_timestream/app.py && \
+    echo "fe01a2a1767d78a660021814c7123820034f298faa79bd3f0f4a6de71ca04e4c app.py" | sha256sum -c -
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+    echo "Failed to verify checksum for app.py"
+    exit 1
+fi
 
 # Configure sample_app as a service
-wget https://raw.githubusercontent.com/awslabs/amazon-timestream-tools/master/integrations/telegraf/blog_post_devops_with_telegraf_timestream/sample_app.service
+wget https://raw.githubusercontent.com/awslabs/amazon-timestream-tools/master/integrations/telegraf/blog_post_devops_with_telegraf_timestream/sample_app.service && \
+    echo "b58fec45d4d682ba9f89dfa01a9382e4c9d61a6cadacab36302573da19758c2c sample_app.service" | sha256sum -c -
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+    echo "Failed to verify checksum for sample_app.service"
+    exit 1
+fi
+
 cp sample_app.service /etc/systemd/system/sample_app.service
 chown sample_app:sample_app /etc/systemd/system/sample_app.service
 chown -R sample_app:sample_app /home/sample_app/

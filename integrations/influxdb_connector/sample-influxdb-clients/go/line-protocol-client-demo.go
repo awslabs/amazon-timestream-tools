@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 package main
 
 import (
@@ -120,4 +123,3 @@ func (u *SigV4HeaderSetter) Do(req *http.Request) (*http.Response, error) {
     // Call original Doer to proceed with request
     return u.RequestDoer.Do(req)
 }
-

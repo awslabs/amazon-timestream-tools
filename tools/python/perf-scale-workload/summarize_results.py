@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 ##################################################
 ## A helper to summarize the statistics from a  ##
 ## concurrent run for the query workload. ########

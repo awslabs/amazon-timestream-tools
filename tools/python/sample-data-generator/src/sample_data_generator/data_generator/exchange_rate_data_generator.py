@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 from .data_generator import DataGenerator
 
 class ExchangeRateDataGenerator(DataGenerator):
@@ -51,4 +54,3 @@ class ExchangeRateDataGenerator(DataGenerator):
             },
             "title": "Amazon Timestream for LiveAnalytics Sample Dashboard"
         }
-

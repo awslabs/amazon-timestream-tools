@@ -1,26 +1,28 @@
-from contextlib import redirect_stdout
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 import io
+import logging
 import os
-import time
-import unittest
 import random
 import re
 import string
 import sys
-import logging
+import time
+import unittest
+from contextlib import redirect_stdout
 
+import pandas
 from boto3 import Session
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
-
-import pandas
 from pandas import Timedelta
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 import unload
-from unload.utils.s3_utils import S3Utility
 from cardinality import cardinality
+from unload.utils.s3_utils import S3Utility
 
 # Format expected by unload.py.
 UNLOAD_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -103,13 +105,13 @@ class BaseIntegrationTestCase(unittest.TestCase):
 
         self.s3_bucket_name = self.s3_bucket_name_prefix + self.get_random_string(10)
         if self.session.region_name == "us-east-1":
-            self.s3_client.create_bucket(
-                Bucket=self.s3_bucket_name
-            )
+            self.s3_client.create_bucket(Bucket=self.s3_bucket_name)
         else:
             self.s3_client.create_bucket(
                 Bucket=self.s3_bucket_name,
-                CreateBucketConfiguration={"LocationConstraint": self.session.region_name},
+                CreateBucketConfiguration={
+                    "LocationConstraint": self.session.region_name
+                },
             )
 
         self.silence_cleanup_logging = False

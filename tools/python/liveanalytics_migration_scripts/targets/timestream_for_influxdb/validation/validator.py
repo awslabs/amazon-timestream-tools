@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Compare row/point counts between an Amazon Athena (or Timestream) table and an
 InfluxDB bucket measurement, optionally within a specific time-range.

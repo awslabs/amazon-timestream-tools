@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 package com.amazonaws.samples.connectors.timestream;
 
 import org.apache.flink.annotation.PublicEvolving;

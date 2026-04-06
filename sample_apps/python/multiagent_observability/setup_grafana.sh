@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 set -u  # Treat unset variables as an error
 : "${INFLUXDB_V2_URL:?Environment variable INFLUXDB_V2_URL must be set and non-empty}"
 : "${INFLUXDB_V2_ORG:?Environment variable INFLUXDB_V2_ORG must be set and non-empty}"
