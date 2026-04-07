@@ -77,6 +77,8 @@ class InfluxDBMigrationWrapper:
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
         )
         self.logger: logging.Logger = logging.getLogger(__name__)
+        logging.getLogger("botocore").setLevel(logging.WARNING)
+        logging.getLogger("boto3").setLevel(logging.WARNING)
 
         migration_date = int(datetime.now(tz=timezone.utc).timestamp())
         self.migration_id = f"migration-{migration_date}"
@@ -891,7 +893,7 @@ class InfluxDBMigrationWrapper:
                 metadata_table_deleted = False
                 for s3_key in batch_keys:
                     # Check credential expiry before each file invocation.
-                    creds = boto3.Session()._session.get_credentials()
+                    creds = self.s3_client._request_signer._credentials
                     frozen = creds.get_frozen_credentials()
                     if frozen.token:
                         sts_expiry = getattr(creds, "_expiry_time", None)
