@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Create a Timestream database and a tables and scheduled query
 Parameters:
@@ -328,4 +331,3 @@ Outputs:
   TableName:
     Description: Timestream Table Name
     Value: !GetAtt MyTable.Name
-

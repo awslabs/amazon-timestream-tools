@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 """
 A simple application providing a basic example of how to use Timestream for LiveAnalytics APIs.
 This application reads a sample JSON dataset and creates Timestream records to ingest into Timestream for LiveAnalytics.
@@ -302,4 +305,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

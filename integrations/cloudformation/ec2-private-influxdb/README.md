@@ -76,8 +76,9 @@ Once you have connected to your EC2 instance, download and install the Influx CL
 
 ```shell
 wget https://dl.influxdata.com/influxdb/releases/influxdb2-client-2.7.5-linux-arm64.tar.gz && \
-tar xvzf ./influxdb2-client-2.7.5-linux-arm64.tar.gz && \
-sudo cp ./influx /usr/local/bin/
+    echo "867c3cbabd63a34a9b1ac643fd5c5d268b694acc98e3b75fa5a78d63037097dd influxdb2-client-2.7.5-linux-arm64.tar.gz" | sha256sum -c - && \
+    tar xvzf ./influxdb2-client-2.7.5-linux-arm64.tar.gz && \
+    sudo cp ./influx /usr/local/bin/
 ```
 
 #### Creating an Operator Token

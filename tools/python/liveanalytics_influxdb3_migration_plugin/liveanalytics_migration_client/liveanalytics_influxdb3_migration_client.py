@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 InfluxDB Migration Plugin Wrapper Script
 
@@ -11,16 +14,17 @@ Usage:
 """
 
 import argparse
-import sys
-import os
-import time
-import boto3
-from botocore.exceptions import ClientError, BotoCoreError
-from influxdb_client_3 import InfluxDBClient3, WritePrecision
 import json
 import logging
-import requests
+import os
+import sys
+import time
 from datetime import datetime, timedelta, timezone
+
+import boto3
+import requests
+from botocore.exceptions import BotoCoreError, ClientError
+from influxdb_client_3 import InfluxDBClient3, WritePrecision
 
 MIGRATION_METADATA_TABLE: str = "liveanalytics_migration_metadata"
 TRIGGER_NAME: str = "migration_trigger"
@@ -44,6 +48,7 @@ class InfluxDBMigrationWrapper:
         timeout_seconds: int = 360,  # 6 minutes.
         region: str = "us-west-2",
         max_parquet_files: int | None = None,
+        presigned_url_expiry_seconds: int | None = None,
     ) -> None:
         """
         Initialize
@@ -55,6 +60,7 @@ class InfluxDBMigrationWrapper:
             timeout_seconds (int): The number of seconds to wait for each migration request.
             region (str): The AWS Region to use.
             max_parquet_files (int | None): The maximum number of Parquet files to migrate.
+            presigned_url_expiry_seconds (int | None): The expiry time for all presigned URLs.
 
         Returns:
             None
@@ -65,6 +71,7 @@ class InfluxDBMigrationWrapper:
         self.timeout_seconds: int = timeout_seconds
         self.region: str = region
         self.max_parquet_files: int | None = max_parquet_files
+        self.presigned_url_expiry_seconds: int | None = presigned_url_expiry_seconds
 
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -603,7 +610,7 @@ class InfluxDBMigrationWrapper:
         return None
 
     def generate_metadata(
-        self, parquet_file_names: list[str], expiration: int = 604_800
+        self, parquet_file_names: list[str], expiration: int | None = 604_800
     ) -> dict[str, dict[str, str]]:
         """
         Generates metadata, including presigned URLs for S3 objects.
@@ -712,7 +719,7 @@ class InfluxDBMigrationWrapper:
                     )
                     return False
             except requests.exceptions.RequestException as e:
-                self.error(f"Error creating database: ", str(e))
+                self.error("Error creating database: ", str(e))
                 return False
 
             self.delete_metadata_table(silence_errors=True)
@@ -743,14 +750,14 @@ class InfluxDBMigrationWrapper:
                     )
                     return False
             except requests.exceptions.RequestException as e:
-                self.error(f"Error creating table: ", str(e))
+                self.error("Error creating table: ", str(e))
                 return False
 
             self.create_processing_engine_trigger()
             return True
 
         except Exception as e:
-            self.error(f"Failed to setup InfluxDB metadata: ", str(e))
+            self.error("Failed to setup InfluxDB metadata: ", str(e))
             sys.exit(1)
 
     def write_metadata_to_influxdb(self, metadata):
@@ -821,7 +828,7 @@ class InfluxDBMigrationWrapper:
             )
 
         except Exception as e:
-            self.error(f"Failed to write metadata to InfluxDB: ", str(e))
+            self.error("Failed to write metadata to InfluxDB: ", str(e))
             sys.exit(1)
 
     def bulk_invoke_http_trigger(self, parquet_keys: list[str]):
@@ -1069,7 +1076,7 @@ class InfluxDBMigrationWrapper:
             None
         """
         try:
-            self.info(f"Creating processing engine HTTP trigger")
+            self.info("Creating processing engine HTTP trigger")
 
             headers = {
                 "Authorization": f"Bearer {self.influx_token}",
@@ -1245,7 +1252,7 @@ class InfluxDBMigrationWrapper:
                         Key=marker["Key"],
                         VersionId=marker["VersionId"],
                     )
-                except Exception as e:
+                except Exception:
                     self.error(
                         f"Failed to delete deletion marker for object {marker['Key']} with version ID {marker['VersionId']}"
                     )
@@ -1557,6 +1564,12 @@ Examples:
         type=int,
         help="Optional. The maximum number of Parquet files to migrate. Default behaviour is to migrate all Parquet files.",
     )
+    parser.add_argument(
+        "--presigned-url-expiry-seconds",
+        required=False,
+        type=int,
+        help="Optional. The number of seconds that all presigned URLs will be valid for. Default is 604800 (7 days, max).",
+    )
 
     args = parser.parse_args(input_args)
 
@@ -1566,6 +1579,7 @@ Examples:
     timeout_seconds: int = args.timeout_seconds
     region: str = args.region
     max_parquet_files: int | None = args.max_parquet_files
+    presigned_url_expiry_seconds: int | None = args.presigned_url_expiry_seconds
 
     required_env_vars = [
         "INFLUXDB3_HOST_URL",
@@ -1588,6 +1602,7 @@ Examples:
         timeout_seconds=timeout_seconds,
         region=region,
         max_parquet_files=max_parquet_files,
+        presigned_url_expiry_seconds=presigned_url_expiry_seconds,
     )
 
     try:

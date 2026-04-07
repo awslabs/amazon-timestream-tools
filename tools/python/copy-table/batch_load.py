@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 import json
 import boto3 
 from backoff import expo
@@ -125,4 +128,3 @@ if __name__ == '__main__':
    logger.info(f'all destination CSV files : {all_csv_files_list}')
    logger.info(f'sorted partition list for batchload : {sorted_list_s3_partitions}')
    timestream_utility.multi_thread_handler(args.num_of_batchload_threads, sorted_list_s3_partitions, data_model, s3_target_bucket, s3_target_error_bucket)
-

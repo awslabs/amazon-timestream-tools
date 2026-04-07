@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import { TimestreamWriteClient } from "@aws-sdk/client-timestream-write";
 import { TimestreamQueryClient } from "@aws-sdk/client-timestream-query";
 import { TimestreamDependencyHelper } from "./utils/timestream-dependency-helper.js";

@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 import random
 import time
 import boto3
@@ -242,5 +245,3 @@ if __name__ == '__main__':
     }
     context = {}
     lambda_handler(event, context)
-
-

@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 DATABASE_NAME = "devops_multi"
 TABLE_NAME = "host_metrics"
 SQ_RESULT_DATABASE = "sq_result_database_multi"

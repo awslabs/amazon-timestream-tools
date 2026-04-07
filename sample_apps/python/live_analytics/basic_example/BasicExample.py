@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 from Constant import DATABASE_NAME, TABLE_NAME
 from utils.WriteUtil import WriteUtil
 from CrudAndSimpleIngestionExample import CrudAndSimpleIngestionExample
@@ -30,4 +33,3 @@ class BasicExample:
             if not self.skip_deletion:
                 self.write_util.delete_table(DATABASE_NAME, TABLE_NAME)
                 self.write_util.delete_database(DATABASE_NAME)
-

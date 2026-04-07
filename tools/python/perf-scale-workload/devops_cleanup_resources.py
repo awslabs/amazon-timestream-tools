@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 ##################################################
 ## A helper to clean up the Timestream database ##
 ## and table used for the performance run ########

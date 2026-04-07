@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 # Script to build and deploy the InfluxDB backup/restore ECS solution using SAM
 
 set -e

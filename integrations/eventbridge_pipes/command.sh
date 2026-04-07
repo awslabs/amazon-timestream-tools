@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 
 DATE_TIME=$(date -u '+%Y-%m-%d %H:%M:%S.000')
 DATA=$(echo "{\"dimension_1\": \"dimension1\", \"measure_1\": \"1.0\", \"time\": \"${DATE_TIME}\", \"version\": \"1\" }" | base64)

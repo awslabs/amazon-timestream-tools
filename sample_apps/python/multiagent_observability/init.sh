@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 log() { echo "$(date '+%H:%M:%S') - $1"; }
 SERVICES=("cfn-agent" "aws-agent" "grafana")
 log "Starting services..."

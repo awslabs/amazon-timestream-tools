@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 import argparse
 import boto3
 import json
@@ -124,4 +127,3 @@ if __name__ == '__main__':
     main(logger, args.region, args.database, args.table, args.s3_uri, args.from_time, args.end_time, args.partition, args.iam_role_arn)
 
     logger.info("COMPLETED SUCCESSFULLY")
-

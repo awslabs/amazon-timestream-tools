@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 """
 Script for backing up and restoring Timestream for InfluxDB data using ECS.
 This script is designed to run as an ECS task and handles both backup and restore operations.

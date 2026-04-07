@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Live Migration Dashboard
 ========================
@@ -6,6 +9,7 @@ for LiveAnalytics to InfluxDB. The UI surfaces key configuration values, overall
 progress metrics, detailed batch statistics, and raw log output—all sourced
 from logs written by the migration job.
 """
+
 from __future__ import annotations
 
 import operator
@@ -44,6 +48,7 @@ EMPTY_VALUE = "—"
 
 def load_config(path: str | pathlib.Path = "config.yaml") -> dict[str, Any]:
     """Load YAML configuration once every minute (cached)."""
+
     @st.cache_data(ttl=60, show_spinner=False)
     def _inner(file_path: str | pathlib.Path) -> dict[str, Any]:
         try:
@@ -76,6 +81,7 @@ def load_log_csv(path: pathlib.Path) -> pd.DataFrame | None:
 # ---------------------------------------------------------------------------
 #  Misc. Utility Functions
 # ---------------------------------------------------------------------------
+
 
 def fmt(value: Any) -> str:
     """Human‑friendly representation suitable for *st.metric()* values."""
@@ -130,9 +136,11 @@ def parse_duration(duration: str | float | None) -> int | None:
 
     return seconds
 
+
 # ---------------------------------------------------------------------------
 #  Charting Helpers
 # ---------------------------------------------------------------------------
+
 
 def _plot_empty(msg: str) -> None:
     """Display *msg* inside the chart area when no data is available."""
@@ -152,9 +160,7 @@ def chart_duration(df: pd.DataFrame) -> None:
     subset["duration_seconds"] = subset["duration"].apply(parse_duration)
     subset = subset.dropna(subset=["duration_seconds"]).sort_values("executed_at")
 
-    fig = (
-        px.scatter if len(subset) == 1 else px.line
-    )(
+    fig = (px.scatter if len(subset) == 1 else px.line)(
         subset,
         x="executed_at",
         y="duration_seconds",
@@ -206,9 +212,7 @@ def chart_cumulative(df: pd.DataFrame) -> None:
 
     subset["cumulative_lines"] = subset["total_lines_ingested"].cumsum()
 
-    fig = (
-        px.scatter if len(subset) == 1 else px.area
-    )(
+    fig = (px.scatter if len(subset) == 1 else px.area)(
         subset,
         x="executed_at",
         y="cumulative_lines",
@@ -233,9 +237,11 @@ def chart_cumulative(df: pd.DataFrame) -> None:
     fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
+
 # ---------------------------------------------------------------------------
 #  Streamlit App
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Entry‑point for *streamlit run*."""
@@ -252,7 +258,9 @@ def main() -> None:
     logdir = pathlib.Path(log_dir_from_yaml or "./migration-logs")
 
     batch_sleep_min = get_conf(cfg, ["global", "live_replication", "batch_sleep_min"])
-    backfill_start = get_conf(cfg, ["global", "live_replication", "backfill_start_time"])
+    backfill_start = get_conf(
+        cfg, ["global", "live_replication", "backfill_start_time"]
+    )
     cutoff_time = get_conf(cfg, ["global", "live_replication", "cutoff_time"])
     overlap_min = get_conf(cfg, ["global", "live_replication", "backfill_min_overlap"])
     all_dbs = get_conf(cfg, ["source", "all_databases"], False)
@@ -328,10 +336,14 @@ def main() -> None:
         df = pd.DataFrame(columns=EXPECTED_COLS)
     else:
         selected = st.selectbox(
-            "Select a live_replication log:",[p.name for p in live_logs], index=0
+            "Select a live_replication log:", [p.name for p in live_logs], index=0
         )
         df_raw = load_log_csv(logdir / selected)
-        df = ensure_columns(df_raw) if df_raw is not None else pd.DataFrame(columns=EXPECTED_COLS)
+        df = (
+            ensure_columns(df_raw)
+            if df_raw is not None
+            else pd.DataFrame(columns=EXPECTED_COLS)
+        )
 
     empty = df.empty
 
@@ -342,9 +354,15 @@ def main() -> None:
 
     # Display headline metrics
     headline = st.columns(3)
-    headline[0].metric("Batches Processed", df["batch_id"].nunique() if not empty else 0)
-    headline[1].metric("Total Lines Migrated", df["total_lines_ingested"].sum() if not empty else 0)
-    headline[2].metric("Success Rate", f"{success_rate:.1f} %" if total_rows else EMPTY_VALUE)
+    headline[0].metric(
+        "Batches Processed", df["batch_id"].nunique() if not empty else 0
+    )
+    headline[1].metric(
+        "Total Lines Migrated", df["total_lines_ingested"].sum() if not empty else 0
+    )
+    headline[2].metric(
+        "Success Rate", f"{success_rate:.1f} %" if total_rows else EMPTY_VALUE
+    )
 
     # ── Charts ─────────────────
     st.subheader("Batch Metrics Over Time")
@@ -365,7 +383,9 @@ def main() -> None:
     st.title("Batch Logs")
 
     batch_names = (
-        df["batch_name"].dropna().unique().tolist() if not empty and "batch_name" in df.columns else []
+        df["batch_name"].dropna().unique().tolist()
+        if not empty and "batch_name" in df.columns
+        else []
     )
     batch_names.sort(reverse=True)
 

@@ -1,5 +1,8 @@
 #![recursion_limit = "256"]
 
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 use influxdb_timestream_connector::{
     lambda_handler,
     timestream_utils::{get_connection, TimestreamEnvConfig},
