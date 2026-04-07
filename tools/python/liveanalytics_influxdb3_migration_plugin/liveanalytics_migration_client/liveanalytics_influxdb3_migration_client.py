@@ -853,10 +853,24 @@ class InfluxDBMigrationWrapper:
             params=params,
             timeout=self.timeout_seconds,
         )
+        # Sort keys by table name then partition date so ingestion proceeds
+        # chronologically per table: {db}/{table}/chunk_NNN/results/partition_date=YY-MM-DD/file.parquet
+        def sort_key(s3_key: str):
+            parts = s3_key.split("/")
+            table = parts[1] if len(parts) > 1 else ""
+            date_part = ""
+            for part in parts:
+                if part.startswith("partition_date="):
+                    date_part = part.removeprefix("partition_date=")
+                    break
+            return (table, date_part)
+
+        sorted_keys = sorted(metadata.keys(), key=sort_key)
+
         try:
             metadata_table_deleted: bool = False
             num_parquet_files_submitted = 0
-            for s3_key in metadata:
+            for s3_key in sorted_keys:
                 if (
                     self.max_parquet_files is not None
                     and num_parquet_files_submitted >= self.max_parquet_files
