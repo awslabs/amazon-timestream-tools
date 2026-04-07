@@ -876,7 +876,8 @@ class InfluxDBMigrationWrapper:
             num_parquet_files_submitted = 0
             for batch_num, batch_keys in enumerate(batches, start=1):
                 self.info(f"Generating presigned URLs for batch {batch_num}/{total_batches} ({len(batch_keys)} files)")
-                batch_metadata = self.generate_metadata(parquet_file_names=batch_keys)
+                expiry = self.presigned_url_expiry_seconds if self.presigned_url_expiry_seconds is not None else 604_800
+                batch_metadata = self.generate_metadata(parquet_file_names=batch_keys, expiration=expiry)
 
                 # Write fresh metadata and clear plugin cache for this batch.
                 self.write_metadata_to_influxdb(batch_metadata)
@@ -926,30 +927,42 @@ class InfluxDBMigrationWrapper:
                         metadata_table_deleted = True
                     num_parquet_files_submitted += 1
 
-                # Only delete cache on the final batch
+                # For the final batch, send an extra verify first to flush verification
+                # of the last file (which is deferred until the next invocation), then
+                # verify+delete_cache to get final counts and clear the cache.
+                # For intermediate batches, a single verify is sufficient.
                 is_last_batch = batch_num == total_batches
-                verification_params = {"verify": True, "delete_cache": True} if is_last_batch else {"verify": True}
+                if is_last_batch:
+                    session.post(
+                        url=url,
+                        headers=headers,
+                        params={"verify": True},
+                        timeout=self.timeout_seconds,
+                    )
+
                 batch_verify_response = session.post(
                     url=url,
                     headers=headers,
-                    params=verification_params,
+                    params={"verify": True, "delete_cache": True} if is_last_batch else {"verify": True},
                     timeout=self.timeout_seconds,
                 )
                 batch_verify_response.raise_for_status()
                 response_json = batch_verify_response.json()
 
-                if response_json["status"] != 200:
+                if is_last_batch and response_json["status"] != 200:
                     is_partial_migration = (
                         self.max_parquet_files is not None
                         and self.max_parquet_files < len(parquet_keys)
                     )
-                    if is_partial_migration and is_last_batch:
+                    if is_partial_migration:
                         num_remaining_files = len(parquet_keys) - num_parquet_files_submitted
                         self.warning(
                             f"{num_parquet_files_submitted} files have been migrated, "
                             f"{num_remaining_files} remain. Final verification failed: {response_json['message']}"
                         )
                         return
+                    raise Exception(f"Final batch verification failed: {response_json['message']}")
+                elif not is_last_batch and response_json["status"] not in (200, 202):
                     raise Exception(f"Batch {batch_num} verification failed: {response_json['message']}")
 
             # Store cumulative row counts from the final batch verify for final verification.
