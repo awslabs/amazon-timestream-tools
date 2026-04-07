@@ -20,7 +20,7 @@ from influxdb_client_3 import InfluxDBClient3, WritePrecision
 import json
 import logging
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 MIGRATION_METADATA_TABLE: str = "liveanalytics_migration_metadata"
 TRIGGER_NAME: str = "migration_trigger"
@@ -581,6 +581,21 @@ class InfluxDBMigrationWrapper:
         self.info(f"Found {len(files_to_migrate)} parquet files")
         return list(files_to_migrate)
 
+    def get_bucket_default_retention(self) -> dict | None:
+        """
+        Returns the bucket's default object lock retention rule, or None if not set.
+        """
+        try:
+            response = self.s3_client.get_object_lock_configuration(
+                Bucket=self.s3_bucket_name
+            )
+            rule = response.get("ObjectLockConfiguration", {}).get("Rule")
+            if rule:
+                return rule.get("DefaultRetention")
+        except ClientError:
+            pass
+        return None
+
     def generate_metadata(
         self, parquet_file_names: list[str], expiration: int = 604_800
     ) -> dict[str, dict[str, str]]:
@@ -612,6 +627,21 @@ class InfluxDBMigrationWrapper:
         # to manage states and access S3 using presigned (GET and PUT) URLs.
         metadata = {}
 
+        # If the bucket has a default retention rule, the presigned PUT for done.ack
+        # must include object lock headers or S3 will reject it with 400.
+        default_retention = self.get_bucket_default_retention()
+        done_ack_lock_params = {}
+        if default_retention:
+            mode = default_retention.get("Mode")
+            days = default_retention.get("Days", 1)
+            retain_until = (
+                datetime.now(tz=timezone.utc) + timedelta(days=days)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+            done_ack_lock_params = {
+                "ObjectLockMode": mode,
+                "ObjectLockRetainUntilDate": retain_until,
+            }
+
         for file_key in parquet_file_names:
             try:
                 _ = self.s3_client.put_object_legal_hold(
@@ -624,13 +654,14 @@ class InfluxDBMigrationWrapper:
                     Params={"Bucket": self.s3_bucket_name, "Key": file_key},
                     ExpiresIn=expiration,
                 )
-                # "Done" files (done.ack) will not have an object lock. Object locks for
-                # presigned put_object calls are not supported.
+                # Include object lock params if the bucket has a default retention rule,
+                # otherwise S3 rejects the PUT with 400.
                 presigned_done_url: str = self.s3_client.generate_presigned_url(
                     "put_object",
                     Params={
                         "Bucket": self.s3_bucket_name,
                         "Key": f"{file_key}/done.ack",
+                        **done_ack_lock_params,
                     },
                     ExpiresIn=expiration,
                 )
@@ -1101,6 +1132,7 @@ class InfluxDBMigrationWrapper:
         # Final verification: compare expected row counts from plugin with actual InfluxDB counts
         self.verify_final_row_counts()
 
+        self.info("Deleting unloaded data from S3")
         self.delete_unloaded_data()
 
         self.info("Migration wrapper completed successfully")
@@ -1167,6 +1199,53 @@ class InfluxDBMigrationWrapper:
 
         return
 
+    def get_previously_migrated_row_counts(self) -> dict:
+        """
+        On resume, calculates per-table row counts for files already migrated in
+        previous runs by checking done.ack files in S3 with per-file row
+        counts from the manifest.
+
+        Returns:
+            dict: Table name to row count for previously completed files.
+        """
+        if not hasattr(self, "table_manifests") or not self.table_manifests:
+            return {}
+
+        # Build a map of s3_key -> (table_name, row_count) from manifests
+        file_row_counts: dict[str, tuple[str, int]] = {}
+        for table_name, manifest_list in self.table_manifests.items():
+            for manifest_info in manifest_list:
+                for file_entry in manifest_info.get("files", []):
+                    url = file_entry.get("url", "")
+                    row_count = file_entry.get("file_metadata", {}).get("row_count", 0)
+                    if url:
+                        parts = url.replace("s3://", "").split("/", 1)
+                        if len(parts) == 2:
+                            s3_key = parts[1]
+                            file_row_counts[s3_key] = (table_name, row_count)
+
+        # Find all done.ack files in S3 and sum up their row counts per table
+        completed_counts: dict[str, int] = {}
+        try:
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            page_iterator = paginator.paginate(
+                Bucket=self.s3_bucket_name, Prefix=self.liveanalytics_database
+            )
+            for page in page_iterator:
+                for obj in page.get("Contents", []):
+                    key = obj.get("Key", "")
+                    if key.endswith("done.ack"):
+                        parquet_key = key.removesuffix("/done.ack")
+                        if parquet_key in file_row_counts:
+                            table_name, row_count = file_row_counts[parquet_key]
+                            completed_counts[table_name] = (
+                                completed_counts.get(table_name, 0) + row_count
+                            )
+        except Exception as e:
+            self.warning(f"Could not retrieve done.ack files for row count calculation: {e}")
+
+        return completed_counts
+
     def get_expected_row_counts_from_manifests(self) -> dict:
         """
         Aggregates expected row counts per table from manifest files in S3 bucket from UNLOAD operation.
@@ -1200,6 +1279,13 @@ class InfluxDBMigrationWrapper:
         if not manifest_counts:
             self.warning("No manifest data available for verification")
             return True
+
+        if self.resume_migration:
+            # On resume, the plugin only tallies rows from the current run
+            # Previously migrated row counts derived from done.ack files + manifests
+            previous_counts = self.get_previously_migrated_row_counts()
+            for table_name, count in previous_counts.items():
+                plugin_counts[table_name] = plugin_counts.get(table_name, 0) + count
 
         if not plugin_counts:
             self.warning("No plugin row counts available for verification")
@@ -1255,6 +1341,7 @@ class InfluxDBMigrationWrapper:
             for r in dedup:
                 self.info(f"  {r['table']}: {r['plugin'] - r['manifest']:,} extra rows")
 
+        self.verification_results = verification_results
         return True
 
     def verify_bucket(self):
