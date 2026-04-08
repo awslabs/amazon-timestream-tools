@@ -39,6 +39,11 @@ class ExpiredPresignedUrlError(RuntimeError):
     pass
 
 
+class TransientMigrationError(RuntimeError):
+    """Raised on transient errors (e.g. 503) that should trigger a retry without regenerating URLs."""
+    pass
+
+
 class InfluxDBMigrationWrapper:
     def __init__(
         self,
@@ -879,6 +884,7 @@ class InfluxDBMigrationWrapper:
             for batch_num, batch_keys in enumerate(batches, start=1):
                 self.info(f"Generating presigned URLs for batch {batch_num}/{total_batches} ({len(batch_keys)} files)")
                 expiry = self.presigned_url_expiry_seconds if self.presigned_url_expiry_seconds is not None else 604_800
+
                 batch_metadata = self.generate_metadata(parquet_file_names=batch_keys, expiration=expiry)
 
                 # Write fresh metadata and clear plugin cache for this batch.
@@ -898,6 +904,7 @@ class InfluxDBMigrationWrapper:
                     if frozen.token:
                         sts_expiry = getattr(creds, "_expiry_time", None)
                         if sts_expiry is not None:
+                            self.debug(f"STS credentials expire at: {sts_expiry}")
                             if sts_expiry.tzinfo is None:
                                 sts_expiry = sts_expiry.replace(tzinfo=timezone.utc)
                             else:
@@ -920,8 +927,14 @@ class InfluxDBMigrationWrapper:
                     response_body = trigger_invocation_response.json()
 
                     if response_body["status"] != 200 and response_body["status"] != 202:
+                        message = response_body["message"]
+                        # 503 from S3 inside the plugin is transient — treat as retriable.
+                        if response_body["status"] == 503:
+                            raise TransientMigrationError(
+                                f"Migrating {s3_key} failed with transient 503: {message}"
+                            )
                         raise RuntimeError(
-                            f"Migrating {s3_key} failed: {response_body['message']}"
+                            f"Migrating {s3_key} failed: {message}"
                         )
 
                     if not metadata_table_deleted:
@@ -1063,10 +1076,9 @@ class InfluxDBMigrationWrapper:
         )
 
         try:
-            deletion_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             query_params = {
                 "db": self.influx_database,
-                "hard_delete_at": deletion_date,
+                "hard_delete_at": "now",
                 "table": MIGRATION_METADATA_TABLE,
             }
             headers = {"Authorization": f"Bearer {self.influx_token}"}
@@ -1183,7 +1195,7 @@ class InfluxDBMigrationWrapper:
             try:
                 self.bulk_invoke_http_trigger(sorted_keys)
                 break  # Success — exit the auto-resume loop.
-            except ExpiredPresignedUrlError as e:
+            except (ExpiredPresignedUrlError, TransientMigrationError) as e:
                 current_remaining = len(parquet_file_names)
                 if last_remaining_count is not None and current_remaining >= last_remaining_count:
                     raise RuntimeError(
@@ -1193,11 +1205,11 @@ class InfluxDBMigrationWrapper:
                 last_remaining_count = current_remaining
                 auto_resume_attempt += 1
                 self.warning(
-                    f"Presigned URL expired during migration (attempt {auto_resume_attempt}). "
-                    f"Regenerating URLs and resuming automatically."
+                    f"Migration interrupted (attempt {auto_resume_attempt}), resuming: {e}"
                 )
                 self.resume_migration = True
-                self.setup_clients()  # Refresh boto3 clients to pick up new credentials.
+                if isinstance(e, ExpiredPresignedUrlError):
+                    self.setup_clients()  # Refresh boto3 clients to pick up new credentials.
         if self.max_parquet_files is not None and self.max_parquet_files < len(
             parquet_file_names
         ):
