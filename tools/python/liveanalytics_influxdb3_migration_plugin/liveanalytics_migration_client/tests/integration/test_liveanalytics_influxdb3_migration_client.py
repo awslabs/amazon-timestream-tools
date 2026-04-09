@@ -1233,9 +1233,7 @@ class MigrationTestCase(unittest.TestCase):
         }
         self.put_records([record])
 
-        with self.assertLogs(
-            "liveanalytics_influxdb3_migration_client", level="INFO"
-        ) as captured_logs:
+        with self.assertLogs(level="ERROR") as captured_logs:
             return_code = liveanalytics_influxdb3_migration_client.main(
                 [
                     "--live-analytics-database-name",
@@ -1249,11 +1247,15 @@ class MigrationTestCase(unittest.TestCase):
 
             self.assertEqual(return_code, 1)
 
-            expected_error = "403 Client Error: Forbidden for url: *****"
+            expected_error = "Auto-resume triggered but no progress was made"
             self.assertTrue(
                 any(expected_error in log for log in captured_logs.output),
                 f"Expected error not found in logs: {expected_error}",
             )
+            # Ensure presigned URLs are not exposed in logs.
+            for log in captured_logs.output:
+                self.assertNotIn("https://", log, "Presigned URL leaked in logs")
+                self.assertNotIn("AWSAccessKeyId", log, "AWS credentials leaked in logs")
 
 
 if __name__ == "__main__":
