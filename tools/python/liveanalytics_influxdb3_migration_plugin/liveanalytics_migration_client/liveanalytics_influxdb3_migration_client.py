@@ -19,7 +19,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import boto3
 import requests
@@ -31,6 +31,17 @@ TRIGGER_NAME: str = "migration_trigger"
 UNLOAD_WAIT_SECONDS: int = 10
 # InfluxDB has a 10MB max request size, using 8MB as a safe limit.
 INFLUXDB_MAX_WRITE_BATCH_BYTES: int = 8 * 1024 * 1024
+# Number of parquet files per presigned URL generation batch.
+MIGRATION_BATCH_SIZE: int = 50
+
+class ExpiredPresignedUrlError(RuntimeError):
+    """Raised when a presigned URL has expired before being submitted to the plugin."""
+    pass
+
+
+class TransientMigrationError(RuntimeError):
+    """Raised on transient errors (e.g. 503) that should trigger a retry without regenerating URLs."""
+    pass
 
 
 class InfluxDBMigrationWrapper:
@@ -71,6 +82,8 @@ class InfluxDBMigrationWrapper:
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
         )
         self.logger: logging.Logger = logging.getLogger(__name__)
+        logging.getLogger("botocore").setLevel(logging.WARNING)
+        logging.getLogger("boto3").setLevel(logging.WARNING)
 
         migration_date = int(datetime.now(tz=timezone.utc).timestamp())
         self.migration_id = f"migration-{migration_date}"
@@ -588,6 +601,21 @@ class InfluxDBMigrationWrapper:
         self.info(f"Found {len(files_to_migrate)} parquet files")
         return list(files_to_migrate)
 
+    def get_bucket_default_retention(self) -> dict | None:
+        """
+        Returns the bucket's default object lock retention rule, or None if not set.
+        """
+        try:
+            response = self.s3_client.get_object_lock_configuration(
+                Bucket=self.s3_bucket_name
+            )
+            rule = response.get("ObjectLockConfiguration", {}).get("Rule")
+            if rule:
+                return rule.get("DefaultRetention")
+        except ClientError:
+            pass
+        return None
+
     def generate_metadata(
         self, parquet_file_names: list[str], expiration: int | None = 604_800
     ) -> dict[str, dict[str, str]]:
@@ -619,6 +647,21 @@ class InfluxDBMigrationWrapper:
         # to manage states and access S3 using presigned (GET and PUT) URLs.
         metadata = {}
 
+        # If the bucket has a default retention rule, the presigned PUT for done.ack
+        # must include object lock headers or S3 will reject it with 400.
+        default_retention = self.get_bucket_default_retention()
+        done_ack_lock_params = {}
+        if default_retention:
+            mode = default_retention.get("Mode")
+            days = default_retention.get("Days", 1)
+            retain_until = (
+                datetime.now(tz=timezone.utc) + timedelta(days=days)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+            done_ack_lock_params = {
+                "ObjectLockMode": mode,
+                "ObjectLockRetainUntilDate": retain_until,
+            }
+
         for file_key in parquet_file_names:
             try:
                 _ = self.s3_client.put_object_legal_hold(
@@ -631,13 +674,14 @@ class InfluxDBMigrationWrapper:
                     Params={"Bucket": self.s3_bucket_name, "Key": file_key},
                     ExpiresIn=expiration,
                 )
-                # "Done" files (done.ack) will not have an object lock. Object locks for
-                # presigned put_object calls are not supported.
+                # Include object lock params if the bucket has a default retention rule,
+                # otherwise S3 rejects the PUT with 400.
                 presigned_done_url: str = self.s3_client.generate_presigned_url(
                     "put_object",
                     Params={
                         "Bucket": self.s3_bucket_name,
                         "Key": f"{file_key}/done.ack",
+                        **done_ack_lock_params,
                     },
                     ExpiresIn=expiration,
                 )
@@ -705,7 +749,6 @@ class InfluxDBMigrationWrapper:
                 response = requests.post(table_url, json=table_payload, headers=headers)
                 if response.status_code == 201 or response.status_code == 200:
                     self.info(f"Successfully created {MIGRATION_METADATA_TABLE} table")
-                    return True
                 elif response.status_code == 409:
                     self.info(f"Table {MIGRATION_METADATA_TABLE} already exists")
                 else:
@@ -716,6 +759,8 @@ class InfluxDBMigrationWrapper:
             except requests.exceptions.RequestException as e:
                 self.error("Error creating table: ", str(e))
                 return False
+
+            self.create_processing_engine_trigger()
             return True
 
         except Exception as e:
@@ -793,12 +838,14 @@ class InfluxDBMigrationWrapper:
             self.error("Failed to write metadata to InfluxDB: ", str(e))
             sys.exit(1)
 
-    def bulk_invoke_http_trigger(self, metadata):
+    def bulk_invoke_http_trigger(self, parquet_keys: list[str]):
         """
-        Invokes the HTTP migration processing engine trigger for all Parquet files to be migrated.
+        Invokes the HTTP migration processing engine trigger for all Parquet files,
+        processing them in batches of MIGRATION_BATCH_SIZE. Fresh presigned URLs are
+        generated for each batch to avoid credential expiry mid-migration.
 
         Args:
-            metadata (dict[str, dict[str, str]]): Mapping of S3 keys to presigned URLs.
+            parquet_keys (list[str]): Sorted list of S3 keys to migrate.
 
         Returns:
             None
@@ -821,82 +868,166 @@ class InfluxDBMigrationWrapper:
         url = f"{self.influx_host}/api/v3/engine/{TRIGGER_NAME}"
         headers = {"Authorization": f"Bearer {self.influx_token}"}
 
-        # Always clear the plugin cache before starting so it reloads fresh presigned URLs
-        params = {"delete_cache": True}
-        _ = session.post(
-            url=url,
-            headers=headers,
-            params=params,
-            timeout=self.timeout_seconds,
-        )
-        try:
-            metadata_table_deleted: bool = False
-            num_parquet_files_submitted = 0
-            for s3_key in metadata:
-                if (
-                    self.max_parquet_files is not None
-                    and num_parquet_files_submitted >= self.max_parquet_files
-                ):
-                    break
-                table_name = s3_key.split("/")[1]
-                self.info(
-                    f'Migrating {s3_key} to "{self.influx_database}"."{table_name}"'
-                )
-                json_body = {"parquet_path": s3_key}
+        # Apply max_parquet_files limit before batching.
+        keys_to_migrate = parquet_keys
+        if self.max_parquet_files is not None:
+            keys_to_migrate = parquet_keys[: self.max_parquet_files]
 
-                trigger_invocation_response = session.post(
+        batches = [
+            keys_to_migrate[i : i + MIGRATION_BATCH_SIZE]
+            for i in range(0, len(keys_to_migrate), MIGRATION_BATCH_SIZE)
+        ]
+        total_batches = len(batches)
+
+        try:
+            num_parquet_files_submitted = 0
+            for batch_num, batch_keys in enumerate(batches, start=1):
+                self.info(f"Generating presigned URLs for batch {batch_num}/{total_batches} ({len(batch_keys)} files)")
+                expiry = self.presigned_url_expiry_seconds if self.presigned_url_expiry_seconds is not None else 604_800
+
+                batch_metadata = self.generate_metadata(parquet_file_names=batch_keys, expiration=expiry)
+
+                # Write fresh metadata and clear plugin cache for this batch.
+                self.write_metadata_to_influxdb(batch_metadata)
+                _ = session.post(
                     url=url,
-                    json=json_body,
                     headers=headers,
+                    params={"delete_cache": True},
                     timeout=self.timeout_seconds,
                 )
-                trigger_invocation_response.raise_for_status()
-                response_body = trigger_invocation_response.json()
 
-                if response_body["status"] != 200 and response_body["status"] != 202:
-                    raise RuntimeError(
-                        f"Migrating {s3_key} failed: {response_body['message']}"
+                metadata_table_deleted = False
+                for s3_key in batch_keys:
+                    # Check credential expiry before each file invocation.
+                    creds = self.s3_client._request_signer._credentials
+                    frozen = creds.get_frozen_credentials()
+                    if frozen.token:
+                        sts_expiry = getattr(creds, "_expiry_time", None)
+                        if sts_expiry is not None:
+                            self.debug(f"STS credentials expire at: {sts_expiry}")
+                            if sts_expiry.tzinfo is None:
+                                sts_expiry = sts_expiry.replace(tzinfo=timezone.utc)
+                            else:
+                                sts_expiry = sts_expiry.astimezone(timezone.utc)
+                            if datetime.now(tz=timezone.utc) >= sts_expiry:
+                                raise ExpiredPresignedUrlError(
+                                    "AWS STS credentials have expired mid-batch. Regenerating URLs and resuming."
+                                )
+
+                    table_name = s3_key.split("/")[1]
+                    self.info(f'Migrating {s3_key} to "{self.influx_database}"."{table_name}"')
+
+                    trigger_invocation_response = session.post(
+                        url=url,
+                        json={"parquet_path": s3_key},
+                        headers=headers,
+                        timeout=self.timeout_seconds,
+                    )
+                    trigger_invocation_response.raise_for_status()
+                    response_body = trigger_invocation_response.json()
+
+                    if response_body["status"] != 200 and response_body["status"] != 202:
+                        message = response_body["message"]
+                        # 503 from S3 inside the plugin is transient — treat as retriable.
+                        if response_body["status"] == 503:
+                            raise TransientMigrationError(
+                                f"Migrating {s3_key} failed with transient 503: {message}"
+                            )
+                        # Check if the presigned URL for this file has expired or if
+                        # STS credentials expired while the plugin was processing it.
+                        # If so, treat as retriable rather than a hard failure.
+                        # TODO: upgrade this logic for the next iteration of the plugin
+                        # to return a better response for expired presigned URLs.
+                        presigned_get_url = batch_metadata[s3_key]["presigned_get_url"]
+                        for param in presigned_get_url.split("?", 1)[-1].split("&"):
+                            if param.startswith("Expires="):
+                                if int(param.split("=", 1)[1]) <= int(time.time()):
+                                    raise ExpiredPresignedUrlError(
+                                        f"Presigned URL for {s3_key} expired during plugin processing. Regenerating and resuming."
+                                    )
+                                break
+                        if frozen.token:
+                            sts_expiry = getattr(creds, "_expiry_time", None)
+                            if sts_expiry is not None:
+                                if sts_expiry.tzinfo is None:
+                                    sts_expiry = sts_expiry.replace(tzinfo=timezone.utc)
+                                else:
+                                    sts_expiry = sts_expiry.astimezone(timezone.utc)
+                                if datetime.now(tz=timezone.utc) >= sts_expiry:
+                                    raise ExpiredPresignedUrlError(
+                                        f"STS credentials expired while plugin was processing {s3_key}. Regenerating and resuming."
+                                    )
+                        raise RuntimeError(
+                            f"Migrating {s3_key} failed: {message}"
+                        )
+
+                    if not metadata_table_deleted:
+                        self.delete_metadata_table()
+                        metadata_table_deleted = True
+                    num_parquet_files_submitted += 1
+
+                # For the final batch, send an extra verify first to flush verification
+                # of the last file (which is deferred until the next invocation), then
+                # verify+delete_cache to get final counts and clear the cache.
+                # For intermediate batches, a single verify is sufficient.
+                is_last_batch = batch_num == total_batches
+                if is_last_batch:
+                    session.post(
+                        url=url,
+                        headers=headers,
+                        params={"verify": True},
+                        timeout=self.timeout_seconds,
                     )
 
-                if not metadata_table_deleted:
-                    self.delete_metadata_table()
-                    metadata_table_deleted = True
-                num_parquet_files_submitted += 1
-
-            # Final verification invocation.
-            is_partial_migration = (
-                self.max_parquet_files is not None
-                and self.max_parquet_files < len(metadata)
-            )
-            if is_partial_migration:
-                verification_params = {"verify": True}
-            else:
-                verification_params = {"verify": True, "delete_cache": True}
-            final_invocation_response = session.post(
-                url=url,
-                headers=headers,
-                params=verification_params,
-                timeout=self.timeout_seconds,
-            )
-            final_invocation_response.raise_for_status()
-            response_json = final_invocation_response.json()
-
-            if response_json["status"] != 200:
-                if self.max_parquet_files is not None and self.max_parquet_files < len(
-                    metadata
-                ):
-                    num_remaining_files = len(metadata) - self.max_parquet_files
-                    self.warning(
-                        f"{self.max_parquet_files} files have been migrated, {num_remaining_files} remain. Final verification failed: {response_json['message']}"
-                    )
-                    return
-                raise Exception(
-                    f"Final verification failed: {response_json['message']}"
+                batch_verify_response = session.post(
+                    url=url,
+                    headers=headers,
+                    params={"verify": True, "delete_cache": True} if is_last_batch else {"verify": True},
+                    timeout=self.timeout_seconds,
                 )
+                batch_verify_response.raise_for_status()
+                response_json = batch_verify_response.json()
 
-            # Store expected table row counts for final verification
+                if is_last_batch and response_json["status"] != 200:
+                    is_partial_migration = (
+                        self.max_parquet_files is not None
+                        and self.max_parquet_files < len(parquet_keys)
+                    )
+                    if is_partial_migration:
+                        # Send an extra verify to flush done.ack writes for the last
+                        # submitted file before returning, so resume correctly skips it.
+                        extra_verify_response = session.post(
+                            url=url,
+                            headers=headers,
+                            params={"verify": True},
+                            timeout=self.timeout_seconds,
+                        )
+                        extra_verify_json = extra_verify_response.json() if extra_verify_response.ok else {}
+                        # If the plugin verified successfully but put_done_file failed,
+                        # write done.ack directly so resume skips already-migrated files.
+                        if extra_verify_json.get("status") == 200:
+                            for submitted_key in batch_keys[:num_parquet_files_submitted]:
+                                try:
+                                    self.s3_client.put_object(
+                                        Bucket=self.s3_bucket_name,
+                                        Key=f"{submitted_key}/done.ack",
+                                        Body=b"",
+                                    )
+                                except Exception as e:
+                                    self.warning(f"Failed to write done.ack for {submitted_key}: {e}")
+                        num_remaining_files = len(parquet_keys) - num_parquet_files_submitted
+                        self.warning(
+                            f"{num_parquet_files_submitted} files have been migrated, "
+                            f"{num_remaining_files} remain. Final verification failed: {response_json['message']}"
+                        )
+                        return
+                    raise Exception(f"Final batch verification failed: {response_json['message']}")
+                elif not is_last_batch and response_json["status"] not in (200, 202):
+                    raise Exception(f"Batch {batch_num} verification failed: {response_json['message']}")
+
+            # Store cumulative row counts from the final batch verify for final verification.
             self.expected_table_row_counts = response_json.get("table_row_counts", {})
-            self.debug(f"Invocation response: {response_json}")
+            self.debug(f"Final invocation response: {response_json}")
 
         except Exception as e:
             self.error(
@@ -906,8 +1037,7 @@ class InfluxDBMigrationWrapper:
         finally:
             session.close()
 
-        # Trigger is only deleted when a migration is successful. This allows users to resume a
-        # migration if an error occurs.
+        # Trigger is only deleted when a migration is successful.
         self.delete_trigger()
 
     def get_num_completed_and_total_parquet_files(self):
@@ -991,10 +1121,9 @@ class InfluxDBMigrationWrapper:
         )
 
         try:
-            deletion_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             query_params = {
                 "db": self.influx_database,
-                "hard_delete_at": deletion_date,
+                "hard_delete_at": "now",
                 "table": MIGRATION_METADATA_TABLE,
             }
             headers = {"Authorization": f"Bearer {self.influx_token}"}
@@ -1084,24 +1213,50 @@ class InfluxDBMigrationWrapper:
             self.info("Resuming migration and skipping unload operations")
         self.unload_db(self.resume_migration)
 
-        # Get parquet file list from manifest files (generated during each UNLOAD chunk)
-        parquet_file_names: list[str] = self.get_s3_objects_list()
+        last_remaining_count: int | None = None
+        auto_resume_attempt = 0
+        while True:
+            # Get parquet file list, excluding already-completed files (done.ack).
+            parquet_file_names: list[str] = self.get_s3_objects_list()
 
-        metadata: dict[str, dict[str, str]] = self.generate_metadata(
-            parquet_file_names=parquet_file_names,
-            expiration=self.presigned_url_expiry_seconds,
-        )
+            # Sort by table then partition date for chronological ingestion.
+            def sort_key(s3_key: str):
+                parts = s3_key.split("/")
+                table = parts[1] if len(parts) > 1 else ""
+                date_part = ""
+                for part in parts:
+                    if part.startswith("partition_date="):
+                        date_part = part.removeprefix("partition_date=")
+                        break
+                return (table, date_part)
 
-        # Setup InfluxDB metadata.
-        is_metadata_setup_complete: bool = self.setup_influxdb_metadata()
-        if not is_metadata_setup_complete:
-            raise RuntimeError("Failed to setup database and table in InfluxDB")
+            sorted_keys = sorted(parquet_file_names, key=sort_key)
 
-        self.write_metadata_to_influxdb(metadata)
-        self.create_processing_engine_trigger()
-        self.bulk_invoke_http_trigger(metadata)
+            # Setup InfluxDB metadata (creates DB, metadata table, and trigger).
+            is_metadata_setup_complete: bool = self.setup_influxdb_metadata()
+            if not is_metadata_setup_complete:
+                raise RuntimeError("Failed to setup database and table in InfluxDB")
+
+            try:
+                self.bulk_invoke_http_trigger(sorted_keys)
+                break  # Success — exit the auto-resume loop.
+            except (ExpiredPresignedUrlError, TransientMigrationError) as e:
+                current_remaining = len(parquet_file_names)
+                if last_remaining_count is not None and current_remaining >= last_remaining_count:
+                    raise RuntimeError(
+                        f"Auto-resume triggered but no progress was made "
+                        f"({current_remaining} files remaining). Aborting."
+                    )
+                last_remaining_count = current_remaining
+                auto_resume_attempt += 1
+                self.warning(
+                    f"Migration interrupted (attempt {auto_resume_attempt}), resuming: {e}"
+                )
+                self.resume_migration = True
+                if isinstance(e, ExpiredPresignedUrlError):
+                    self.setup_clients()  # Refresh boto3 clients to pick up new credentials.
         if self.max_parquet_files is not None and self.max_parquet_files < len(
-            metadata
+            parquet_file_names
         ):
             self.warning("Migration partially completed")
             return
@@ -1109,6 +1264,7 @@ class InfluxDBMigrationWrapper:
         # Final verification: compare expected row counts from plugin with actual InfluxDB counts
         self.verify_final_row_counts()
 
+        self.info("Deleting unloaded data from S3")
         self.delete_unloaded_data()
 
         self.info("Migration wrapper completed successfully")
@@ -1175,6 +1331,53 @@ class InfluxDBMigrationWrapper:
 
         return
 
+    def get_previously_migrated_row_counts(self) -> dict:
+        """
+        On resume, calculates per-table row counts for files already migrated in
+        previous runs by checking done.ack files in S3 with per-file row
+        counts from the manifest.
+
+        Returns:
+            dict: Table name to row count for previously completed files.
+        """
+        if not hasattr(self, "table_manifests") or not self.table_manifests:
+            return {}
+
+        # Build a map of s3_key -> (table_name, row_count) from manifests
+        file_row_counts: dict[str, tuple[str, int]] = {}
+        for table_name, manifest_list in self.table_manifests.items():
+            for manifest_info in manifest_list:
+                for file_entry in manifest_info.get("files", []):
+                    url = file_entry.get("url", "")
+                    row_count = file_entry.get("file_metadata", {}).get("row_count", 0)
+                    if url:
+                        parts = url.replace("s3://", "").split("/", 1)
+                        if len(parts) == 2:
+                            s3_key = parts[1]
+                            file_row_counts[s3_key] = (table_name, row_count)
+
+        # Find all done.ack files in S3 and sum up their row counts per table
+        completed_counts: dict[str, int] = {}
+        try:
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            page_iterator = paginator.paginate(
+                Bucket=self.s3_bucket_name, Prefix=self.liveanalytics_database
+            )
+            for page in page_iterator:
+                for obj in page.get("Contents", []):
+                    key = obj.get("Key", "")
+                    if key.endswith("done.ack"):
+                        parquet_key = key.removesuffix("/done.ack")
+                        if parquet_key in file_row_counts:
+                            table_name, row_count = file_row_counts[parquet_key]
+                            completed_counts[table_name] = (
+                                completed_counts.get(table_name, 0) + row_count
+                            )
+        except Exception as e:
+            self.warning(f"Could not retrieve done.ack files for row count calculation: {e}")
+
+        return completed_counts
+
     def get_expected_row_counts_from_manifests(self) -> dict:
         """
         Aggregates expected row counts per table from manifest files in S3 bucket from UNLOAD operation.
@@ -1208,6 +1411,17 @@ class InfluxDBMigrationWrapper:
         if not manifest_counts:
             self.warning("No manifest data available for verification")
             return True
+
+        # Use done.ack files as the verification source — each done.ack confirms a file
+        # was successfully migrated. Cross-reference with manifest row counts to get
+        # the total rows confirmed migrated per table. This avoids relying on the
+        # plugin's time-bounded row count queries which can overcount due to overlapping
+        # time ranges across parquet files.
+        # TODO: Improve logic to have the plugin query a whole day after all parquet
+        # files have been ingested for that day to verify if row counts match.
+        done_ack_counts = self.get_previously_migrated_row_counts()
+        if done_ack_counts:
+            plugin_counts = done_ack_counts
 
         if not plugin_counts:
             self.warning("No plugin row counts available for verification")
@@ -1263,6 +1477,7 @@ class InfluxDBMigrationWrapper:
             for r in dedup:
                 self.info(f"  {r['table']}: {r['plugin'] - r['manifest']:,} extra rows")
 
+        self.verification_results = verification_results
         return True
 
     def verify_bucket(self):

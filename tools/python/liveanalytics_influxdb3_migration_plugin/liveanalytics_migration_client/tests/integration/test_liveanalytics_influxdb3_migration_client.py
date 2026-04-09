@@ -594,6 +594,185 @@ class MigrationTestCase(unittest.TestCase):
             influxdb_v3_table_count,
         )
 
+    def test_migration_resume_final_row_count_verification(self):
+        """
+        Tests that verify_final_row_counts produces correct MATCH status for all
+        tables on a resume. Runs a partial migration followed by a full resume,
+        then asserts that the final row count verification produced MATCH for all
+        tables by combining previously migrated counts (done.ack) with the current
+        run's plugin counts.
+        """
+        current_record_time = pandas.Timestamp.now() - pandas.Timedelta(days=10)
+        records = []
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+        ]
+        for _ in range(10):
+            records.append({
+                "Dimensions": dimensions,
+                "MeasureName": "cpu_utilization",
+                "MeasureValue": "13.5",
+                "MeasureValueType": "DOUBLE",
+                "Time": str(current_record_time.value),
+                "TimeUnit": "NANOSECONDS",
+            })
+            current_record_time += pandas.Timedelta(days=1)
+        self.put_records(records)
+
+        # Partial first run.
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--max-parquet-files",
+                "1",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
+        # Verify done.ack files exist after partial run.
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        done_ack_keys = []
+        for page in paginator.paginate(Bucket=self.s3_bucket_name, Prefix=self.la_database_name):
+            for obj in page.get("Contents", []):
+                if obj["Key"].endswith("done.ack"):
+                    done_ack_keys.append(obj["Key"])
+        self.assertGreater(len(done_ack_keys), 0, "No done.ack files found after partial run — plugin failed to write them")
+
+        wrapper = liveanalytics_influxdb3_migration_client.InfluxDBMigrationWrapper(
+            liveanalytics_database=self.la_database_name,
+            s3_bucket_name=self.s3_bucket_name,
+            resume_migration=True,
+        )
+        wrapper.run()
+
+        self.assertTrue(
+            hasattr(wrapper, "verification_results"),
+            "verify_final_row_counts did not produce verification_results on resume",
+        )
+        for result in wrapper.verification_results:
+            self.assertEqual(
+                result["status"],
+                "MATCH",
+                f"Table {result['table']} expected MATCH but got {result['status']}: "
+                f"manifest={result['manifest']}, plugin={result['plugin']}",
+            )
+
+        la_table_count = self.check_live_analytics_table_count(
+            database_name=self.la_database_name, table_name=self.la_table_name
+        )
+        influxdb_v3_table_count = self.check_influxdb_v3_table_count(
+            database_name=self.influx_database, table_name=self.la_table_name
+        )
+        self.assertEqual(la_table_count, influxdb_v3_table_count)
+
+    def test_migration_resume_row_count_verification(self):
+        """
+        Tests that get_previously_migrated_row_counts correctly sums row counts
+        for files that have done.ack files in S3, using manifest data.
+
+        Runs a partial migration to produce done.ack files, then verifies that
+        the previously migrated row counts derived from done.ack + manifests
+        match the plugin's reported counts from that first run.
+        """
+        current_time: pandas.Timestamp = pandas.Timestamp.now()
+        current_record_time = current_time - pandas.Timedelta(days=200)
+
+        records = []
+        dimensions = [
+            {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
+            {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
+        ]
+        for _ in range(200):
+            records.append({
+                "Dimensions": dimensions,
+                "MeasureName": "cpu_utilization",
+                "MeasureValue": "13.5",
+                "MeasureValueType": "DOUBLE",
+                "Time": str(current_record_time.value),
+                "TimeUnit": "NANOSECONDS",
+            })
+            current_record_time += pandas.Timedelta(days=1)
+        self.put_records(records)
+
+        # Run a partial migration to produce at least one done.ack file.
+        return_code = liveanalytics_influxdb3_migration_client.main(
+            [
+                "--live-analytics-database-name",
+                self.la_database_name,
+                "--s3-bucket-name",
+                self.s3_bucket_name,
+                "--max-parquet-files",
+                "1",
+            ]
+        )
+        self.assertEqual(return_code, 0)
+
+        # Verify at least one done.ack exists in S3.
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        done_ack_keys = []
+        for page in paginator.paginate(Bucket=self.s3_bucket_name, Prefix=self.la_database_name):
+            for obj in page.get("Contents", []):
+                if obj["Key"].endswith("done.ack"):
+                    done_ack_keys.append(obj["Key"])
+        self.assertGreater(len(done_ack_keys), 0, "Expected at least one done.ack file after partial migration")
+
+        wrapper = liveanalytics_influxdb3_migration_client.InfluxDBMigrationWrapper(
+            liveanalytics_database=self.la_database_name,
+            s3_bucket_name=self.s3_bucket_name,
+            resume_migration=True,
+        )
+        wrapper.unload_db(resume=True)
+
+        # get_previously_migrated_row_counts should return counts only for done files.
+        previously_migrated = wrapper.get_previously_migrated_row_counts()
+        self.assertGreater(
+            sum(previously_migrated.values()),
+            0,
+            "Expected non-zero previously migrated row counts from done.ack files",
+        )
+
+        # The previously migrated counts must not exceed the full manifest totals.
+        manifest_counts = wrapper.get_expected_row_counts_from_manifests()
+        for table_name, count in previously_migrated.items():
+            self.assertIn(table_name, manifest_counts)
+            self.assertLessEqual(
+                count,
+                manifest_counts[table_name],
+                f"Previously migrated count for {table_name} exceeds manifest total",
+            )
+
+        # The previously migrated count should equal exactly the number of done.ack
+        # files' row counts — build that expected value from manifests directly.
+        file_row_counts = {}
+        for table_name, manifest_list in wrapper.table_manifests.items():
+            for manifest_info in manifest_list:
+                for file_entry in manifest_info.get("files", []):
+                    url = file_entry.get("url", "")
+                    row_count = file_entry.get("file_metadata", {}).get("row_count", 0)
+                    if url:
+                        parts = url.replace("s3://", "").split("/", 1)
+                        if len(parts) == 2:
+                            file_row_counts[parts[1]] = (table_name, row_count)
+
+        expected_previously_migrated: dict[str, int] = {}
+        for done_key in done_ack_keys:
+            parquet_key = done_key.removesuffix("/done.ack")
+            if parquet_key in file_row_counts:
+                table_name, row_count = file_row_counts[parquet_key]
+                expected_previously_migrated[table_name] = (
+                    expected_previously_migrated.get(table_name, 0) + row_count
+                )
+
+        self.assertEqual(
+            previously_migrated,
+            expected_previously_migrated,
+            "Previously migrated row counts do not match expected counts from done.ack files",
+        )
+
     def test_migration_basic_resume(self):
         """
         Tests resuming a migration of a basic migration.
@@ -1054,9 +1233,7 @@ class MigrationTestCase(unittest.TestCase):
         }
         self.put_records([record])
 
-        with self.assertLogs(
-            "liveanalytics_influxdb3_migration_client", level="INFO"
-        ) as captured_logs:
+        with self.assertLogs(level="ERROR") as captured_logs:
             return_code = liveanalytics_influxdb3_migration_client.main(
                 [
                     "--live-analytics-database-name",
@@ -1070,11 +1247,15 @@ class MigrationTestCase(unittest.TestCase):
 
             self.assertEqual(return_code, 1)
 
-            expected_error = "403 Client Error: Forbidden for url: *****"
+            expected_error = "Auto-resume triggered but no progress was made"
             self.assertTrue(
                 any(expected_error in log for log in captured_logs.output),
                 f"Expected error not found in logs: {expected_error}",
             )
+            # Ensure presigned URLs are not exposed in logs.
+            for log in captured_logs.output:
+                self.assertNotIn("https://", log, "Presigned URL leaked in logs")
+                self.assertNotIn("AWSAccessKeyId", log, "AWS credentials leaked in logs")
 
 
 if __name__ == "__main__":
