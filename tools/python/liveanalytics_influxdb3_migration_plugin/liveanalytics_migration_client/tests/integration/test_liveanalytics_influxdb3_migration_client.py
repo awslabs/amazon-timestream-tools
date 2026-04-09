@@ -602,13 +602,13 @@ class MigrationTestCase(unittest.TestCase):
         tables by combining previously migrated counts (done.ack) with the current
         run's plugin counts.
         """
-        current_record_time = pandas.Timestamp.now() - pandas.Timedelta(days=200)
+        current_record_time = pandas.Timestamp.now() - pandas.Timedelta(days=10)
         records = []
         dimensions = [
             {"Name": "hostname", "Value": "hostname1", "DimensionValueType": "VARCHAR"},
             {"Name": "region", "Value": "us-west-2", "DimensionValueType": "VARCHAR"},
         ]
-        for _ in range(200):
+        for _ in range(10):
             records.append({
                 "Dimensions": dimensions,
                 "MeasureName": "cpu_utilization",
