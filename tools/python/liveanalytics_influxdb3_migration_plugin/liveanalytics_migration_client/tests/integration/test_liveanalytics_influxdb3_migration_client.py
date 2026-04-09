@@ -633,10 +633,14 @@ class MigrationTestCase(unittest.TestCase):
         )
         self.assertEqual(return_code, 0)
 
-        # Resume run — instantiate wrapper directly so we can inspect verification_results.
-        os.environ["INFLUXDB3_HOST_URL"] = self.influx_host
-        os.environ["INFLUXDB3_AUTH_TOKEN"] = self.influx_token
-        os.environ["INFLUXDB3_DATABASE_NAME"] = self.influx_database
+        # Verify done.ack files exist after partial run.
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        done_ack_keys = []
+        for page in paginator.paginate(Bucket=self.s3_bucket_name, Prefix=self.la_database_name):
+            for obj in page.get("Contents", []):
+                if obj["Key"].endswith("done.ack"):
+                    done_ack_keys.append(obj["Key"])
+        self.assertGreater(len(done_ack_keys), 0, "No done.ack files found after partial run — plugin failed to write them")
 
         wrapper = liveanalytics_influxdb3_migration_client.InfluxDBMigrationWrapper(
             liveanalytics_database=self.la_database_name,
@@ -650,10 +654,10 @@ class MigrationTestCase(unittest.TestCase):
             "verify_final_row_counts did not produce verification_results on resume",
         )
         for result in wrapper.verification_results:
-            self.assertIn(
+            self.assertEqual(
                 result["status"],
-                ("MATCH", "DEDUP_NEEDED"),
-                f"Table {result['table']} has missing rows after resume: "
+                "MATCH",
+                f"Table {result['table']} expected MATCH but got {result['status']}: "
                 f"manifest={result['manifest']}, plugin={result['plugin']}",
             )
 
@@ -715,11 +719,6 @@ class MigrationTestCase(unittest.TestCase):
                 if obj["Key"].endswith("done.ack"):
                     done_ack_keys.append(obj["Key"])
         self.assertGreater(len(done_ack_keys), 0, "Expected at least one done.ack file after partial migration")
-
-        # Instantiate the wrapper and load manifests via unload_db(resume=True).
-        os.environ["INFLUXDB3_HOST_URL"] = self.influx_host
-        os.environ["INFLUXDB3_AUTH_TOKEN"] = self.influx_token
-        os.environ["INFLUXDB3_DATABASE_NAME"] = self.influx_database
 
         wrapper = liveanalytics_influxdb3_migration_client.InfluxDBMigrationWrapper(
             liveanalytics_database=self.la_database_name,

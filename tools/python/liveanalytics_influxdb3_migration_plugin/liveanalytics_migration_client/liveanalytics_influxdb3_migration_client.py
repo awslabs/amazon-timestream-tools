@@ -933,6 +933,30 @@ class InfluxDBMigrationWrapper:
                             raise TransientMigrationError(
                                 f"Migrating {s3_key} failed with transient 503: {message}"
                             )
+                        # Check if the presigned URL for this file has expired or if
+                        # STS credentials expired while the plugin was processing it.
+                        # If so, treat as retriable rather than a hard failure.
+                        # TODO: upgrade this logic for the next iteration of the plugin
+                        # to return a better response for expired presigned URLs.
+                        presigned_get_url = batch_metadata[s3_key]["presigned_get_url"]
+                        for param in presigned_get_url.split("?", 1)[-1].split("&"):
+                            if param.startswith("Expires="):
+                                if int(param.split("=", 1)[1]) <= int(time.time()):
+                                    raise ExpiredPresignedUrlError(
+                                        f"Presigned URL for {s3_key} expired during plugin processing. Regenerating and resuming."
+                                    )
+                                break
+                        if frozen.token:
+                            sts_expiry = getattr(creds, "_expiry_time", None)
+                            if sts_expiry is not None:
+                                if sts_expiry.tzinfo is None:
+                                    sts_expiry = sts_expiry.replace(tzinfo=timezone.utc)
+                                else:
+                                    sts_expiry = sts_expiry.astimezone(timezone.utc)
+                                if datetime.now(tz=timezone.utc) >= sts_expiry:
+                                    raise ExpiredPresignedUrlError(
+                                        f"STS credentials expired while plugin was processing {s3_key}. Regenerating and resuming."
+                                    )
                         raise RuntimeError(
                             f"Migrating {s3_key} failed: {message}"
                         )
@@ -970,6 +994,27 @@ class InfluxDBMigrationWrapper:
                         and self.max_parquet_files < len(parquet_keys)
                     )
                     if is_partial_migration:
+                        # Send an extra verify to flush done.ack writes for the last
+                        # submitted file before returning, so resume correctly skips it.
+                        extra_verify_response = session.post(
+                            url=url,
+                            headers=headers,
+                            params={"verify": True},
+                            timeout=self.timeout_seconds,
+                        )
+                        extra_verify_json = extra_verify_response.json() if extra_verify_response.ok else {}
+                        # If the plugin verified successfully but put_done_file failed,
+                        # write done.ack directly so resume skips already-migrated files.
+                        if extra_verify_json.get("status") == 200:
+                            for submitted_key in batch_keys[:num_parquet_files_submitted]:
+                                try:
+                                    self.s3_client.put_object(
+                                        Bucket=self.s3_bucket_name,
+                                        Key=f"{submitted_key}/done.ack",
+                                        Body=b"",
+                                    )
+                                except Exception as e:
+                                    self.warning(f"Failed to write done.ack for {submitted_key}: {e}")
                         num_remaining_files = len(parquet_keys) - num_parquet_files_submitted
                         self.warning(
                             f"{num_parquet_files_submitted} files have been migrated, "
@@ -1367,12 +1412,16 @@ class InfluxDBMigrationWrapper:
             self.warning("No manifest data available for verification")
             return True
 
-        if self.resume_migration:
-            # On resume, the plugin only tallies rows from the current run
-            # Previously migrated row counts derived from done.ack files + manifests
-            previous_counts = self.get_previously_migrated_row_counts()
-            for table_name, count in previous_counts.items():
-                plugin_counts[table_name] = plugin_counts.get(table_name, 0) + count
+        # Use done.ack files as the verification source — each done.ack confirms a file
+        # was successfully migrated. Cross-reference with manifest row counts to get
+        # the total rows confirmed migrated per table. This avoids relying on the
+        # plugin's time-bounded row count queries which can overcount due to overlapping
+        # time ranges across parquet files.
+        # TODO: Improve logic to have the plugin query a whole day after all parquet
+        # files have been ingested for that day to verify if row counts match.
+        done_ack_counts = self.get_previously_migrated_row_counts()
+        if done_ack_counts:
+            plugin_counts = done_ack_counts
 
         if not plugin_counts:
             self.warning("No plugin row counts available for verification")
