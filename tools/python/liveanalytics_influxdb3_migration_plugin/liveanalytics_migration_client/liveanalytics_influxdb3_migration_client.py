@@ -343,7 +343,7 @@ class InfluxDBMigrationWrapper:
                     QueryString=f"""
                         UNLOAD (
                             SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
-                            FROM "{self.liveanalytics_database}"."{table_name}"
+                            FROM {self.format_database_identifier(self.liveanalytics_database)}.{self.format_database_identifier(table_name)}
                             WHERE time >= '{start_time}' AND time < '{end_time}'
                         ) 
                         TO '{chunk_path}' 
@@ -369,7 +369,7 @@ class InfluxDBMigrationWrapper:
                         QueryString=f"""
                         UNLOAD (
                             SELECT *, DATE_FORMAT(time, '%y-%m-%d') as partition_date 
-                            FROM "{self.liveanalytics_database}"."{table_name}"
+                            FROM {self.format_database_identifier(self.liveanalytics_database)}.{self.format_database_identifier(table_name)}
                             WHERE time >= '{start_time}' AND time < '{end_time}'
                         ) 
                         TO '{chunk_path}' 
@@ -390,6 +390,21 @@ class InfluxDBMigrationWrapper:
             except ClientError as e:
                 error_code = e.response.get("Error", {}).get("Code", "")
                 raise RuntimeError(f"UNLOAD chunk failed: {error_code} - {str(e)}")
+
+    def format_database_identifier(self, identifier: str) -> str:
+        """
+        Formats a database identifier, such as a column name, database name, or table name, enclosing
+        the identifier in quotes and replacing single quotes with double quotes, to prevent SQL injection.
+
+        For example: The identifier column-name becomes "column-name" and the identifier colu"mn-name becomes
+        "colu""mn-name".
+
+        Args:
+            identifier (str): The database identifier to format.
+        Returns:
+            str: The formatted identifier.
+        """
+        return '"' + identifier.replace('"', '""') + '"'
 
     def get_manifest_files(
         self,
