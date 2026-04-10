@@ -1,133 +1,133 @@
-** @aws-sdk/client-s3; version 3.495.0 -- https://www.npmjs.com/package/@aws-sdk/client-s3
-** @aws-sdk/client-sts; version 3.495.0 -- https://www.npmjs.com/package/@aws-sdk/client-sts
-** @aws-sdk/client-timestream-query; version 3.495.0 -- https://www.npmjs.com/package/@aws-sdk/client-timestream-query
-** @aws-sdk/client-timestream-write; version 3.495.0 -- https://www.npmjs.com/package/@aws-sdk/client-timestream-write
-** aws-sdk; version 2.1036.0 -- https://www.npmjs.com/package/aws-sdk
-** com.amazonaws:aws-lambda-java-core; version 1.2.1 -- https://github.com/aws/aws-lambda-java-libs
-** com.amazonaws:aws-lambda-java-log4j2; version 1.2.0 -- https://github.com/aws/aws-lambda-java-libs
-** com.amazonaws:aws-java-sdk-core; version 1.12.118 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-core; version 1.12.485 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-iam; version 1.12.34 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-s3; version 1.12.261 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-sqs; version 1.12.34 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-sts; version 1.11.908 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-timestreamquery; version 1.12.118 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-timestreamquery; version 1.12.485 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-timestreamwrite; version 1.12.118 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-timestreamwrite; version 1.12.485 -- https://github.com/aws/aws-sdk-java
-** software.amazon.awssdk:apache-client; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:apache-client; version 2.20.82 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:auth; version 2.20.121 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:aws-crt-client; version 2.26.9 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:aws-sdk-java; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:iam; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:regions; version 2.20.121 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:s3; version 2.20.82 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:sdk-core; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:sns; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:sqs; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:sts; version 2.20.82 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:timestreamwrite; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:timestreamwrite; version 2.26.9 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:timestreamquery; version 2.20.82 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.timestream:amazon-timestream-jdbc; version 1.0.1 -- https://github.com/awslabs/amazon-timestream-driver-jdbc
-** github.com/aws/aws-cdk-go/awscdk/v2; version v2.229.0 -- https://github.com/aws/aws-cdk-go
-** github.com/aws/aws-lambda-go; version v1.50.0 -- https://github.com/aws/aws-lambda-go
-** github.com/aws/aws-sdk-go-v2; version v1.40.0 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2; version v1.27.1 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/config; version v1.32.1 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/service/ec2; version v1.274.0 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/service/grafana; version v1.32.6 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb; version v1.17.7 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/services/iam; version 1.53.7 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/services/sns; version 1.39.15 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/services/sqs; version 1.42.25 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/services/sts; version 1.41.10 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/services/timestreamquery; version 1.36.14 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/aws-sdk-go-v2/services/timestreamwrite; version 1.35.20 -- https://github.com/aws/aws-sdk-go-v2
-** github.com/aws/smithy-go; version 1.24.3 -- https://github.com/aws/smithy-go
-** github.com/aws/jsii-runtime-go; version v1.120.0 -- https://github.com/aws/jsii-runtime-go
-** aws-config; version 1.8.15 -- https://crates.io/crates/aws-config
-** aws-config; version 1.8.2 -- https://crates.io/crates/aws-config
-** aws-credential-types; version 1.2.1 -- https://crates.io/crates/aws-credential-types
-** aws-lc-rs; version 1.16.2 -- https://crates.io/crates/aws-lc-rs
-** aws-lc-sys; version 0.39.0 -- https://crates.io/crates/aws-lc-sys
-** aws-runtime; version 1.4.2 -- https://crates.io/crates/aws-runtime
-** aws-sdk-s3; version 1.38.0 -- https://crates.io/crates/aws-sdk-s3
-** aws-sdk-s3; version 1.104.0 -- https://crates.io/crates/aws-sdk-s3
-** aws-sdk-timestreamquery; version 1.25.0 -- https://crates.io/crates/aws-sdk-timestreamquery
-** aws-sdk-timestreamwrite; version 1.39.0 -- https://crates.io/crates/aws-sdk-timestreamwrite
-** aws-sdk-timestreamwrite; version 1.25.0 -- https://crates.io/crates/aws-sdk-timestreamwrite
-** aws-types; version 1.3.3 -- https://crates.io/crates/aws-types
-** lambda_runtime; version 0.13.0 -- https://crates.io/crates/lambda_runtime
-** AWSSDK.Core; version 3.7.107.7 -- https://www.nuget.org/packages/AWSSDK.Core
-** AWSSDK.Core; version 3.7.5.4 -- https://www.nuget.org/packages/AWSSDK.Core
-** AWSSDK.IdentityManagement; version 3.7.2.85 -- https://www.nuget.org/packages/AWSSDK.IdentityManagement
-** AWSSDK.S3; version 3.7.7.1 -- https://www.nuget.org/packages/AWSSDK.S3
-** AWSSDK.S3; version 3.7.106 -- https://www.nuget.org/packages/AWSSDK.S3
-** AWSSDK.SecurityToken; version 3.7.1.96 -- https://www.nuget.org/packages/AWSSDK.SecurityToken
-** AWSSDK.SecurityToken; version 3.7.103.15 -- https://www.nuget.org/packages/AWSSDK.SecurityToken
-** AWSSDK.SimpleNotificationService; version 3.7.3.5 -- https://www.nuget.org/packages/AWSSDK.SimpleNotificationService
-** AWSSDK.SQS; version 3.7.2.2 -- https://www.nuget.org/packages/AWSSDK.SQS
-** AWSSDK.TimestreamQuery; version 3.7.1.2 -- https://www.nuget.org/packages/AWSSDK.TimestreamQuery
-** AWSSDK.TimestreamQuery; version 3.7.100.146 -- https://www.nuget.org/packages/AWSSDK.TimestreamQuery
-** AWSSDK.TimestreamWrite; version 3.7.1.2 -- https://www.nuget.org/packages/AWSSDK.TimestreamWrite
-** AWSSDK.TimestreamWrite; version 3.7.102.3 -- https://www.nuget.org/packages/AWSSDK.TimestreamWrite
-** boto3 -- https://pypi.org/project/boto3/
-** botocore -- https://pypi.org/project/botocore/
-** com.google.guava:guava; version 32.0.0-jre -- https://github.com/google/guava
-** com.google.guava:guava; version 33.0.0-jre -- https://github.com/google/guava
-** com.google.code.gson:gson; version 2.8.9 -- https://github.com/google/gson
-** com.google.code.gson:gson; version 2.10.1 -- https://github.com/google/gson
-** org.apache.flink:flink-java; version 1.18.1 -- https://github.com/apache/flink
-** org.apache.flink:flink-streaming-java; version 1.18.1 -- https://github.com/apache/flink
-** org.apache.flink:flink-clients; version 1.18.1 -- https://github.com/apache/flink
-** org.apache.flink:flink-core; version 1.18.1 -- https://github.com/apache/flink
-** org.apache.flink:flink-connector-base; version 1.18.1 -- https://github.com/apache/flink
-** org.apache.flink:flink-connector-kinesis; version 4.2.0-1.18 -- https://github.com/apache/flink-connector-aws
-** org.apache.kafka:connect-api; version 2.8.1 -- https://github.com/apache/kafka
-** org.apache.logging.log4j:log4j-slf4j-impl; version 2.14.1 -- https://github.com/apache/logging-log4j2
-** org.apache.commons:commons-csv; version 1.10.0 -- https://github.com/apache/commons-csv
-** org.apache.commons:commons-lang3; version 3.18.0 -- https://github.com/apache/commons-lang
-** org.apache.hadoop:hadoop-common; version 3.4.0 -- https://github.com/apache/hadoop
-** org.apache.parquet:parquet-hadoop; version 1.13.0 -- https://github.com/apache/parquet-java
-** commons-io:commons-io; version 2.14.0 -- https://github.com/apache/commons-io
-** influxdb3_core; version git:d81f63d -- https://github.com/influxdata/influxdb3_core
-** requests; version 2.32.4 -- https://pypi.org/project/requests/
-** requests; version 2.32.5 -- https://pypi.org/project/requests/
-** influxdb3-python; version 0.16.0 -- https://pypi.org/project/influxdb3-python/
-** de.javakaffee:kryo-serializers; version 0.45 -- https://github.com/magro/kryo-serializers
-** serde; version 1.0.208 -- https://crates.io/crates/serde
-** serde_json; version 1.0.1 -- https://crates.io/crates/serde_json
-** anyhow; version 1.0 -- https://crates.io/crates/anyhow
-** anyhow; version 1.0.86 -- https://crates.io/crates/anyhow
-** async-trait; version 0.1.88 -- https://crates.io/crates/async-trait
-** chrono; version 0.4.38 -- https://crates.io/crates/chrono
-** clap; version 4.5.8 -- https://crates.io/crates/clap
-** env_logger; version 0.11.5 -- https://crates.io/crates/env_logger
-** futures; version 0.3.31 -- https://crates.io/crates/futures
-** log; version 0.4.22 -- https://crates.io/crates/log
-** once_cell; version 1.21.1 -- https://crates.io/crates/once_cell
-** rand; version 0.5.0 -- https://crates.io/crates/rand
-** rayon; version 1.10.0 -- https://crates.io/crates/rayon
-** time; version 0.3.47 -- https://crates.io/crates/time
-** com.amazonaws:aws-kinesisanalytics-runtime; version 1.2.0 -- https://github.com/aws/aws-kinesisanalytics-runtime
-** com.amazonaws:aws-kinesisanalytics-flink; version 1.2.0 -- https://github.com/aws/aws-kinesisanalytics-flink-connectors
-** com.amazonaws:aws-java-sdk-bom; version 1.11.908 -- https://github.com/aws/aws-sdk-java
-** com.amazonaws:aws-java-sdk-bom; version 1.12.485 -- https://github.com/aws/aws-sdk-java
-** software.amazon.awssdk:bom; version 2.16.97 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:bom; version 2.17.203 -- https://github.com/aws/aws-sdk-java-v2
-** software.amazon.awssdk:bom; version 2.20.82 -- https://github.com/aws/aws-sdk-java-v2
-** awswrangler; version 3.15.1 -- https://pypi.org/project/awswrangler/
-** sagemaker; version 1.4.0 -- https://pypi.org/project/sagemaker/1.4.0/
-** awscli; version 1.38.32 -- https://pypi.org/project/awscli/
-** uv -- https://pypi.org/project/uv/
-** strands-agents -- https://pypi.org/project/strands-agents/
-** strands-agents-tools -- https://pypi.org/project/strands-agents-tools/
-** testcontainers; version 4.13.2 -- https://pypi.org/project/testcontainers/
-** testcontainers; version 4.13.3 -- https://pypi.org/project/testcontainers/
-** info.picocli:picocli; version 4.5.2 -- https://github.com/remkop/picocli
-** streamlit; version 1.37.0 -- https://pypi.org/project/streamlit/
+** @aws-sdk/client-s3 - https://www.npmjs.com/package/@aws-sdk/client-s3
+** @aws-sdk/client-sts - https://www.npmjs.com/package/@aws-sdk/client-sts
+** @aws-sdk/client-timestream-query - https://www.npmjs.com/package/@aws-sdk/client-timestream-query
+** @aws-sdk/client-timestream-write - https://www.npmjs.com/package/@aws-sdk/client-timestream-write
+** aws-sdk - https://www.npmjs.com/package/aws-sdk
+** com.amazonaws:aws-lambda-java-core - https://github.com/aws/aws-lambda-java-libs
+** com.amazonaws:aws-lambda-java-log4j2 - https://github.com/aws/aws-lambda-java-libs
+** com.amazonaws:aws-java-sdk-core - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-core - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-iam - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-s3 - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-sqs - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-sts - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-timestreamquery - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-timestreamquery - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-timestreamwrite - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-timestreamwrite - https://github.com/aws/aws-sdk-java
+** software.amazon.awssdk:apache-client - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:apache-client - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:auth - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:aws-crt-client - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:aws-sdk-java - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:iam - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:regions - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:s3 - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:sdk-core - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:sns - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:sqs - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:sts - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:timestreamwrite - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:timestreamwrite - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:timestreamquery - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.timestream:amazon-timestream-jdbc - https://github.com/awslabs/amazon-timestream-driver-jdbc
+** github.com/aws/aws-cdk-go/awscdk/v2 - https://github.com/aws/aws-cdk-go
+** github.com/aws/aws-lambda-go - https://github.com/aws/aws-lambda-go
+** github.com/aws/aws-sdk-go-v2 - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2 - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/config - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/service/ec2 - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/service/grafana - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/services/iam - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/services/sns - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/services/sqs - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/services/sts - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/services/timestreamquery - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/aws-sdk-go-v2/services/timestreamwrite - https://github.com/aws/aws-sdk-go-v2
+** github.com/aws/smithy-go - https://github.com/aws/smithy-go
+** github.com/aws/jsii-runtime-go - https://github.com/aws/jsii-runtime-go
+** aws-config - https://crates.io/crates/aws-config
+** aws-config - https://crates.io/crates/aws-config
+** aws-credential-types - https://crates.io/crates/aws-credential-types
+** aws-lc-rs - https://crates.io/crates/aws-lc-rs
+** aws-lc-sys - https://crates.io/crates/aws-lc-sys
+** aws-runtime - https://crates.io/crates/aws-runtime
+** aws-sdk-s3 - https://crates.io/crates/aws-sdk-s3
+** aws-sdk-s3 - https://crates.io/crates/aws-sdk-s3
+** aws-sdk-timestreamquery - https://crates.io/crates/aws-sdk-timestreamquery
+** aws-sdk-timestreamwrite - https://crates.io/crates/aws-sdk-timestreamwrite
+** aws-sdk-timestreamwrite - https://crates.io/crates/aws-sdk-timestreamwrite
+** aws-types - https://crates.io/crates/aws-types
+** lambda_runtime - https://crates.io/crates/lambda_runtime
+** AWSSDK.Core - https://www.nuget.org/packages/AWSSDK.Core
+** AWSSDK.Core - https://www.nuget.org/packages/AWSSDK.Core
+** AWSSDK.IdentityManagement - https://www.nuget.org/packages/AWSSDK.IdentityManagement
+** AWSSDK.S3 - https://www.nuget.org/packages/AWSSDK.S3
+** AWSSDK.S3 - https://www.nuget.org/packages/AWSSDK.S3
+** AWSSDK.SecurityToken - https://www.nuget.org/packages/AWSSDK.SecurityToken
+** AWSSDK.SecurityToken - https://www.nuget.org/packages/AWSSDK.SecurityToken
+** AWSSDK.SimpleNotificationService - https://www.nuget.org/packages/AWSSDK.SimpleNotificationService
+** AWSSDK.SQS - https://www.nuget.org/packages/AWSSDK.SQS
+** AWSSDK.TimestreamQuery - https://www.nuget.org/packages/AWSSDK.TimestreamQuery
+** AWSSDK.TimestreamQuery - https://www.nuget.org/packages/AWSSDK.TimestreamQuery
+** AWSSDK.TimestreamWrite - https://www.nuget.org/packages/AWSSDK.TimestreamWrite
+** AWSSDK.TimestreamWrite - https://www.nuget.org/packages/AWSSDK.TimestreamWrite
+** boto3 - https://pypi.org/project/boto3/
+** botocore - https://pypi.org/project/botocore/
+** com.google.guava:guava; - https://github.com/google/guava
+** com.google.guava:guava; - https://github.com/google/guava
+** com.google.code.gson:gson - https://github.com/google/gson
+** com.google.code.gson:gson - https://github.com/google/gson
+** org.apache.flink:flink-java - https://github.com/apache/flink
+** org.apache.flink:flink-streaming-java - https://github.com/apache/flink
+** org.apache.flink:flink-clients - https://github.com/apache/flink
+** org.apache.flink:flink-core - https://github.com/apache/flink
+** org.apache.flink:flink-connector-base - https://github.com/apache/flink
+** org.apache.flink:flink-connector-kinesis- https://github.com/apache/flink-connector-aws
+** org.apache.kafka:connect-api - https://github.com/apache/kafka
+** org.apache.logging.log4j:log4j-slf4j-impl - https://github.com/apache/logging-log4j2
+** org.apache.commons:commons-csv - https://github.com/apache/commons-csv
+** org.apache.commons:commons-lang3 - https://github.com/apache/commons-lang
+** org.apache.hadoop:hadoop-common - https://github.com/apache/hadoop
+** org.apache.parquet:parquet-hadoop - https://github.com/apache/parquet-java
+** commons-io:commons-io - https://github.com/apache/commons-io
+** influxdb3_core- https://github.com/influxdata/influxdb3_core
+** requests - https://pypi.org/project/requests/
+** requests - https://pypi.org/project/requests/
+** influxdb3-python - https://pypi.org/project/influxdb3-python/
+** de.javakaffee:kryo-serializers - https://github.com/magro/kryo-serializers
+** serde - https://crates.io/crates/serde
+** serde_json - https://crates.io/crates/serde_json
+** anyhow - https://crates.io/crates/anyhow
+** anyhow - https://crates.io/crates/anyhow
+** async-trait - https://crates.io/crates/async-trait
+** chrono - https://crates.io/crates/chrono
+** clap - https://crates.io/crates/clap
+** env_logger - https://crates.io/crates/env_logger
+** futures - https://crates.io/crates/futures
+** log - https://crates.io/crates/log
+** once_cell - https://crates.io/crates/once_cell
+** rand - https://crates.io/crates/rand
+** rayon - https://crates.io/crates/rayon
+** time - https://crates.io/crates/time
+** com.amazonaws:aws-kinesisanalytics-runtime - https://github.com/aws/aws-kinesisanalytics-runtime
+** com.amazonaws:aws-kinesisanalytics-flink - https://github.com/aws/aws-kinesisanalytics-flink-connectors
+** com.amazonaws:aws-java-sdk-bom - https://github.com/aws/aws-sdk-java
+** com.amazonaws:aws-java-sdk-bom - https://github.com/aws/aws-sdk-java
+** software.amazon.awssdk:bom - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:bom - https://github.com/aws/aws-sdk-java-v2
+** software.amazon.awssdk:bom - https://github.com/aws/aws-sdk-java-v2
+** awswrangler - https://pypi.org/project/awswrangler/
+** sagemaker - https://pypi.org/project/sagemaker/1.4.0/
+** awscli - https://pypi.org/project/awscli/
+** uv - https://pypi.org/project/uv/
+** strands-agents - https://pypi.org/project/strands-agents/
+** strands-agents-tools - https://pypi.org/project/strands-agents-tools/
+** testcontainers - https://pypi.org/project/testcontainers/
+** testcontainers - https://pypi.org/project/testcontainers/
+** info.picocli:picocli - https://github.com/remkop/picocli
+** streamlit - https://pypi.org/project/streamlit/
 Apache License
 
 Version 2.0, January 2004
@@ -342,7 +342,7 @@ limitations under the License.
 
 ------
 
-** bytes; version 1.11.1 -- https://crates.io/crates/bytes
+** bytes - https://crates.io/crates/bytes
 Copyright (c) 2018 Carl Lerche
 
 Permission is hereby granted, free of charge, to any
@@ -371,7 +371,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------
 
-** tracing-subscriber; version 0.3.20 -- https://crates.io/crates/tracing-subscriber
+** tracing-subscriber - https://crates.io/crates/tracing-subscriber
 Copyright (c) 2019 Tokio Contributors
 
 Permission is hereby granted, free of charge, to any
@@ -400,7 +400,7 @@ DEALINGS IN THE SOFTWARE.
 
 ------
 
-** rustls-webpki; version 0.103.10 -- https://crates.io/crates/rustls-webpki
+** rustls-webpki - https://crates.io/crates/rustls-webpki
 Except as otherwise noted, this project is licensed under the following
 (ISC-style) terms:
 
@@ -423,7 +423,7 @@ third-party/chromium/LICENSE.
 
 ------
 
-** github.com/influxdata/influxdb-client-go/v2; version v2.3.1-0.20210518120617-5d1fff431040 -- https://github.com/influxdata/influxdb-client-go
+** github.com/influxdata/influxdb-client-go/v2 - https://github.com/influxdata/influxdb-client-go
 MIT License
 
 Copyright (c) 2020-2021 Influxdata, Inc.
@@ -448,7 +448,7 @@ SOFTWARE.
 
 ------
 
-** csv; version 1.3.0 -- https://crates.io/crates/csv
+** csv - https://crates.io/crates/csv
 The MIT License (MIT)
 
 Copyright (c) 2015 Andrew Gallant
@@ -473,8 +473,8 @@ THE SOFTWARE.
 
 ------
 
-** tokio; version 1.38 -- https://crates.io/crates/tokio
-** tokio; version 1.43.1 -- https://crates.io/crates/tokio
+** tokio - https://crates.io/crates/tokio
+** tokio - https://crates.io/crates/tokio
 MIT License
 
 Copyright (c) Tokio Contributors
@@ -499,7 +499,7 @@ SOFTWARE.
 
 ------
 
-** tokio-test; version 0.4.4 -- https://crates.io/crates/tokio-test
+** tokio-test - https://crates.io/crates/tokio-test
 MIT License
 
 Copyright (c) Tokio Contributors
@@ -524,8 +524,8 @@ SOFTWARE.
 
 ------
 
-** args4j:args4j; version 2.203 -- https://github.com/kohsuke/args4j
-** args4j:args4j; version 2.33 -- https://github.com/kohsuke/args4j
+** args4j:args4j - https://github.com/kohsuke/args4j
+** args4j:args4j - https://github.com/kohsuke/args4j
 Copyright (c) 2013 Kohsuke Kawaguchi and other contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -548,8 +548,8 @@ SOFTWARE.
 
 ------
 
-** org.projectlombok:lombok; version 1.18.30 -- https://github.com/projectlombok/lombok
-** org.projectlombok:lombok; version 1.18.22 -- https://github.com/projectlombok/lombok
+** org.projectlombok:lombok - https://github.com/projectlombok/lombok
+** org.projectlombok:lombok - https://github.com/projectlombok/lombok
 Copyright (C) 2009-2021 The Project Lombok Authors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -572,8 +572,8 @@ THE SOFTWARE.
 
 ------
 
-** Newtonsoft.Json; version 13.0.2 -- https://www.nuget.org/packages/Newtonsoft.Json
-** Newtonsoft.Json; version 13.0.3 -- https://www.nuget.org/packages/Newtonsoft.Json
+** newtonsoft.json - https://www.nuget.org/packages/newtonsoft.json
+** newtonsoft.json - https://www.nuget.org/packages/newtonsoft.json
 The MIT License (MIT)
 
 Copyright (c) 2007 James Newton-King
@@ -598,8 +598,8 @@ THE SOFTWARE.
 
 ------
 
-** CommandLineParser; version 2.8.0 -- https://www.nuget.org/packages/CommandLineParser
-** CommandLineParser; version 2.9.1 -- https://www.nuget.org/packages/CommandLineParser
+** commandlineparser - https://www.nuget.org/packages/commandlineparser
+** commandlineparser - https://www.nuget.org/packages/commandlineparser
 The MIT License (MIT)
 
 Copyright (c) 2005 - 2015 Giacomo Stelluti Scala & Contributors
@@ -624,7 +624,7 @@ THE SOFTWARE.
 
 ------
 
-** org.jsoup:jsoup; version 1.15.3 -- https://github.com/jhy/jsoup
+** org.jsoup:jsoup - https://github.com/jhy/jsoup
 The MIT License
 
 Copyright (c) 2009-2026 Jonathan Hedley <https://jsoup.org/>
@@ -649,9 +649,9 @@ THE SOFTWARE.
 
 ------
 
-** org.slf4j:slf4j-api; version 1.7.32 -- https://github.com/qos-ch/slf4j
-** org.slf4j:slf4j-api; version 2.0.12 -- https://github.com/qos-ch/slf4j
-** org.slf4j:jul-to-slf4j; version 1.7.24 -- https://github.com/qos-ch/slf4j
+** org.slf4j:slf4j-api - https://github.com/qos-ch/slf4j
+** org.slf4j:slf4j-api - https://github.com/qos-ch/slf4j
+** org.slf4j:jul-to-slf4j - https://github.com/qos-ch/slf4j
 Copyright (c) 2004-2023 QOS.ch Sarl (Switzerland)
 All rights reserved.
 
@@ -675,7 +675,7 @@ THE SOFTWARE.
 
 ------
 
-** influxdb-client; version 1.48.0 -- https://pypi.org/project/influxdb-client/
+** influxdb-client - https://pypi.org/project/influxdb-client/
 MIT License
 
 Copyright (c) 2019 InfluxData, Inc.
@@ -700,7 +700,7 @@ SOFTWARE.
 
 ------
 
-** pyyaml; version 6.0.2 -- https://pypi.org/project/pyyaml/
+** pyyaml - https://pypi.org/project/pyyaml/
 Copyright (c) 2017-2021 Ingy döt Net
 Copyright (c) 2006-2016 Kirill Simonov
 
@@ -724,7 +724,7 @@ THE SOFTWARE.
 
 ------
 
-** csv-parser; version 3.0.0 -- https://www.npmjs.com/package/csv-parser
+** csv-parser - https://www.npmjs.com/package/csv-parser
 The MIT License (MIT)
 
 Copyright (c) 2014 Mathias Buus
@@ -749,7 +749,7 @@ THE SOFTWARE.
 
 ------
 
-** decompress; version 4.2.1 -- https://www.npmjs.com/package/decompress
+** decompress - https://www.npmjs.com/package/decompress
 MIT License
 
 Copyright (c) Kevin Mårtensson <kevinmartensson@gmail.com> (github.com/kevva)
@@ -774,8 +774,8 @@ THE SOFTWARE.
 
 ------
 
-** minimist; version 1.2.5 -- https://www.npmjs.com/package/minimist
-** minimist; version 1.2.8 -- https://www.npmjs.com/package/minimist
+** minimist - https://www.npmjs.com/package/minimist
+** minimist - https://www.npmjs.com/package/minimist
 MIT License
 
 Copyright (c) 2013 James Halliday and contributors
@@ -800,7 +800,7 @@ THE SOFTWARE.
 
 ------
 
-** zlib; version 1.0.5 -- https://www.npmjs.com/package/zlib
+** zlib - https://www.npmjs.com/package/zlib
 Copyright (c) 2011, Konstantin Käfer <kkaefer@gmail.com>
 All rights reserved.
 
@@ -828,7 +828,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------
 
-** boto3-stubs; version 1.42.14 -- https://pypi.org/project/boto3-stubs/
+** boto3-stubs - https://pypi.org/project/boto3-stubs/
 MIT License
 
 Copyright (c) 2023 Vlad Emelianov
@@ -853,8 +853,8 @@ THE SOFTWARE.
 
 ------
 
-** pandas; version 2.2.3 -- https://pypi.org/project/pandas/
-** pandas; version 2.3.3 -- https://pypi.org/project/pandas/
+** pandas - https://pypi.org/project/pandas/
+** pandas - https://pypi.org/project/pandas/
 BSD 3-Clause License
 
 Copyright (c) 2008-2011, AQR Capital Management, LLC, Lambda Foundry, Inc. and PyData Development Team
@@ -923,7 +923,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------
 
-** pyarrow; version 22.0.0 -- https://pypi.org/project/pyarrow/
+** pyarrow - https://pypi.org/project/pyarrow/
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1128,7 +1128,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------
 
-** com.google.code.findbugs:jsr305; version 3.0.2 -- https://github.com/findbugsproject/findbugs
+** com.google.code.findbugs:jsr305 - https://github.com/findbugsproject/findbugs
 		  GNU LESSER GENERAL PUBLIC LICENSE
 		       Version 2.1, February 1999
 
@@ -1634,12 +1634,12 @@ That's all there is to it!
 
 ------
 
-** org.json:json; version 20231013 -- https://github.com/stleary/JSON-java
+** org.json:json - https://github.com/stleary/JSON-java
 Public Domain.
 
 ------
 
-** org.jacoco:jacoco-maven-plugin; version 0.8.7 -- https://github.com/jacoco/jacoco
+** org.jacoco:jacoco-maven-plugin - https://github.com/jacoco/jacoco
 Copyright (c) 2009, 2026 Mountainminds GmbH & Co. KG and Contributors
 
 The JaCoCo Java Code Coverage Library and all included documentation is made
@@ -1679,8 +1679,8 @@ THE SOFTWARE.
 
 ------
 
-** org.junit.jupiter:junit-jupiter-engine; version 5.7.2 -- https://github.com/junit-team/junit-framework
-** org.junit.jupiter:junit-jupiter-engine; version 5.8.0 -- https://github.com/junit-team/junit-framework
+** org.junit.jupiter:junit-jupiter-engine - https://github.com/junit-team/junit-framework
+** org.junit.jupiter:junit-jupiter-engine - https://github.com/junit-team/junit-framework
 Eclipse Public License - v 2.0
 ==============================
 
@@ -1782,7 +1782,7 @@ You may add additional accurate notices of copyright ownership.
 
 ------
 
-** org.mockito:mockito-core; version 3.12.4 -- https://github.com/mockito/mockito
+** org.mockito:mockito-core - https://github.com/mockito/mockito
 The MIT License
 
 Copyright (c) 2007 Mockito contributors
@@ -1807,7 +1807,7 @@ THE SOFTWARE.
 
 ------
 
-** junit:junit; version 4.13.1 -- https://github.com/junit-team/junit4
+** junit:junit - https://github.com/junit-team/junit4
 JUnit
 
 Eclipse Public License - v 1.0
@@ -2023,7 +2023,7 @@ after the cause of action arose. Each party waives its rights to a jury trial
 in any resulting litigation.
 
 ------
-** org.junit.jupiter:junit-jupiter-api; version 5.8.0 -- https://github.com/junit-team/junit-framework
+** org.junit.jupiter:junit-jupiter-api - https://github.com/junit-team/junit-framework
 Eclipse Public License - v 2.0
 ==============================
 
@@ -2125,7 +2125,7 @@ You may add additional accurate notices of copyright ownership.
 
 ------
 
-** matplotlib; version 3.10.8 -- https://pypi.org/project/matplotlib/
+** matplotlib - https://pypi.org/project/matplotlib/
 License agreement for matplotlib versions 1.3.0 and later
 =========================================================
 
@@ -2228,7 +2228,7 @@ Agreement.
 
 ------
 
-** ipython; version 9.12.0 -- https://pypi.org/project/ipython/
+** ipython - https://pypi.org/project/ipython/
 BSD 3-Clause License
 
 - Copyright (c) 2008-Present, IPython Development Team
@@ -2265,7 +2265,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------
 
-** influxdb; version 5.3.2 -- https://pypi.org/project/influxdb/
+** influxdb - https://pypi.org/project/influxdb/
 The MIT License (MIT)
 
 Copyright (c) 2020 InfluxDB
@@ -2287,7 +2287,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-** hashicorp/aws; version 6.10.0 -- https://github.com/hashicorp/terraform-provider-aws
+** hashicorp/aws - https://github.com/hashicorp/terraform-provider-aws
 Copyright IBM Corp. 2014, 2026
 
 Mozilla Public License Version 2.0
@@ -2666,7 +2666,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ------
 
-** github.org/x/net; version 0.52.0 -- https://github.com/golang/net
+** github.org/x/net - https://github.com/golang/net
 Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
@@ -2697,7 +2697,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------
 
-** influxdb_client; version 1.48.0 -- https://pypi.org/project/influxdb-client/
+** influxdb_client - https://pypi.org/project/influxdb-client/
 MIT License
 
 Copyright (c) 2019 InfluxData, Inc.
@@ -2778,7 +2778,7 @@ either expressed or implied, of David Wolever.
 
 ------
 
-** httpx; version 0.28.1 -- https://pypi.org/project/httpx/
+** httpx - https://pypi.org/project/httpx/
 Copyright © 2019, [Encode OSS Ltd](https://www.encode.io/).
 All rights reserved.
 
@@ -2794,7 +2794,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ------
 
-** pandas-stubs; version 2.3.3.251219 -- https://pypi.org/project/pandas-stubs/
+** pandas-stubs - https://pypi.org/project/pandas-stubs/
 BSD 3-Clause License
 
 Copyright (c) 2022, pandas
@@ -2827,7 +2827,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------
 
-** pyarrow-stubs; version 2.3.3.251219 -- https://pypi.org/project/pyarrow-stubs/
+** pyarrow-stubs - https://pypi.org/project/pyarrow-stubs/
 BSD 2-Clause License
 
 Copyright (c) 2024, ZhengYu, Xu
@@ -2853,7 +2853,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-** python-dotenv; version 1.1.0 -- https://pypi.org/project/python-dotenv/
+** python-dotenv - https://pypi.org/project/python-dotenv/
 Copyright (c) 2014, Saurabh Kumar (python-dotenv), 2013, Ted Tieken (django-dotenv-rw), 2013, Jacob Kaplan-Moss (django-dotenv)
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -2943,7 +2943,7 @@ SOFTWARE.
 
 ------
 
-** sqlalchemy; version 2.0.48 -- https://pypi.org/project/SQLAlchemy/
+** sqlalchemy - https://pypi.org/project/SQLAlchemy/
 Copyright 2005-2026 SQLAlchemy authors and contributors <see AUTHORS file>.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -2966,7 +2966,7 @@ SOFTWARE.
 
 ------
 
-** haversine; version 2.9.0 -- https://pypi.org/project/haversine/
+** haversine - https://pypi.org/project/haversine/
 The MIT License (MIT)
 
 Copyright (c) 2015 Mapado
@@ -2991,7 +2991,7 @@ THE SOFTWARE.
 
 ------
 
-** great-circle-calculator; version 1.3.1 -- https://pypi.org/project/great-circle-calculator/
+** great-circle-calculator - https://pypi.org/project/great-circle-calculator/
 MIT License
 
 Copyright (c) 2023 Sean Grogan
@@ -3016,7 +3016,7 @@ SOFTWARE.
 
 ------
 
-** @js-joda/core; version 5.6.1 -- https://www.npmjs.com/package/@js-joda/core
+** @js-joda/core - https://www.npmjs.com/package/@js-joda/core
 BSD License
 
 For js-joda software
@@ -3053,7 +3053,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------
 
-** com.influxdb:influxdb-client-java; version 6.6.0 -- https://github.com/influxdata/influxdb-client-java
+** com.influxdb:influxdb-client-java - https://github.com/influxdata/influxdb-client-java
 MIT License
 
 Copyright (c) 2018 Influxdata, Inc.
@@ -3078,7 +3078,7 @@ SOFTWARE.
 
 ------
 
-** org.simpleflatmapper:sfm-csv; version 8.2.3 -- https://github.com/arnaudroger/SimpleFlatMapper
+** org.simpleflatmapper:sfm-csv - https://github.com/arnaudroger/SimpleFlatMapper
 The MIT License (MIT)
 
 Copyright (c) 2014 Arnaud Roger
@@ -3103,7 +3103,7 @@ SOFTWARE.
 
 ------
 
-** streamlit-autorefresh; version 1.0.1 -- https://pypi.org/project/streamlit-autorefresh/
+** streamlit-autorefresh - https://pypi.org/project/streamlit-autorefresh/
 Copyright (c) 2018 The Python Packaging Authority
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -3126,7 +3126,7 @@ SOFTWARE.
 
 ------
 
-** plotly; version 6.2.0 -- https://pypi.org/project/plotly/
+** plotly - https://pypi.org/project/plotly/
 MIT License
 
 Copyright (c) 2016-2024 Plotly Technologies Inc.
@@ -3151,7 +3151,7 @@ THE SOFTWARE.
 
 ------
 
-** hashicorp/random; version 3.7.2 -- https://github.com/hashicorp/terraform-provider-random
+** hashicorp/random - https://github.com/hashicorp/terraform-provider-random
 Copyright IBM Corp. 2017, 2026
 
 Mozilla Public License Version 2.0
@@ -3530,7 +3530,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ------
 
-** pg8000; version 1.31.5 -- https://pypi.org/project/pg8000/
+** pg8000 - https://pypi.org/project/pg8000/
 BSD 3-Clause License
 
 Copyright Mathieu Fenniak and Contributors to pg8000.
