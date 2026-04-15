@@ -194,6 +194,12 @@ Before starting a migration, the following prerequisites must be met:
     }
     ```
 
+    After updating `s3_bucket_policy.json` with your bucket name, apply it with:
+    ```shell
+    aws s3api put-bucket-policy --bucket <your bucket name> --policy file://s3_bucket_policy.json
+    ```
+    Or via the AWS Console: navigate to your S3 bucket, go to the **Permissions** tab, scroll to **Bucket policy**, click **Edit**, paste the policy contents, and click **Save changes**.
+
 12. [Ensure that your S3 bucket uses SSE-S3 encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/specifying-s3-encryption.html).
 
 
