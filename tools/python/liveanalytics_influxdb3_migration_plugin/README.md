@@ -128,7 +128,7 @@ Before starting a migration, the following prerequisites must be met:
    influxdb3 create token --admin
    ```
 5. Set the following environment variables:
-   - `INFLUXDB3_HOST_URL`: The host of your InfluxDB v3 instance. For example, `https://example.com:8181`.
+    - `INFLUXDB3_HOST_URL`: The host of your InfluxDB v3 instance. For example, `https://example.com:8181`.
 
      For Timestream for InfluxDB, retrieve the host URL from a process node endpoint of your cluster:
      ```shell
@@ -142,7 +142,7 @@ Before starting a migration, the following prerequisites must be met:
 
     - `INFLUXDB3_AUTH_TOKEN`: Your InfluxDB v3 token.
 
-   - `INFLUXDB3_DATABASE_NAME`: The name of the InfluxDB v3 database that you want to migrate data to. This database does not have to already exist.
+    - `INFLUXDB3_DATABASE_NAME`: The name of the InfluxDB v3 database that you want to migrate data to. This database does not have to already exist.
 
    These environment variables are the same ones used by the InfluxDB v3 CLI.
 6. Navigate to the client directory, `./migration_client/`.
