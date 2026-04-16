@@ -61,6 +61,46 @@ The overall migration process is as follows:
 8. The client, using the HTTP trigger, sends a request for each Parquet file. Since the plugin writes to a buffer and does not persist writes, each invocation of the trigger verifies the previous migration. When an invocation verifies a previous migration, it places an empty `done.ack` file in the S3 bucket, marking that Parquet file as completed, preventing it from being migrated if `--resume` is used in the future.
 9. A final request is made using the HTTP trigger with an empty body to verify that all data has been migrated and all record counts are as expected.
 
+### Data Mapping
+
+The following table shows how the Timestream for LiveAnalytics schema is mapped to InfluxDB 3 schema.
+
+| Timestream for LiveAnalytics Concept | Line Protocol Concept |
+|--------------------------------------|-----------------------|
+| [Database](https://docs.aws.amazon.com/timestream/latest/developerguide/API_Database.html) | [Database](https://docs.influxdata.com/influxdb3/enterprise/get-started/#data-model) |
+| [Table](https://docs.aws.amazon.com/timestream/latest/developerguide/API_Table.html) | [Table](https://docs.influxdata.com/influxdb3/enterprise/reference/line-protocol/#table) |
+| [Dimensions](https://docs.aws.amazon.com/timestream/latest/developerguide/API_Dimension.html) | [Tags](https://docs.influxdata.com/influxdb3/enterprise/reference/line-protocol/#tag-set) |
+| [Measure name](https://docs.aws.amazon.com/timestream/latest/developerguide/data-modeling.html#data-modeling-measurenamemulti) | [Tag](https://docs.influxdata.com/influxdb3/enterprise/reference/line-protocol/#tag-set)|
+| [Measures](https://docs.aws.amazon.com/timestream/latest/developerguide/API_MeasureValue.html) | [Fields](https://docs.influxdata.com/influxdb3/enterprise/reference/line-protocol/#field-set) |
+| [Time](https://docs.aws.amazon.com/timestream/latest/developerguide/writes.html#writes.data-types) | [Timestamp](https://docs.influxdata.com/influxdb3/enterprise/reference/line-protocol/#timestamp) |
+
+#### Single-Measure Record Transformation
+
+The following is a single-measure record in Timestream for LiveAnalytics in the table `example_table`:
+
+| host | region | request_id | measure_name | time | measure_value::double |
+|-------|------------|------------------|--------------|-------------------------------|-----------------------|
+| host1 | us-west-2 | saio3242ovnfk | cpu_usage | 2025-04-17 16:42:54.702394001 | 0.66 |
+
+This record will be transformed to:
+
+```
+example_table,host=host1,region=us-west-2,request_id=saio3242ovnfk,measure_name=cpu_usage measure_value::double=0.66 1744933374702
+```
+
+#### Multi-Measure Record Transformation
+
+The following is a multi-measure record in Timestream for LiveAnalytics in the table `example_table` with everything to the right of `time` being measures:
+
+| host | region | request_id | measure_name | time | cpu_usage | memory_usage |
+|-------|------------|------------------|--------------|-------------------------------|-----------------------|--------------|
+| host1 | us-west-2 | saio3242ovnfk | metrics | 2025-04-17 16:42:54.702394001 | 0.66 | 0.21 |
+
+This record will be transformed to:
+
+```
+example_table,host=host1,region=us-west-2,request_id=saio3242ovnfk,measure_name=metrics cpu_usage=0.66,memory_usage=0.21 1744933374702
+```
 
 ## Performing a Migration
 
@@ -88,9 +128,21 @@ Before starting a migration, the following prerequisites must be met:
    influxdb3 create token --admin
    ```
 5. Set the following environment variables:
-   - `INFLUXDB3_HOST_URL`: The host of your InfluxDB v3 instance. For example, `https://example.com:8181`.
-   - `INFLUXDB3_AUTH_TOKEN`: Your InfluxDB v3 token.
-   - `INFLUXDB3_DATABASE_NAME`: The name of the InfluxDB v3 database that you want to migrate data to. This database does not have to already exist.
+    - `INFLUXDB3_HOST_URL`: The host of your InfluxDB v3 instance. For example, `https://example.com:8181`.
+
+     For Timestream for InfluxDB, retrieve the host URL from a process node endpoint of your cluster:
+     ```shell
+     aws timestream-influxdb list-db-instances-for-cluster --db-cluster-id <DB cluster ID>
+     ```
+
+     For Timestream for InfluxDB, retrieve the token from Secrets Manager using the cluster ID obtained above:
+     ```shell
+     aws secretsmanager get-secret-value --secret-id READONLY-InfluxDB-auth-parameters-<DB cluster ID>
+     ```
+
+    - `INFLUXDB3_AUTH_TOKEN`: Your InfluxDB v3 token.
+
+    - `INFLUXDB3_DATABASE_NAME`: The name of the InfluxDB v3 database that you want to migrate data to. This database does not have to already exist.
 
    These environment variables are the same ones used by the InfluxDB v3 CLI.
 6. Navigate to the client directory, `./migration_client/`.
@@ -193,6 +245,12 @@ Before starting a migration, the following prerequisites must be met:
        ]
     }
     ```
+
+    After updating `s3_bucket_policy.json` with your bucket name, apply it with:
+    ```shell
+    aws s3api put-bucket-policy --bucket <your bucket name> --policy file://s3_bucket_policy.json
+    ```
+    Or via the AWS Console: navigate to your S3 bucket, go to the **Permissions** tab, scroll to **Bucket policy**, click **Edit**, paste the policy contents, and click **Save changes**.
 
 12. [Ensure that your S3 bucket uses SSE-S3 encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/specifying-s3-encryption.html).
 
