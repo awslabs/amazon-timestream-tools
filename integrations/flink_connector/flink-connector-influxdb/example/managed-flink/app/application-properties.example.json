@@ -1,0 +1,26 @@
+[
+  {
+    "PropertyGroupId": "Application",
+    "PropertyMap": {
+      "pipeline": "datastream"
+    }
+  },
+  {
+    "PropertyGroupId": "KinesisSource",
+    "PropertyMap": {
+      "streamArn": "arn:aws:kinesis:us-east-1:123456789012:stream/influxdb3-example-input",
+      "region": "us-east-1",
+      "initialPosition": "LATEST"
+    }
+  },
+  {
+    "PropertyGroupId": "InfluxDB3",
+    "PropertyMap": {
+      "endpoint": "https://cluster-id.timestream-influxdb.us-east-1.on.aws:8086",
+      "database": "sensors",
+      "secretId": "arn:aws:secretsmanager:us-east-1:123456789012:secret:YOUR_CLUSTER_GENERATED_SECRET-REPLACE",
+      "secretJsonField": "token",
+      "region": "us-east-1"
+    }
+  }
+]
