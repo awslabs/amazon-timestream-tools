@@ -12,11 +12,14 @@ The directory contains:
  - [sample data generator](/integrations/flink_connector/sample-data-generator) - python script which generates and ingests sample data to Kinesis
  - [sample Kinesis to Timestream Application](/integrations/flink_connector/sample-kinesis-to-timestream-app) - sample Flink application which reads records from Kinesis and uses the Timestream Sink to ingest data to Timestream
  - [Amazon Timestream Flink Sink](/integrations/flink_connector/flink-connector-timestream) - Timestream Flink Sink as Maven module
+ - [Apache Flink Connector for Amazon Timestream for InfluxDB 3](/integrations/flink_connector/flink-connector-influxdb) - Flink DataStream and SQL sink for Amazon Timestream for InfluxDB 3, with its own examples and setup guide
 
 
 ![design](images/root-diagram.png)
 
 ## Getting Started
+
+> The steps below apply to the Amazon Timestream for LiveAnalytics sink. For Amazon Timestream for InfluxDB 3, see the [InfluxDB 3 connector README](/integrations/flink_connector/flink-connector-influxdb).
 
 ### 1. Install prerequisites
 

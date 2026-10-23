@@ -1,0 +1,25 @@
+{
+  "name": "flink-influxdb3-example-infrastructure",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/test/*.test.js && python3 -m unittest discover -s test -p '*_test.py'",
+    "synth": "npm run build && cdk synth --quiet",
+    "deploy": "npm run build && cdk deploy",
+    "destroy": "cdk destroy"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.274.0",
+    "constructs": "10.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.0",
+    "aws-cdk": "2.1146.1",
+    "ts-node": "10.9.2",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
