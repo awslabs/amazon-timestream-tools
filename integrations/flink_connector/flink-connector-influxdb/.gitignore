@@ -1,0 +1,33 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+.DS_Store
+.idea/
+.vscode/
+.m2/
+*.iml
+*.log
+*.class
+.classpath
+.project
+.settings/
+hs_err_pid*
+target/
+node_modules/
+cdk.out/
+dist/
+coverage/
+__pycache__/
+*.pyc
+.attach_pid*
+/build
+
+# Keep CDK TypeScript entry points; the top-level .gitignore ignores bin/.
+!/example/managed-flink/infra/bin/
+!/example/managed-flink/infra/bin/**/*.ts
+
+# Local configuration.
+.env
+.env.*
+!.env.example
+/example/managed-flink/app/application-properties.json
