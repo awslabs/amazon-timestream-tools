@@ -31,4 +31,3 @@ __pycache__/
 .env.*
 !.env.example
 /example/managed-flink/app/application-properties.json
-/example/managed-flink/loadtest/

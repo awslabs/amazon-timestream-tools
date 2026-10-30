@@ -10,7 +10,7 @@
 
     <groupId>software.amazon.timestream</groupId>
     <artifactId>flink-connector-timestream-influxdb3</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>Flink Connector for Amazon Timestream for InfluxDB 3</name>
     <description>An Apache Flink DataStream and Table API sink for Amazon Timestream for InfluxDB 3.</description>
     <packaging>jar</packaging>

@@ -385,8 +385,7 @@ npm run synth -- \
 ```
 
 `verify` enforces 80% line and 75% branch coverage (reports in
-`target/site/jacoco/`). The [CI workflow](.github/workflows/ci.yml) runs all
-of the above.
+`target/site/jacoco/`).
 
 ## License
 
