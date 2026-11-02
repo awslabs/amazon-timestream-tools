@@ -10,7 +10,7 @@
 
     <groupId>software.amazon.timestream</groupId>
     <artifactId>managed-flink-influxdb3-example</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>Managed Flink InfluxDB 3 Example</name>
     <description>
         A Kinesis-to-InfluxDB 3 example application for Amazon Managed Service for
@@ -21,7 +21,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>17</maven.compiler.release>
 
-        <connector.version>0.1.0-SNAPSHOT</connector.version>
+        <connector.version>0.1.0</connector.version>
         <flink.version>2.3.0</flink.version>
         <kinesis.connector.version>6.0.1-2.0</kinesis.connector.version>
         <managed.flink.runtime.version>1.2.0</managed.flink.runtime.version>

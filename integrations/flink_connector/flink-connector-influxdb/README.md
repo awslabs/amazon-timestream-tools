@@ -9,17 +9,44 @@ Built on `influxdb3-java` 1.10.0.
 
 ## Installation
 
+[![Maven Central](https://img.shields.io/maven-central/v/software.amazon.timestream/flink-connector-timestream-influxdb3)](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream-influxdb3)
+
+The connector is published to
+[Maven Central](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream-influxdb3).
+
+Maven:
+
 ```xml
 <dependency>
     <groupId>software.amazon.timestream</groupId>
     <artifactId>flink-connector-timestream-influxdb3</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
-Until a release is published, run `mvn clean install` to install the snapshot
-locally. The artifact is a library, not a runnable Flink application; its
-dependencies resolve from its POM.
+Gradle (Kotlin DSL):
+
+```kotlin
+implementation("software.amazon.timestream:flink-connector-timestream-influxdb3:0.1.0")
+```
+
+Gradle (Groovy DSL):
+
+```groovy
+implementation 'software.amazon.timestream:flink-connector-timestream-influxdb3:0.1.0'
+```
+
+The artifact is a library, not a runnable Flink application; its dependencies
+resolve from its POM. Package it into your application JAR (for example, with
+the Maven Shade plugin) and keep Flink itself `provided`.
+
+### Compatibility
+
+| Connector | Apache Flink | Java | Managed Flink runtime | `influxdb3-java` |
+| --- | --- | --- | --- | --- |
+| 0.1.x | 2.3.x | 17+ | `FLINK-2_3` | 1.10.0 |
+
+See the [changelog](CHANGELOG.md) for release notes.
 
 ## Quick start
 
@@ -362,15 +389,18 @@ Notes:
 
 ## Build and test
 
-Requires JDK 17 and Maven; infrastructure tests also need Node.js 20+ and
-Python 3, and the container test needs Docker.
+Building from source is only needed to contribute to the connector; applications
+can use the [published artifact](#installation). Requires JDK 17 and Maven;
+infrastructure tests also need Node.js 20+ and Python 3, and the container test
+needs Docker.
 
 ```bash
 # Connector unit, packaging, and coverage checks
 mvn clean verify
 
-# Example application
-mvn clean install
+# Example application (uses the released connector from Maven Central;
+# `mvn clean install` is only needed to build it against local, unreleased
+# connector changes; see the example README)
 mvn -f example/managed-flink/app/pom.xml clean verify
 
 # Docker-backed end-to-end test (override image with -Dinfluxdb3.test.image=...)
@@ -381,7 +411,7 @@ cd example/managed-flink/infra
 npm ci
 npm test
 npm run synth -- \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar
+  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-all.jar
 ```
 
 `verify` enforces 80% line and 75% branch coverage (reports in

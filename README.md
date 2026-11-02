@@ -10,7 +10,10 @@
    underlying infrastructure, you can focus on optimizing and building your applications.
 
 Amazon Timestream also integrates with commonly used services for data collection, visualization, and machine learning.
-You can send data to Amazon Timestream using AWS IoT Core, Amazon Kinesis, Amazon MSK, and open source Telegraf.
+You can send data to Amazon Timestream using AWS IoT Core, Amazon Kinesis, Amazon MSK, Apache Flink, and open source Telegraf.
+To stream data into Amazon Timestream for InfluxDB 3 from Apache Flink, including Amazon Managed Service for Apache Flink,
+use the [Apache Flink Connector for Amazon Timestream for InfluxDB 3](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/flink_connector/flink-connector-influxdb/),
+available on [Maven Central](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream-influxdb3).
 You can visualize data using Amazon QuickSight, Grafana, and business intelligence tools through JDBC. You can also use
 Amazon SageMaker with Amazon Timestream for machine learning. For more information on how to use Amazon Timestream see the [AWS documentation](https://docs.aws.amazon.com/timestream/latest/developerguide/index.html).
 
@@ -42,8 +45,8 @@ To continue to use your preferred data collection, analytics, visualization, and
 * [Analyzing time series data with Amazon SageMaker Notebooks](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/sagemaker/)
 * [Sending data to Amazon Timestream using AWS IoT Core](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/iot_core/)
 * [Sending data to Amazon Timestream using open source Telegraf](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/integrations/telegraf/)
-* [Sending data to Amazon Timestream using Apache Flink](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/flink_connector/)
-* [Sending data to Amazon Timestream for InfluxDB 3 using Apache Flink](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/flink_connector/flink-connector-influxdb/)
+* [Sending data to Amazon Timestream for InfluxDB 3 using Apache Flink](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/flink_connector/flink-connector-influxdb/) (available on [Maven Central](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream-influxdb3))
+* [Sending data to Amazon Timestream for LiveAnalytics using Apache Flink](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/flink_connector/)
 * [Sending data to Amazon Timestream using Apache Kafka](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/integrations/kafka_connector/)
 * [Writing and Querying with AWS SDK for pandas (awswrangler)](https://github.com/awslabs/amazon-timestream-tools/blob/mainline/integrations/pandas/)
 

@@ -68,12 +68,15 @@ This application is a consumer of that library:
 <dependency>
     <groupId>software.amazon.timestream</groupId>
     <artifactId>flink-connector-timestream-influxdb3</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
-During development, `mvn install` places the connector in the local Maven
-repository. After release, the same dependency is resolved from Maven Central.
+By default, the example uses the released connector `0.1.0` from
+[Maven Central](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream-influxdb3);
+no local connector build is needed. To test unreleased connector changes, see
+[Build against local connector changes](#build-against-local-connector-changes).
+
 The application's Maven Shade configuration embeds the connector and its
 runtime dependencies in the deployable application JAR. Flink itself and
 `aws-kinesisanalytics-runtime` remain `provided` by Managed Flink.
@@ -83,11 +86,10 @@ uploaded to S3.
 
 ## 1. Build
 
-From `integrations/flink_connector/flink-connector-influxdb/`, install the
-connector and package the application:
+From `integrations/flink_connector/flink-connector-influxdb/`, package the
+application:
 
 ```bash
-mvn clean install
 mvn -f example/managed-flink/app/pom.xml clean verify
 ```
 
@@ -95,8 +97,28 @@ The deployable artifact is:
 
 ```text
 example/managed-flink/app/target/
-  managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar
+  managed-flink-influxdb3-example-0.1.0-all.jar
 ```
+
+Later commands refer to this JAR as `$JAR`. Set it from the same directory:
+
+```bash
+export JAR="$PWD/example/managed-flink/app/target/managed-flink-influxdb3-example-0.1.0-all.jar"
+```
+
+### Build against local connector changes
+
+Only needed when changing the connector itself. Give the connector an
+unreleased `-SNAPSHOT` version so the local build doesn't replace the released
+`0.1.0` in `~/.m2`, install it, and point the example at it:
+
+```bash
+mvn versions:set -DnewVersion=0.1.1-SNAPSHOT -DgenerateBackupPoms=false
+mvn clean install
+mvn -f example/managed-flink/app/pom.xml clean verify -Dconnector.version=0.1.1-SNAPSHOT
+```
+
+Don't commit the version change.
 
 ## 2. Create The Input Stream
 
@@ -139,7 +161,7 @@ Use an S3 bucket in the same Region as the Managed Flink application:
 
 ```bash
 aws s3 cp \
-  example/managed-flink/app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar \
+  "$JAR" \
   s3://YOUR_BUCKET/flink/managed-flink-influxdb3-example.jar \
   --region us-east-1
 ```
@@ -307,15 +329,17 @@ environment, an existing InfluxDB 3 database and authentication secret, and a
 previously built or downloaded application fat JAR. Java and Maven are only
 required when producing that JAR locally.
 
-From `integrations/flink_connector/flink-connector-influxdb/`, install and test
-the infrastructure:
+From `integrations/flink_connector/flink-connector-influxdb/`, set `JAR` to the
+application fat JAR (see [Build](#1-build); use its path if you downloaded it
+instead), then install and test the infrastructure:
 
 ```bash
+export JAR="$PWD/example/managed-flink/app/target/managed-flink-influxdb3-example-0.1.0-all.jar"
 cd example/managed-flink/infra
 npm ci
 npm test
 npm run synth -- \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar
+  -c applicationJarPath="$JAR"
 ```
 
 Supply these CloudFormation parameters when deploying:
@@ -353,10 +377,10 @@ export AWS_REGION=us-east-1
 export CDK_DEFAULT_REGION="$AWS_REGION"
 
 npx cdk bootstrap \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar
+  -c applicationJarPath="$JAR"
 
 npm run deploy -- \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar \
+  -c applicationJarPath="$JAR" \
   --parameters ManagedFlinkInfluxDB3ExampleStack:InfluxDbEndpoint=https://YOUR_ENDPOINT:8181 \
   --parameters ManagedFlinkInfluxDB3ExampleStack:InfluxDbSecretArn=arn:aws:secretsmanager:us-east-1:123456789012:secret:YOUR_SECRET-AbCdEf
 ```
@@ -365,7 +389,7 @@ For a private endpoint, also supply reachable subnets and security groups:
 
 ```bash
 npm run deploy -- \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar \
+  -c applicationJarPath="$JAR" \
   -c flinkSubnetIds=subnet-11111111,subnet-22222222 \
   -c flinkSecurityGroupIds=sg-11111111 \
   --parameters ManagedFlinkInfluxDB3ExampleStack:InfluxDbEndpoint=https://YOUR_PRIVATE_ENDPOINT:8181 \
@@ -376,7 +400,7 @@ To run the SQL pipeline, add `-c pipeline=sql` to either deploy command:
 
 ```bash
 npm run deploy -- \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar \
+  -c applicationJarPath="$JAR" \
   -c pipeline=sql \
   --parameters ManagedFlinkInfluxDB3ExampleStack:InfluxDbEndpoint=https://YOUR_ENDPOINT:8181 \
   --parameters ManagedFlinkInfluxDB3ExampleStack:InfluxDbSecretArn=arn:aws:secretsmanager:us-east-1:123456789012:secret:YOUR_SECRET-AbCdEf
@@ -412,7 +436,7 @@ Destroy the environment while the supplied JAR is still available:
 
 ```bash
 npm run destroy -- \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar
+  -c applicationJarPath="$JAR"
 ```
 
 ## Monitoring
@@ -491,7 +515,7 @@ by 1 µs when unlimited, so every row is unique.
 
 ```bash
 npm run deploy -- \
-  -c applicationJarPath=../app/target/managed-flink-influxdb3-example-0.1.0-SNAPSHOT-all.jar \
+  -c applicationJarPath="$JAR" \
   -c pipeline=datagen \
   -c parallelism=4 \
   -c dataGenProperties='{"ratePerSecond":"20000","runId":"p4-b10k"}' \

@@ -1,18 +1,23 @@
-<!-- This sample application is part of the Timestream prerelease documentation. The prerelease documentation is confidential and is provided under the terms of your nondisclosure agreement with Amazon Web Services (AWS) or other agreement governing your receipt of AWS confidential information. -->
+# Apache Flink Connectors for Amazon Timestream
 
-# Amazon Timestream Sink for Apache Flink
+Write records to Amazon Timestream from Apache Flink. This directory contains a connector for each Timestream engine:
 
-Write records to Timestream from Flink.
+| Engine | Connector | Maven artifact | Latest | Flink | Java |
+| --- | --- | --- | --- | --- | --- |
+| Amazon Timestream for InfluxDB 3 | [Apache Flink Connector for Amazon Timestream for InfluxDB 3](/integrations/flink_connector/flink-connector-influxdb) (DataStream and SQL) | [`software.amazon.timestream:flink-connector-timestream-influxdb3`](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream-influxdb3) | 0.1.0 | 2.3.x | 17+ |
+| Amazon Timestream for LiveAnalytics | [Amazon Timestream for LiveAnalytics Flink Sink](/integrations/flink_connector/flink-connector-timestream) | [`software.amazon.timestream:flink-connector-timestream`](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream) | 0.5 | 1.18 | 11 |
+
+For Amazon Timestream for InfluxDB 3, start with the [connector README](/integrations/flink_connector/flink-connector-influxdb), which includes a quick start, Flink SQL usage, and a [Managed Service for Apache Flink example](/integrations/flink_connector/flink-connector-influxdb/example/managed-flink/README.md) with a CDK deployment.
 
 ----
 ## Overview
 
-This is the root directory for samples which show you end-to-end process of working with Kinesis and Timestream.
+This is the root directory for the Timestream Flink connectors, and for samples which show you the end-to-end process of working with Kinesis and Timestream for LiveAnalytics.
 The directory contains:
- - [sample data generator](/integrations/flink_connector/sample-data-generator) - python script which generates and ingests sample data to Kinesis
- - [sample Kinesis to Timestream Application](/integrations/flink_connector/sample-kinesis-to-timestream-app) - sample Flink application which reads records from Kinesis and uses the Timestream Sink to ingest data to Timestream
- - [Amazon Timestream Flink Sink](/integrations/flink_connector/flink-connector-timestream) - Timestream Flink Sink as Maven module
  - [Apache Flink Connector for Amazon Timestream for InfluxDB 3](/integrations/flink_connector/flink-connector-influxdb) - Flink DataStream and SQL sink for Amazon Timestream for InfluxDB 3, with its own examples and setup guide
+ - [Amazon Timestream for LiveAnalytics Flink Sink](/integrations/flink_connector/flink-connector-timestream) - Timestream for LiveAnalytics Flink Sink as Maven module
+ - [sample data generator](/integrations/flink_connector/sample-data-generator) - python script which generates and ingests sample data to Kinesis for the Timestream for LiveAnalytics sample application
+ - [sample Kinesis to Timestream for LiveAnalytics Application](/integrations/flink_connector/sample-kinesis-to-timestream-app) - sample Flink application which reads records from Kinesis and uses the Timestream for LiveAnalytics Sink to ingest data to Timestream for LiveAnalytics
 
 
 ![design](images/root-diagram.png)
@@ -23,7 +28,7 @@ The directory contains:
 
 ### 1. Install prerequisites
 
- - Java 11 is the recommended version for using Kinesis Data Analytics for Apache Flink Application. If you have multiple Java versions ensure to export Java 11 to your `JAVA_HOME` environment variable.
+ - Java 11 is the recommended version for running this sample on Amazon Managed Service for Apache Flink. If you have multiple Java versions ensure to export Java 11 to your `JAVA_HOME` environment variable.
  - Install [Apache Maven](https://maven.apache.org/install.html). You can test your Apache Maven install with the following command:
 ```
 mvn -version
@@ -51,7 +56,7 @@ mvn install exec:java -Dexec.mainClass="com.amazonaws.samples.kinesis2timestream
 aws timestream-query query --query-string "SELECT * FROM kdaflink.kinesisdata WHERE time >= ago (15m) LIMIT 10"
 ```
 
-## 3 (option B). Run Sample Flink Application on Amazon Kinesis Data Analytics
+## 3 (option B). Run Sample Flink Application on Amazon Managed Service for Apache Flink
 1. Compile the sample application:
 ```shell
 cd ../sample-kinesis-to-timestream-app

@@ -26,7 +26,7 @@ The migration has three high‑level phases:
 
 ## Prerequisites
 
-Before starting the migration, ensure you have the necessary tools and dependencies installed. Follow the installation steps at **[README.md#Installation](../../../README.md#installation)**.
+Before starting the migration, ensure you have the necessary tools and dependencies installed. Follow the installation steps at **[README.md#Installation](../../README.md#installation)**.
 
 - Migrating to <b>InfluxDB V2</b>
 
