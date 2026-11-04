@@ -1,9 +1,9 @@
-# Amazon Timestream Connector for Apache Flink
+# Amazon Timestream for LiveAnalytics Connector for Apache Flink
 
 ![Code Coverage Instructions](../../../.github/badges/jacoco.svg)
 ![Code Coverage Branches](../../../.github/badges/branches.svg)
 
-This project contains Timestream Sink connector for Apache Flink. The sink will buffer, batch, and write data in parallel to Timestream database.
+This project contains the Timestream for LiveAnalytics Sink connector for Apache Flink. The sink will buffer, batch, and write data in parallel to a Timestream for LiveAnalytics database. For Amazon Timestream for InfluxDB 3, use the [Apache Flink Connector for Amazon Timestream for InfluxDB 3](../flink-connector-influxdb) instead.
 
 ## Features
 * Buffering: buffer records in a fixed size buffer
@@ -22,14 +22,14 @@ This directory contains the sink code itself - a reusable component which you ca
 
 ## Using Timestream Sink in a new project
 
-The sink is available [in the Maven repository](https://mvnrepository.com/artifact/software.amazon.timestream/flink-connector-timestream/0.1). Define the Maven dependency on the sink as follows:
+The sink is available [on Maven Central](https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream/0.5). Define the Maven dependency on the sink as follows:
 
 ```
-<!-- https://mvnrepository.com/artifact/software.amazon.timestream/flink-connector-timestream -->
+<!-- https://central.sonatype.com/artifact/software.amazon.timestream/flink-connector-timestream -->
 <dependency>
     <groupId>software.amazon.timestream</groupId>
     <artifactId>flink-connector-timestream</artifactId>
-    <version>0.3</version>
+    <version>0.5</version>
 </dependency>
 ```
 
@@ -102,7 +102,7 @@ TimestreamSink provides at least once guarantee due to the underlying Sink model
 
 ### Metrics
 
-On top of [the default Flink provided metrics](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/ops/metrics/#system-metrics), the sink provides the following metrics:
+On top of [the default Flink provided metrics](https://nightlies.apache.org/flink/flink-docs-release-1.18/docs/ops/metrics/#system-metrics), the sink provides the following metrics:
 * `millisTimeBetweenFlushes`: number of milliseconds between each consecutive flushes
 * `inFlightRequests`: number of uncompleted calls with Async Timestream write client
 * `currentSendTime`: total time to send the timestream write request
@@ -118,9 +118,9 @@ On top of [the default Flink provided metrics](https://nightlies.apache.org/flin
 * `numRecordsSuccess`: number of successfully written records
 * `numOfUNKNOWN`, `numOfThrottlingException`, `numOfInternalServerException`, `numOfValidationException`, `numOfInvalidEndpointException`, `numOfAccessDeniedException`, `numOfConflictException`, `numOfResourceNotFoundException`, `numOfRejectedRecordsException`, `numOfServiceQuotaExceededException`: number of given exceptions occurred during execution
 
-You can export those metrics to Amazon CloudWatch when running the Flink Sink on Amazon Kinesis Data Analytics by setting **emitSinkMetricsToCloudWatch** configuration option to true.
-This option adds "kinesisanalytics" to the sink MetricGroups, and therefore metrics are be exported as custom CloudWatch metrics, according to [KDA - Custom Metrics](https://docs.aws.amazon.com/kinesisanalytics/latest/java/monitoring-metrics-custom.html#monitoring-metrics-custom-howitworks).
-Check [KDA - Metrics and Dimensions](https://docs.aws.amazon.com/kinesisanalytics/latest/java/metrics-dimensions.html) to see other metrics - and metrics levels - available in KDA/CloudWatch.
+You can export those metrics to Amazon CloudWatch when running the Flink Sink on Amazon Managed Service for Apache Flink by setting **emitSinkMetricsToCloudWatch** configuration option to true.
+This option adds "kinesisanalytics" to the sink MetricGroups, and therefore metrics are exported as custom CloudWatch metrics, according to [Managed Service for Apache Flink - Custom Metrics](https://docs.aws.amazon.com/managed-flink/latest/java/monitoring-metrics-custom.html#monitoring-metrics-custom-howitworks).
+Check [Managed Service for Apache Flink - Metrics and Dimensions](https://docs.aws.amazon.com/managed-flink/latest/java/metrics-dimensions.html) to see other metrics - and metrics levels - available in Managed Service for Apache Flink and CloudWatch.
   
 ## Testing
 
@@ -154,7 +154,7 @@ After the Sink is installed locally, you can use it as any other Maven module. D
 <dependency>
     <groupId>com.amazonaws.samples.connectors.timestream</groupId>
     <artifactId>flink-connector-timestream</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <version>0.5-SNAPSHOT</version>
 </dependency>
 ```
 
